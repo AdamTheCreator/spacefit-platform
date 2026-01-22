@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Agent Activity Animations */
+
+/* Pulsing glow effect for active agents */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+    box-shadow: 0 0 20px 4px currentColor;
+  }
+}
+
+/* Breathing effect for orchestrator thinking */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+/* Ripple effect */
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+/* Data flow animation */
+@keyframes data-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Orbit animation for working state */
+@keyframes orbit {
+  from {
+    transform: rotate(0deg) translateX(12px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(12px) rotate(-360deg);
+  }
+}
+
+/* Agent indicator classes */
+.agent-indicator {
+  @apply relative rounded-full transition-all duration-300;
+}
+
+.agent-indicator-idle {
+  @apply opacity-40;
+}
+
+.agent-indicator-active {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.agent-indicator-thinking {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* Ripple container */
+.agent-ripple {
+  @apply absolute inset-0 rounded-full;
+  animation: ripple 1.5s ease-out infinite;
+}
+
+/* Orchestrator specific animation */
+.orchestrator-thinking {
+  @apply relative;
+}
+
+.orchestrator-thinking::before {
+  content: '';
+  @apply absolute inset-0 rounded-full;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.5), transparent);
+  background-size: 200% 100%;
+  animation: data-flow 1.5s linear infinite;
+}
+
+/* Agent working indicator with orbiting dot */
+.agent-working {
+  @apply relative;
+}
+
+.agent-working::after {
+  content: '';
+  @apply absolute w-2 h-2 rounded-full bg-white;
+  top: 50%;
+  left: 50%;
+  margin-top: -4px;
+  margin-left: -4px;
+  animation: orbit 1s linear infinite;
+}
+
+/* Workflow step animations */
+.workflow-step-active {
+  @apply border-l-2 border-blue-500;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Processing indicator bar */
+@keyframes progress-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.processing-bar {
+  @apply relative overflow-hidden;
+}
+
+.processing-bar::after {
+  content: '';
+  @apply absolute inset-0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: progress-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Smooth color transitions for agent states */
+.agent-transition {
+  @apply transition-all duration-500 ease-out;
+}
+
+/* Agent glow colors */
+.glow-blue { --tw-shadow-color: rgb(59 130 246); }
+.glow-purple { --tw-shadow-color: rgb(168 85 247); }
+.glow-green { --tw-shadow-color: rgb(34 197 94); }
+.glow-orange { --tw-shadow-color: rgb(249 115 22); }
+.glow-red { --tw-shadow-color: rgb(239 68 68); }
+.glow-teal { --tw-shadow-color: rgb(20 184 166); }
+
+/* Shimmer animation for progress bars */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+}
+
+/* Hide scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
