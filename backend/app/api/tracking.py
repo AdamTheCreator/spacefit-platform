@@ -42,7 +42,7 @@ async def track_open(
     This endpoint returns a 1x1 transparent GIF and records the open event.
     Called when an email client loads the tracking pixel image.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     # Find recipient by tracking ID
     result = await db.execute(
@@ -98,7 +98,7 @@ async def track_click(
         link_hash: Hash of the original URL (for verification)
         url: The original URL (base64 encoded)
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     # Decode the original URL
     try:

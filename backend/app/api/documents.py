@@ -83,7 +83,7 @@ async def process_document_task(
             document.confidence_score = parse_result["confidence"]
             document.extracted_data = parse_result["extracted_data"]
             document.status = DocumentStatus.COMPLETED.value
-            document.processed_at = datetime.now(timezone.utc)
+            document.processed_at = datetime.utcnow()
 
             # If it's a leasing flyer, create AvailableSpace and ExistingTenant records
             if parse_result["document_type"] == DocumentType.LEASING_FLYER.value:

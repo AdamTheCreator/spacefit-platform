@@ -272,7 +272,7 @@ class GmailService:
                 success=True,
                 message_id=sent_message.get("id"),
                 thread_id=sent_message.get("threadId"),
-                sent_at=datetime.now(timezone.utc),
+                sent_at=datetime.utcnow(),
             )
 
         except HttpError as e:

@@ -124,7 +124,7 @@ async def send_email(
             success=True,
             recipient_email=to_email,
             message_id=f"dev-{datetime.now().timestamp()}",
-            sent_at=datetime.now(timezone.utc),
+            sent_at=datetime.utcnow(),
         )
 
     # Production mode - send via SMTP
@@ -155,7 +155,7 @@ async def send_email(
             success=True,
             recipient_email=to_email,
             message_id=msg.get("Message-ID"),
-            sent_at=datetime.now(timezone.utc),
+            sent_at=datetime.utcnow(),
         )
 
     except Exception as e:

@@ -227,7 +227,7 @@ async def verify_credential(
     if site_name not in list_available_scrapers():
         # No scraper available - just mark as verified without testing
         credential.is_verified = True
-        credential.last_verified_at = datetime.now(timezone.utc)
+        credential.last_verified_at = datetime.utcnow()
         credential.session_status = "unknown"
         await db.commit()
 
@@ -255,9 +255,9 @@ async def verify_credential(
 
     # Update credential status based on result
     credential.is_verified = verification_result.success
-    credential.last_verified_at = datetime.now(timezone.utc)
+    credential.last_verified_at = datetime.utcnow()
     credential.session_status = "valid" if verification_result.success else "error"
-    credential.session_last_checked = datetime.now(timezone.utc)
+    credential.session_last_checked = datetime.utcnow()
     credential.session_error_message = (
         None if verification_result.success else verification_result.message
     )

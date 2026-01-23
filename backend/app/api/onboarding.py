@@ -107,5 +107,5 @@ async def complete_onboarding(
         progress = OnboardingProgress(user_id=current_user.id)
         db.add(progress)
 
-    progress.completed_at = datetime.now(timezone.utc)
+    progress.completed_at = datetime.utcnow()
     await db.commit()

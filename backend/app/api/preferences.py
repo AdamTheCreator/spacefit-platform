@@ -222,7 +222,7 @@ async def update_preferences(
     completion = _calculate_completion(prefs)
     if completion >= 75 and not prefs.is_complete:
         prefs.is_complete = True
-        prefs.completed_at = datetime.now(timezone.utc)
+        prefs.completed_at = datetime.utcnow()
 
     await db.commit()
     await db.refresh(prefs)

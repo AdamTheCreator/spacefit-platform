@@ -83,7 +83,7 @@ class SubscriptionService:
     @staticmethod
     def _get_current_period() -> tuple[datetime, datetime]:
         """Get the current billing period (monthly)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         period_end = (period_start + relativedelta(months=1)) - relativedelta(seconds=1)
         return period_start, period_end

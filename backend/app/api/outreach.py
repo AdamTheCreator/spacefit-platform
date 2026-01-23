@@ -410,7 +410,7 @@ async def update_campaign(
     for field, value in update_data.items():
         setattr(campaign, field, value)
 
-    campaign.updated_at = datetime.now(timezone.utc)
+    campaign.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(campaign)
 
@@ -517,7 +517,7 @@ async def send_campaign(
 
     # Update campaign status
     campaign.status = CampaignStatus.SENDING.value
-    campaign.sent_at = datetime.now(timezone.utc)
+    campaign.sent_at = datetime.utcnow()
     await db.commit()
 
     # Prepare recipients data
@@ -557,7 +557,7 @@ async def send_campaign(
     campaign.sent_count = summary.successful
     campaign.bounced_count = summary.failed
     campaign.status = CampaignStatus.SENT.value
-    campaign.completed_at = datetime.now(timezone.utc)
+    campaign.completed_at = datetime.utcnow()
 
     await db.commit()
 
