@@ -22,10 +22,10 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  processing: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  completed: 'bg-green-500/20 text-green-400 border-green-500/30',
-  failed: 'bg-red-500/20 text-red-400 border-red-500/30',
+  pending: 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-[var(--color-warning)]/30',
+  processing: 'bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30',
+  completed: 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/30',
+  failed: 'bg-[var(--color-error)]/10 text-[var(--color-error)] border-[var(--color-error)]/30',
 };
 
 function formatFileSize(bytes: number): string {
@@ -55,18 +55,18 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
   return (
     <div
       onClick={() => onSelect(document.id)}
-      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+      className={`p-4 border cursor-pointer transition-all ${
         isSelected
-          ? 'bg-indigo-500/20 border-indigo-500'
-          : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
+          ? 'bg-[var(--accent)]/10 border-[var(--accent)]'
+          : 'bg-[var(--bg-tertiary)] border-industrial-subtle hover:border-industrial'
       }`}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           {/* File icon based on type */}
-          <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center">
+          <div className="w-10 h-10 bg-[var(--bg-secondary)] border border-industrial-subtle flex items-center justify-center">
             {document.mime_type === 'application/pdf' ? (
-              <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-5 h-5 text-[var(--color-error)]" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
@@ -74,7 +74,7 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
                 />
               </svg>
             ) : (
-              <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-5 h-5 text-[var(--accent)]" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
@@ -85,10 +85,10 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-white truncate max-w-[200px]">
+            <h3 className="font-mono text-sm font-medium text-industrial truncate max-w-[200px]">
               {document.filename}
             </h3>
-            <p className="text-xs text-gray-400">
+            <p className="font-mono text-[10px] text-industrial-muted">
               {formatFileSize(document.file_size)} • {formatDate(document.created_at)}
             </p>
           </div>
@@ -99,7 +99,7 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
             e.stopPropagation();
             onDelete(document.id);
           }}
-          className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+          className="p-1.5 text-industrial-muted hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -114,20 +114,20 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
 
       <div className="mt-3 flex items-center gap-2">
         <span
-          className={`px-2 py-0.5 text-xs rounded-full border ${
+          className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide border ${
             STATUS_COLORS[document.status]
           }`}
         >
           {document.status === 'processing' && (
-            <span className="inline-block w-2 h-2 mr-1 bg-current rounded-full animate-pulse" />
+            <span className="inline-block w-1.5 h-1.5 mr-1 bg-current animate-pulse" />
           )}
           {document.status}
         </span>
-        <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-300">
+        <span className="px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide bg-[var(--bg-secondary)] text-industrial-secondary border border-industrial-subtle">
           {DOCUMENT_TYPE_LABELS[document.document_type]}
         </span>
         {document.confidence_score && (
-          <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400">
+          <span className="px-2 py-0.5 font-mono text-[10px] bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30">
             {Math.round(document.confidence_score * 100)}% confidence
           </span>
         )}
@@ -205,10 +205,10 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => fileInputRef.current?.click()}
-      className={`relative p-8 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+      className={`relative p-8 border-2 border-dashed cursor-pointer transition-all ${
         isDragging
-          ? 'border-indigo-500 bg-indigo-500/10'
-          : 'border-gray-600 hover:border-gray-500 bg-gray-800/30'
+          ? 'border-[var(--accent)] bg-[var(--accent)]/10'
+          : 'border-industrial hover:border-industrial-subtle bg-[var(--bg-tertiary)]'
       }`}
     >
       <input
@@ -223,14 +223,17 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
       <div className="flex flex-col items-center text-center">
         {isUploading ? (
           <>
-            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-white font-medium">Uploading...</p>
+            <div className="relative w-12 h-12 mb-4">
+              <div className="w-12 h-12 border border-industrial" />
+              <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+            </div>
+            <p className="font-mono text-sm text-industrial">Uploading...</p>
           </>
         ) : (
           <>
-            <div className="w-12 h-12 rounded-xl bg-gray-700 flex items-center justify-center mb-4">
+            <div className="w-12 h-12 bg-[var(--bg-secondary)] border border-industrial-subtle flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-gray-400"
+                className="w-6 h-6 text-industrial-muted"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -243,10 +246,10 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
                 />
               </svg>
             </div>
-            <p className="text-white font-medium mb-1">
+            <p className="font-mono text-sm text-industrial mb-1">
               Drop files here or click to upload
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="font-mono text-xs text-industrial-muted">
               Supports PDF, PNG, JPG (max 50MB)
             </p>
           </>
@@ -1077,12 +1080,12 @@ Please run a void analysis on this property to identify potential tenant opportu
 
   return (
     <AppLayout>
-      <div className="h-full flex">
+      <div className="h-full flex bg-industrial">
         {/* Left Panel - Document List */}
-        <div className="w-96 flex-shrink-0 border-r border-gray-800 flex flex-col">
-          <div className="p-4 border-b border-gray-800">
-            <h1 className="text-xl font-semibold text-white mb-1">Documents</h1>
-            <p className="text-sm text-gray-400">
+        <div className="w-96 flex-shrink-0 border-r border-industrial flex flex-col">
+          <div className="p-4 border-b border-industrial">
+            <h1 className="font-mono text-lg font-bold tracking-tight text-industrial mb-1">Documents</h1>
+            <p className="font-mono text-xs text-industrial-muted">
               Upload leasing flyers, void analyses, and investment memos
             </p>
           </div>
@@ -1094,14 +1097,17 @@ Please run a void analysis on this property to identify potential tenant opportu
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-industrial">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <div className="relative w-6 h-6">
+                  <div className="w-6 h-6 border border-industrial" />
+                  <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+                </div>
               </div>
             ) : data?.items.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-400">No documents uploaded yet</p>
+                <p className="font-mono text-xs text-industrial-muted">No documents uploaded yet</p>
               </div>
             ) : (
               data?.items.map((doc) => (
@@ -1118,7 +1124,7 @@ Please run a void analysis on this property to identify potential tenant opportu
         </div>
 
         {/* Right Panel - Document Details */}
-        <div className="flex-1 bg-gray-900">
+        <div className="flex-1 bg-[var(--bg-elevated)]">
           {selectedDocumentId ? (
             <DocumentDetailPanel
               documentId={selectedDocumentId}
@@ -1126,9 +1132,9 @@ Please run a void analysis on this property to identify potential tenant opportu
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-industrial-subtle flex items-center justify-center mb-4">
                 <svg
-                  className="w-8 h-8 text-gray-600"
+                  className="w-8 h-8 text-industrial-muted"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1141,10 +1147,10 @@ Please run a void analysis on this property to identify potential tenant opportu
                   />
                 </svg>
               </div>
-              <h2 className="text-xl font-medium text-gray-300 mb-2">
+              <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">
                 Select a document to view details
               </h2>
-              <p className="text-gray-500 max-w-md">
+              <p className="font-mono text-xs text-industrial-muted max-w-md">
                 Upload a leasing flyer, void analysis, or investment memo to extract
                 property data, available spaces, and tenant information automatically.
               </p>

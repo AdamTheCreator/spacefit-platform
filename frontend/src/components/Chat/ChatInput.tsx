@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Send } from 'lucide-react';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -40,7 +41,7 @@ export function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-3 items-end">
+    <form onSubmit={handleSubmit} className="flex gap-2 items-end">
       <div className="flex-1 relative">
         <textarea
           ref={textareaRef}
@@ -50,29 +51,22 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl
-                     text-gray-100 placeholder-gray-500 resize-none
-                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+          className="input-industrial resize-none pr-12"
         />
+        {/* Character count indicator */}
+        {input.length > 0 && (
+          <span className="absolute right-3 bottom-3 font-mono text-[10px] text-industrial-muted">
+            {input.length}
+          </span>
+        )}
       </div>
       <button
         type="submit"
         disabled={disabled || !input.trim()}
         aria-label="Send message"
-        className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium
-                   hover:bg-blue-700 transition-colors
-                   disabled:opacity-50 disabled:cursor-not-allowed
-                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+        className="btn-industrial-primary px-4 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="w-5 h-5"
-        >
-          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-        </svg>
+        <Send size={16} strokeWidth={2} aria-hidden="true" />
       </button>
     </form>
   );

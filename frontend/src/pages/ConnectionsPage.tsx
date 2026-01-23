@@ -73,17 +73,17 @@ function getStatusBadge(
 ): { icon: React.ReactNode; text: string; className: string } {
   if (!credential) {
     return {
-      icon: <Key size={16} />,
+      icon: <Key size={14} />,
       text: 'Not configured',
-      className: 'text-gray-500',
+      className: 'text-industrial-muted',
     };
   }
 
   if (isVerifying) {
     return {
-      icon: <Loader2 size={16} className="animate-spin" />,
+      icon: <Loader2 size={14} className="animate-spin" />,
       text: 'Verifying...',
-      className: 'text-blue-400',
+      className: 'text-[var(--accent)]',
     };
   }
 
@@ -92,34 +92,34 @@ function getStatusBadge(
   switch (status) {
     case 'valid':
       return {
-        icon: <CheckCircle size={16} />,
+        icon: <CheckCircle size={14} />,
         text: 'Connected',
-        className: 'text-green-400',
+        className: 'text-[var(--color-success)]',
       };
     case 'expired':
       return {
-        icon: <Clock size={16} />,
+        icon: <Clock size={14} />,
         text: 'Session expired',
-        className: 'text-yellow-400',
+        className: 'text-[var(--color-warning)]',
       };
     case 'error':
       return {
-        icon: <XCircle size={16} />,
+        icon: <XCircle size={14} />,
         text: credential.session_error_message || 'Connection error',
-        className: 'text-red-400',
+        className: 'text-[var(--color-error)]',
       };
     default:
       if (credential.is_verified) {
         return {
-          icon: <CheckCircle size={16} />,
+          icon: <CheckCircle size={14} />,
           text: 'Verified',
-          className: 'text-green-400',
+          className: 'text-[var(--color-success)]',
         };
       }
       return {
-        icon: <AlertTriangle size={16} />,
+        icon: <AlertTriangle size={14} />,
         text: 'Not verified',
-        className: 'text-gray-400',
+        className: 'text-industrial-secondary',
       };
   }
 }
@@ -142,33 +142,33 @@ function ConnectionCard({
   const statusBadge = getStatusBadge(credential, isVerifying);
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+    <div className="card-industrial">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
-            {SITE_ICONS[site.id] || <BarChart3 size={24} className="text-gray-400" />}
+          <div className="w-12 h-12 bg-[var(--bg-tertiary)] border border-industrial-subtle flex items-center justify-center">
+            {SITE_ICONS[site.id] || <BarChart3 size={24} className="text-industrial-muted" />}
           </div>
           <div>
-            <h3 className="text-white font-medium flex items-center gap-2">
+            <h3 className="font-mono text-sm font-medium text-industrial flex items-center gap-2">
               {site.name}
               {site.is_browser_based && (
-                <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded flex items-center gap-1">
+                <span className="font-mono text-[10px] uppercase tracking-wide bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-0.5 border border-[var(--accent)]/30 flex items-center gap-1">
                   <Monitor size={10} />
                   Browser
                 </span>
               )}
               {site.coming_soon && (
-                <span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">
+                <span className="font-mono text-[10px] uppercase tracking-wide bg-[var(--bg-tertiary)] text-industrial-muted px-2 py-0.5 border border-industrial-subtle">
                   Coming soon
                 </span>
               )}
             </h3>
-            <p className="text-gray-400 text-sm">{site.description}</p>
+            <p className="font-mono text-xs text-industrial-muted">{site.description}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <span className={`flex items-center gap-2 text-sm ${statusBadge.className}`}>
+          <span className={`flex items-center gap-2 font-mono text-xs ${statusBadge.className}`}>
             {statusBadge.icon}
             <span className="max-w-[150px] truncate">{statusBadge.text}</span>
           </span>
@@ -178,7 +178,7 @@ function ConnectionCard({
               <button
                 onClick={onVerify}
                 disabled={isVerifying}
-                className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="p-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] text-industrial border border-industrial-subtle transition-colors disabled:opacity-50"
                 title="Re-verify connection"
               >
                 <RefreshCw size={16} className={isVerifying ? 'animate-spin' : ''} />
@@ -188,7 +188,7 @@ function ConnectionCard({
             <button
               onClick={onConnect}
               disabled={site.coming_soon}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-industrial disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {credential ? 'Update' : 'Connect'}
               {!credential && <Plus size={14} />}
@@ -198,8 +198,8 @@ function ConnectionCard({
       </div>
 
       {site.is_browser_based && !site.coming_soon && (
-        <div className="mt-3 pt-3 border-t border-gray-700">
-          <p className="text-xs text-gray-500 flex items-center gap-1">
+        <div className="mt-3 pt-3 border-t border-industrial-subtle">
+          <p className="font-mono text-[10px] text-industrial-muted flex items-center gap-1 uppercase tracking-wide">
             <Clock size={12} />
             Browser-based connection: ~{site.typical_duration_seconds}s per query
           </p>
@@ -207,7 +207,7 @@ function ConnectionCard({
       )}
 
       {credential && credential.total_uses > 0 && (
-        <div className="mt-2 text-xs text-gray-500">
+        <div className="mt-2 font-mono text-[10px] text-industrial-muted">
           Used {credential.total_uses} time{credential.total_uses !== 1 ? 's' : ''}
           {credential.last_used_at && (
             <> • Last used {new Date(credential.last_used_at).toLocaleDateString()}</>
@@ -328,9 +328,9 @@ export function ConnectionsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-white mb-2">Connections</h1>
-        <p className="text-gray-400 mb-6">
+      <div className="p-6 max-w-4xl mx-auto bg-industrial min-h-full">
+        <h1 className="font-mono text-lg font-bold tracking-tight text-industrial mb-2">Connections</h1>
+        <p className="font-mono text-xs text-industrial-muted mb-6">
           Connect your data sources to enable real-time property analysis.
         </p>
 
@@ -350,12 +350,12 @@ export function ConnectionsPage() {
           })}
         </div>
 
-        <div className="mt-8 p-4 bg-blue-900/20 border border-blue-700/50 rounded-lg">
-          <h3 className="text-blue-400 font-medium mb-2 flex items-center gap-2">
-            <Monitor size={18} />
+        <div className="mt-8 p-4 bg-[var(--accent)]/5 border border-[var(--accent)]/30">
+          <h3 className="font-mono text-xs font-semibold uppercase tracking-wide text-[var(--accent)] mb-2 flex items-center gap-2">
+            <Monitor size={16} />
             About Browser-Based Connections
           </h3>
-          <p className="text-gray-400 text-sm">
+          <p className="font-mono text-xs text-industrial-secondary">
             Some data sources require browser automation to access your existing
             subscriptions. These connections are slower than API-based sources (typically
             30-90 seconds per query) but provide access to premium data. Your credentials
@@ -364,8 +364,8 @@ export function ConnectionsPage() {
         </div>
 
         {verifyMutation.isError && (
-          <div className="mt-4 p-4 bg-red-900/20 border border-red-700/50 rounded-lg">
-            <p className="text-red-400 text-sm">
+          <div className="mt-4 p-4 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30">
+            <p className="font-mono text-xs text-[var(--color-error)]">
               Verification failed. Please check your credentials and try again.
             </p>
           </div>

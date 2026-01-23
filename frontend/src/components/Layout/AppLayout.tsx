@@ -43,9 +43,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const handleNewChat = () => {
-    // Clear the chat store to reset state
     clearChat();
-    // Navigate to /chat - session will be created when user sends first message
     navigate('/chat');
   };
 
@@ -53,13 +51,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     e.preventDefault();
     e.stopPropagation();
     await deleteSession(sessionId);
-    // If we deleted the current session, navigate to the main chat
     if (sessionId === currentSessionId) {
       navigate('/chat');
     }
   };
 
-  // Menu items for keyboard navigation
   const menuItems = [
     { path: '/profile', label: 'Profile' },
     { path: '/customers', label: 'Customers' },
@@ -68,7 +64,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     { action: 'logout', label: 'Sign out' },
   ];
 
-  // Handle keyboard navigation in dropdown
   const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!dropdownOpen) return;
 
@@ -105,7 +100,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [dropdownOpen, focusedIndex, menuItems, navigate, handleLogout]);
 
-  // Reset focus when dropdown opens/closes
   useEffect(() => {
     if (dropdownOpen) {
       setFocusedIndex(0);
@@ -115,11 +109,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [dropdownOpen]);
 
   return (
-    <div className="h-screen flex bg-gray-900">
+    <div className="h-screen flex bg-industrial-secondary dark">
       {/* Skip link for keyboard users */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 bg-accent text-industrial-950"
       >
         Skip to main content
       </a>
@@ -128,76 +122,77 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div
         className={`${
           sidebarOpen ? 'w-64' : 'w-0'
-        } transition-all duration-300 flex flex-col bg-gray-800 border-r border-gray-700 overflow-hidden`}
+        } transition-all duration-300 flex flex-col bg-[var(--bg-elevated)] border-r border-industrial overflow-hidden`}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-700">
+        <div className="p-4 border-b border-industrial">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="btn-industrial-primary w-full"
           >
-            <Plus size={18} />
+            <Plus size={16} />
             New Chat
           </button>
         </div>
 
         {/* Main Navigation */}
-        <div className="p-2 border-b border-gray-700 space-y-1">
-          <Link
-            to="/pipeline"
-            className="flex items-center gap-3 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <Kanban size={18} className="text-indigo-400" />
-            <span className="text-sm font-medium">Deal Pipeline</span>
-          </Link>
-          <Link
-            to="/documents"
-            className="flex items-center gap-3 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <FileText size={18} className="text-green-400" />
-            <span className="text-sm font-medium">Documents</span>
-          </Link>
-          <Link
-            to="/outreach"
-            className="flex items-center gap-3 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <Mail size={18} className="text-amber-400" />
-            <span className="text-sm font-medium">Outreach</span>
-          </Link>
+        <div className="p-2 border-b border-industrial">
+          <div className="label-technical px-3 py-2">Navigation</div>
+          <nav className="space-y-0.5">
+            <Link
+              to="/pipeline"
+              className="nav-industrial-item w-full"
+            >
+              <Kanban size={14} />
+              <span>Pipeline</span>
+            </Link>
+            <Link
+              to="/documents"
+              className="nav-industrial-item w-full"
+            >
+              <FileText size={14} />
+              <span>Documents</span>
+            </Link>
+            <Link
+              to="/outreach"
+              className="nav-industrial-item w-full"
+            >
+              <Mail size={14} />
+              <span>Outreach</span>
+            </Link>
+          </nav>
         </div>
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-2">
-          <div className="text-xs text-gray-500 uppercase tracking-wider px-2 py-2">
-            Conversations
-          </div>
+        <div className="flex-1 overflow-y-auto p-2 scrollbar-industrial">
+          <div className="label-technical px-3 py-2">Conversations</div>
           {isLoading ? (
-            <div className="text-gray-500 text-sm px-2 py-4">Loading...</div>
+            <div className="text-industrial-muted text-xs font-mono px-3 py-4">Loading...</div>
           ) : sessions.filter(s => s.message_count > 0).length === 0 ? (
-            <div className="text-gray-500 text-sm px-2 py-4">
+            <div className="text-industrial-muted text-xs font-mono px-3 py-4">
               No conversations yet
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {sessions.filter(s => s.message_count > 0).map((session) => (
                 <Link
                   key={session.id}
                   to={`/chat/${session.id}`}
-                  className={`flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors group ${
-                    session.id === currentSessionId ? 'bg-gray-700' : ''
+                  className={`flex items-center gap-2 px-3 py-2 text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors group ${
+                    session.id === currentSessionId ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--accent)]' : ''
                   }`}
                 >
-                  <MessageSquare size={16} className="text-gray-500 flex-shrink-0" />
-                  <span className="flex-1 truncate text-sm">
+                  <MessageSquare size={14} className="text-industrial-muted flex-shrink-0" />
+                  <span className="flex-1 truncate text-xs font-mono">
                     {session.title || 'New conversation'}
                   </span>
                   <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-600 rounded transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-secondary)] transition-opacity"
                     title="Delete conversation"
                     aria-label="Delete conversation"
                   >
-                    <X size={14} className="text-gray-400 hover:text-red-400" />
+                    <X size={12} className="text-industrial-muted hover:text-[var(--color-error)]" />
                   </button>
                 </Link>
               ))}
@@ -206,45 +201,50 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-gray-700 space-y-3">
+        <div className="p-4 border-t border-industrial space-y-3">
           {/* Profile Completion Nudge */}
           {preferences && !preferences.is_complete && (
             <Link
               to="/settings"
-              className="block p-3 bg-purple-900/30 hover:bg-purple-900/40 border border-purple-700/50 rounded-lg transition-colors group"
+              className="block p-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-industrial transition-colors group"
             >
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={16} className="text-purple-400" />
-                <span className="text-sm font-medium text-purple-300">Personalize AI</span>
+                <Sparkles size={14} className="text-[var(--accent)]" />
+                <span className="label-technical text-[var(--accent)]">Setup Required</span>
               </div>
-              <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden mb-1">
+              <div className="h-1 bg-[var(--bg-secondary)] overflow-hidden mb-2">
                 <div
-                  className="h-full bg-purple-500 transition-all"
+                  className="h-full bg-[var(--accent)] transition-all"
                   style={{ width: `${preferences.completion_percentage}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400 group-hover:text-gray-300">
-                {preferences.completion_percentage}% complete - Set up your preferences
+              <p className="text-xs font-mono text-industrial-muted group-hover:text-industrial-secondary">
+                {preferences.completion_percentage}% complete
               </p>
             </Link>
           )}
-          <div className="text-xs text-gray-500">SpaceFit AI v0.1</div>
+          <div className="label-technical">SpaceFit v0.1</div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="h-14 flex items-center justify-between px-4 border-b border-gray-700 bg-gray-800/50">
+        <header className="h-12 flex items-center justify-between px-4 border-b border-industrial bg-[var(--bg-elevated)]">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              className="btn-industrial-ghost p-2"
             >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
-            <h1 className="text-lg font-semibold text-white">SpaceFit AI</h1>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-[var(--accent)]" />
+              <span className="font-mono text-xs font-semibold tracking-widest uppercase text-industrial">
+                SpaceFit
+              </span>
+            </div>
           </div>
 
           {/* User Dropdown */}
@@ -253,17 +253,17 @@ export function AppLayout({ children }: AppLayoutProps) {
               onClick={() => setDropdownOpen(!dropdownOpen)}
               aria-haspopup="menu"
               aria-expanded={dropdownOpen}
-              className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors border border-transparent hover:border-industrial"
             >
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
+              <div className="w-6 h-6 bg-[var(--accent)] flex items-center justify-center">
+                <span className="text-industrial-950 text-xs font-mono font-bold">
                   {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
                 </span>
               </div>
-              <span className="text-sm hidden sm:block">
+              <span className="text-xs font-mono hidden sm:block">
                 {user?.first_name || user?.email?.split('@')[0]}
               </span>
-              <ChevronDown size={16} />
+              <ChevronDown size={14} />
             </button>
 
             {dropdownOpen && (
@@ -273,15 +273,15 @@ export function AppLayout({ children }: AppLayoutProps) {
                   onClick={() => setDropdownOpen(false)}
                 />
                 <div
-                  className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 py-1"
+                  className="absolute right-0 mt-1 w-56 bg-[var(--bg-elevated)] border border-industrial shadow-lg z-20"
                   role="menu"
                   aria-orientation="vertical"
                 >
-                  <div className="px-4 py-3 border-b border-gray-700">
-                    <p className="text-sm font-medium text-white">
+                  <div className="px-4 py-3 border-b border-industrial">
+                    <p className="text-xs font-mono font-medium text-industrial">
                       {user?.first_name} {user?.last_name}
                     </p>
-                    <p className="text-xs text-gray-400">{user?.email}</p>
+                    <p className="text-xs font-mono text-industrial-muted">{user?.email}</p>
                   </div>
 
                   <Link
@@ -289,10 +289,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                     onClick={() => setDropdownOpen(false)}
                     role="menuitem"
                     tabIndex={focusedIndex === 0 ? 0 : -1}
-                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 0 ? 'bg-gray-700' : ''}`}
+                    className={`flex items-center gap-3 px-4 py-2 text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 0 ? 'bg-[var(--bg-tertiary)]' : ''}`}
                   >
-                    <User size={16} />
-                    <span className="text-sm">Profile</span>
+                    <User size={14} />
+                    <span className="text-xs font-mono uppercase tracking-wide">Profile</span>
                   </Link>
 
                   <Link
@@ -300,10 +300,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                     onClick={() => setDropdownOpen(false)}
                     role="menuitem"
                     tabIndex={focusedIndex === 1 ? 0 : -1}
-                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 1 ? 'bg-gray-700' : ''}`}
+                    className={`flex items-center gap-3 px-4 py-2 text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 1 ? 'bg-[var(--bg-tertiary)]' : ''}`}
                   >
-                    <Users size={16} />
-                    <span className="text-sm">Customers</span>
+                    <Users size={14} />
+                    <span className="text-xs font-mono uppercase tracking-wide">Customers</span>
                   </Link>
 
                   <Link
@@ -311,10 +311,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                     onClick={() => setDropdownOpen(false)}
                     role="menuitem"
                     tabIndex={focusedIndex === 2 ? 0 : -1}
-                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 2 ? 'bg-gray-700' : ''}`}
+                    className={`flex items-center gap-3 px-4 py-2 text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 2 ? 'bg-[var(--bg-tertiary)]' : ''}`}
                   >
-                    <Key size={16} />
-                    <span className="text-sm">Connections</span>
+                    <Key size={14} />
+                    <span className="text-xs font-mono uppercase tracking-wide">Connections</span>
                   </Link>
 
                   <Link
@@ -322,21 +322,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                     onClick={() => setDropdownOpen(false)}
                     role="menuitem"
                     tabIndex={focusedIndex === 3 ? 0 : -1}
-                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 3 ? 'bg-gray-700' : ''}`}
+                    className={`flex items-center gap-3 px-4 py-2 text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 3 ? 'bg-[var(--bg-tertiary)]' : ''}`}
                   >
-                    <Settings size={16} />
-                    <span className="text-sm">Settings</span>
+                    <Settings size={14} />
+                    <span className="text-xs font-mono uppercase tracking-wide">Settings</span>
                   </Link>
 
-                  <div className="border-t border-gray-700 mt-1 pt-1">
+                  <div className="border-t border-industrial mt-1 pt-1">
                     <button
                       onClick={handleLogout}
                       role="menuitem"
                       tabIndex={focusedIndex === 4 ? 0 : -1}
-                      className={`flex items-center gap-3 px-4 py-2 text-red-400 hover:bg-gray-700 transition-colors w-full ${focusedIndex === 4 ? 'bg-gray-700' : ''}`}
+                      className={`flex items-center gap-3 px-4 py-2 text-[var(--color-error)] hover:bg-[var(--bg-tertiary)] transition-colors w-full ${focusedIndex === 4 ? 'bg-[var(--bg-tertiary)]' : ''}`}
                     >
-                      <LogOut size={16} />
-                      <span className="text-sm">Sign out</span>
+                      <LogOut size={14} />
+                      <span className="text-xs font-mono uppercase tracking-wide">Sign out</span>
                     </button>
                   </div>
                 </div>
@@ -346,7 +346,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main id="main-content" className="flex-1 overflow-hidden">{children}</main>
+        <main id="main-content" className="flex-1 overflow-hidden bg-industrial">{children}</main>
       </div>
     </div>
   );

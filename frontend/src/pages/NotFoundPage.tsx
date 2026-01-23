@@ -6,7 +6,7 @@ export function NotFoundPage() {
   const { user } = useAuthStore();
 
   return (
-    <div className="min-h-screen bg-industrial flex flex-col">
+    <div className="min-h-screen bg-industrial dark flex flex-col">
       {/* Grid pattern overlay */}
       <div className="fixed inset-0 grid-pattern opacity-30 pointer-events-none" aria-hidden="true" />
 

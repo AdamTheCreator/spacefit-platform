@@ -57,44 +57,43 @@ export function DemoPage() {
   const messageVariant = isDesktop ? 'card' : 'bubble';
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-gray-900">
+    <div className="h-screen w-screen flex flex-col bg-industrial dark">
       {/* Demo Header - collapsible on scroll */}
       <header
-        className={`flex-shrink-0 flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 bg-gray-950 border-b border-gray-800 transition-all duration-300 ${
+        className={`flex-shrink-0 flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 bg-[var(--bg-elevated)] border-b border-industrial transition-all duration-300 ${
           isHeaderVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 absolute top-0 left-0 right-0 z-40'
         }`}
       >
         <div className="flex items-center gap-3">
           {/* Logo */}
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="w-10 h-10 bg-[var(--accent)] flex items-center justify-center">
+            <svg className="w-6 h-6 text-[var(--color-industrial-900)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">SpaceFit AI</h1>
-            <p className="text-xs text-gray-400">Interactive Demo - {DEMO_PROPERTY.name}</p>
+            <h1 className="font-mono text-lg font-bold tracking-tight text-industrial">SpaceFit AI</h1>
+            <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Interactive Demo - {DEMO_PROPERTY.name}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           {/* Progress indicator */}
           <div className="hidden sm:flex items-center gap-2">
-            <div className="text-xs text-gray-400">Progress</div>
-            <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div className="label-technical">Progress</div>
+            <div className="w-24 h-1 bg-[var(--bg-tertiary)] overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                className="h-full bg-[var(--accent)] transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <div className="text-xs text-gray-400">{progressPercent}%</div>
+            <div className="font-mono text-xs text-industrial-muted">{progressPercent}%</div>
           </div>
 
           <button
             onClick={handleExitDemo}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm
-                     rounded-lg transition-colors"
+            className="btn-industrial"
           >
             Exit Demo
           </button>
@@ -102,26 +101,26 @@ export function DemoPage() {
       </header>
 
       {/* Demo Banner */}
-      <div className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-indigo-900/80 via-purple-900/80 to-indigo-900/80 border-b border-indigo-500/30">
+      <div className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-3 bg-[var(--accent)]/10 border-b border-[var(--accent)]/30">
         <div className="flex items-center justify-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
             {/* Pulsing indicator */}
             <span className="relative flex h-2 w-2 sm:h-3 sm:w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 sm:h-3 sm:w-3 bg-indigo-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full bg-[var(--accent)] opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 sm:h-3 sm:w-3 bg-[var(--accent)]"></span>
             </span>
-            <span className="text-indigo-200 text-xs sm:text-sm font-medium">
+            <span className="font-mono text-xs text-[var(--accent)] uppercase tracking-wide">
               <span className="hidden sm:inline">Interactive </span>Demo
             </span>
           </div>
 
-          <span className="text-indigo-400 hidden sm:inline">|</span>
+          <span className="text-[var(--accent)]/50 hidden sm:inline">|</span>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <kbd className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-800 text-gray-300 text-xs rounded border border-gray-600">
+            <kbd className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-[var(--bg-tertiary)] text-industrial-secondary font-mono text-xs border border-industrial-subtle">
               Enter
             </kbd>
-            <span className="text-indigo-200 text-xs sm:text-sm">
+            <span className="font-mono text-xs text-[var(--accent)]">
               {isComplete ? 'restart' : isWaitingForInput ? 'continue' : '...'}
             </span>
           </div>
@@ -136,47 +135,47 @@ export function DemoPage() {
         {messages.length === 0 ? (
           // Welcome screen before demo starts
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/30">
-              <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-20 h-20 bg-[var(--accent)] flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-[var(--color-industrial-900)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-3">
+            <h2 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-3">
               Welcome to SpaceFit AI Demo
             </h2>
 
-            <p className="text-gray-400 max-w-lg mb-6">
+            <p className="font-mono text-sm text-industrial-secondary max-w-lg mb-6">
               Experience how our multi-agent AI system analyzes commercial real estate properties,
               identifies void opportunities, and automates client outreach.
             </p>
 
-            <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700 max-w-md mb-8">
-              <h3 className="text-sm font-medium text-gray-300 mb-3">This demo will showcase:</h3>
-              <ul className="text-sm text-gray-400 space-y-2 text-left">
+            <div className="bg-[var(--bg-tertiary)] p-6 border border-industrial max-w-md mb-8">
+              <h3 className="label-technical mb-3 text-left">This demo will showcase:</h3>
+              <ul className="font-mono text-xs text-industrial-secondary space-y-2 text-left">
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                  <span className="w-2 h-2 bg-[var(--accent)]"></span>
                   Demographics analysis from Census data
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span className="w-2 h-2 bg-[var(--color-success)]"></span>
                   Tenant roster from Google Places
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                  <span className="w-2 h-2 bg-[var(--color-warning)]"></span>
                   Foot traffic patterns and metrics
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                  <span className="w-2 h-2 bg-[var(--color-error)]"></span>
                   Void analysis and opportunity identification
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                  <span className="w-2 h-2 bg-cyan-500"></span>
                   Tenant matching based on client criteria
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                  <span className="w-2 h-2 bg-teal-500"></span>
                   Automated personalized outreach
                 </li>
               </ul>
@@ -184,10 +183,7 @@ export function DemoPage() {
 
             <button
               onClick={advanceStep}
-              className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600
-                       hover:from-indigo-500 hover:to-purple-500 text-white font-medium text-lg
-                       rounded-xl transition-all shadow-lg shadow-indigo-500/30
-                       hover:shadow-indigo-500/50 hover:scale-105"
+              className="btn-industrial-primary px-8 py-4 text-base"
             >
               <span>Start Demo</span>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -195,8 +191,8 @@ export function DemoPage() {
               </svg>
             </button>
 
-            <p className="text-gray-500 text-sm mt-4">
-              or press <kbd className="px-2 py-0.5 bg-gray-700 text-gray-300 rounded">Enter</kbd> to begin
+            <p className="font-mono text-xs text-industrial-muted mt-4">
+              or press <kbd className="px-2 py-0.5 bg-[var(--bg-tertiary)] text-industrial-secondary font-mono border border-industrial-subtle">Enter</kbd> to begin
             </p>
           </div>
         ) : (
@@ -217,11 +213,11 @@ export function DemoPage() {
             {isProcessing && !isWaitingForInput && (
               <div className="flex items-center gap-3 py-4">
                 <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                  <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                  <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-[var(--accent)] animate-pulse" style={{ animationDelay: '0ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-[var(--accent)] animate-pulse" style={{ animationDelay: '150ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-[var(--accent)] animate-pulse" style={{ animationDelay: '300ms' }}></span>
                 </div>
-                <span className="text-sm text-gray-400">
+                <span className="font-mono text-xs text-industrial-muted uppercase tracking-wide">
                   {activeAgentType ? `${activeAgentType.replace('-', ' ')} is working...` : 'Processing...'}
                 </span>
               </div>
@@ -240,14 +236,14 @@ export function DemoPage() {
       />
 
       {/* Footer with controls */}
-      <footer className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 bg-gray-950 border-t border-gray-800">
+      <footer className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 bg-[var(--bg-elevated)] border-t border-industrial">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
+            <span className="font-mono text-xs text-industrial-muted">
               Step {currentStep} of {totalSteps}
             </span>
             {isComplete && (
-              <span className="text-sm text-green-400 flex items-center gap-1">
+              <span className="font-mono text-xs text-[var(--color-success)] flex items-center gap-1 uppercase tracking-wide">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
@@ -260,8 +256,8 @@ export function DemoPage() {
             {messages.length > 0 && (
               <button
                 onClick={resetDemo}
-                className="px-3 py-1.5 text-sm text-gray-400 hover:text-white
-                         hover:bg-gray-700 rounded-lg transition-colors"
+                className="font-mono text-xs uppercase tracking-wide text-industrial-muted hover:text-industrial
+                         hover:bg-[var(--bg-secondary)] px-3 py-1.5 transition-colors"
               >
                 Restart
               </button>
@@ -270,9 +266,7 @@ export function DemoPage() {
             <button
               onClick={advanceStep}
               disabled={!isWaitingForInput && !isComplete}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                       disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed
-                       text-white text-sm rounded-lg transition-colors"
+              className="btn-industrial-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isComplete ? (
                 <>
@@ -284,11 +278,11 @@ export function DemoPage() {
               ) : isWaitingForInput ? (
                 <>
                   Continue
-                  <kbd className="px-1.5 py-0.5 bg-indigo-700 text-xs rounded">Enter</kbd>
+                  <kbd className="px-1.5 py-0.5 bg-[var(--accent-hover)] text-[10px] font-mono">Enter</kbd>
                 </>
               ) : (
                 <>
-                  <span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></span>
+                  <div className="w-4 h-4 border border-[var(--color-industrial-900)] border-t-transparent animate-spin"></div>
                   Processing
                 </>
               )}

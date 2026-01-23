@@ -18,13 +18,13 @@ import type {
   CampaignStatus,
 } from '../types/outreach';
 
-// Status badge colors
+// Status badge colors - industrial design
 const STATUS_COLORS: Record<CampaignStatus, { bg: string; text: string }> = {
-  draft: { bg: 'bg-gray-700', text: 'text-gray-300' },
-  scheduled: { bg: 'bg-blue-900/50', text: 'text-blue-300' },
-  sending: { bg: 'bg-yellow-900/50', text: 'text-yellow-300' },
-  sent: { bg: 'bg-green-900/50', text: 'text-green-300' },
-  cancelled: { bg: 'bg-red-900/50', text: 'text-red-300' },
+  draft: { bg: 'bg-[var(--bg-tertiary)] border border-industrial-subtle', text: 'text-industrial-secondary' },
+  scheduled: { bg: 'bg-[var(--accent)]/10 border border-[var(--accent)]/30', text: 'text-[var(--accent)]' },
+  sending: { bg: 'bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30', text: 'text-[var(--color-warning)]' },
+  sent: { bg: 'bg-[var(--color-success)]/10 border border-[var(--color-success)]/30', text: 'text-[var(--color-success)]' },
+  cancelled: { bg: 'bg-[var(--color-error)]/10 border border-[var(--color-error)]/30', text: 'text-[var(--color-error)]' },
 };
 
 function formatDate(dateStr: string | null): string {
@@ -91,24 +91,23 @@ export function OutreachPage() {
 
   return (
     <AppLayout>
-      <div className="h-full flex flex-col overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden bg-industrial">
         {/* Header */}
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-800">
+        <div className="flex-shrink-0 px-6 py-4 border-b border-industrial bg-[var(--bg-elevated)]">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Mail className="w-6 h-6 text-indigo-400" />
+              <h1 className="font-mono text-lg font-bold tracking-tight text-industrial flex items-center gap-2">
+                <Mail className="w-5 h-5 text-[var(--accent)]" />
                 Outreach Campaigns
               </h1>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="font-mono text-xs text-industrial-muted mt-1">
                 Email campaigns created from void analysis results
               </p>
             </div>
 
             <Link
               to="/chat"
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                         text-white rounded-lg transition-colors"
+              className="btn-industrial-primary"
             >
               <Plus className="w-4 h-4" />
               New Campaign
@@ -117,47 +116,45 @@ export function OutreachPage() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <div className="text-2xl font-bold text-white">{stats.total}</div>
-              <div className="text-xs text-gray-400">Total Campaigns</div>
+            <div className="bg-[var(--bg-tertiary)] p-4 border border-industrial-subtle">
+              <div className="font-mono text-2xl font-bold text-industrial">{stats.total}</div>
+              <div className="label-technical">Total Campaigns</div>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <div className="text-2xl font-bold text-green-400">{stats.totalEmails}</div>
-              <div className="text-xs text-gray-400">Emails Sent</div>
+            <div className="bg-[var(--bg-tertiary)] p-4 border border-industrial-subtle">
+              <div className="font-mono text-2xl font-bold text-[var(--color-success)]">{stats.totalEmails}</div>
+              <div className="label-technical">Emails Sent</div>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <div className="text-2xl font-bold text-blue-400">{stats.totalOpens}</div>
-              <div className="text-xs text-gray-400">Opens</div>
+            <div className="bg-[var(--bg-tertiary)] p-4 border border-industrial-subtle">
+              <div className="font-mono text-2xl font-bold text-[var(--accent)]">{stats.totalOpens}</div>
+              <div className="label-technical">Opens</div>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <div className="text-2xl font-bold text-purple-400">{avgOpenRate}%</div>
-              <div className="text-xs text-gray-400">Avg Open Rate</div>
+            <div className="bg-[var(--bg-tertiary)] p-4 border border-industrial-subtle">
+              <div className="font-mono text-2xl font-bold text-industrial">{avgOpenRate}%</div>
+              <div className="label-technical">Avg Open Rate</div>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <div className="text-2xl font-bold text-amber-400">{stats.totalReplies}</div>
-              <div className="text-xs text-gray-400">Replies</div>
+            <div className="bg-[var(--bg-tertiary)] p-4 border border-industrial-subtle">
+              <div className="font-mono text-2xl font-bold text-[var(--color-warning)]">{stats.totalReplies}</div>
+              <div className="label-technical">Replies</div>
             </div>
           </div>
 
           {/* Search & Filters */}
           <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-industrial-muted" />
               <input
                 type="text"
-                placeholder="Search campaigns..."
+                placeholder="Search campaigns…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg
-                           text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                className="input-industrial pl-10 w-full"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as CampaignStatus | 'all')}
-              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300
-                         focus:outline-none focus:border-indigo-500"
+              className="input-industrial"
             >
               <option value="all">All Status</option>
               <option value="draft">Draft</option>
@@ -173,30 +170,34 @@ export function OutreachPage() {
         <div className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="flex items-center gap-3 text-gray-400">
-                <span className="w-5 h-5 border-2 border-gray-600 border-t-indigo-500 rounded-full animate-spin" />
-                Loading campaigns...
+              <div className="flex items-center gap-3">
+                <div className="relative w-5 h-5">
+                  <div className="w-5 h-5 border border-industrial" />
+                  <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+                </div>
+                <span className="label-technical">Loading campaigns...</span>
               </div>
             </div>
           ) : error ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
-                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                <p className="text-red-400">{error}</p>
+                <AlertCircle className="w-12 h-12 text-[var(--color-error)] mx-auto mb-3" />
+                <p className="font-mono text-xs text-[var(--color-error)]">{error}</p>
               </div>
             </div>
           ) : filteredCampaigns.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
-              <Mail className="w-16 h-16 text-gray-600 mb-4" />
-              <h3 className="text-lg font-medium text-white mb-2">No campaigns yet</h3>
-              <p className="text-gray-400 mb-4 max-w-md">
+              <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-industrial-subtle flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-industrial-muted" />
+              </div>
+              <h3 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">No campaigns yet</h3>
+              <p className="font-mono text-xs text-industrial-muted mb-6 max-w-md">
                 Create your first outreach campaign from a void analysis. Ask SpaceFit to
                 run a void analysis and then reach out to the identified tenants.
               </p>
               <Link
                 to="/chat"
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                           text-white rounded-lg transition-colors"
+                className="btn-industrial-primary"
               >
                 <Plus className="w-4 h-4" />
                 Start a Void Analysis
@@ -207,8 +208,7 @@ export function OutreachPage() {
               {filteredCampaigns.map((campaign) => (
                 <div
                   key={campaign.id}
-                  className="bg-gray-800/50 border border-gray-700 rounded-lg p-4
-                             hover:border-gray-600 transition-colors cursor-pointer"
+                  className="card-industrial hover:border-industrial cursor-pointer transition-colors"
                   onClick={() => {
                     // TODO: Open campaign detail modal
                   }}
@@ -216,21 +216,21 @@ export function OutreachPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
-                        <h3 className="text-lg font-medium text-white truncate">
+                        <h3 className="font-mono text-sm font-medium text-industrial truncate">
                           {campaign.name}
                         </h3>
                         <span
-                          className={`px-2 py-0.5 rounded text-xs font-medium
+                          className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide
                             ${STATUS_COLORS[campaign.status].bg}
                             ${STATUS_COLORS[campaign.status].text}`}
                         >
                           {campaign.status}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-400 truncate">
+                      <p className="font-mono text-xs text-industrial-muted truncate">
                         {campaign.property_name || 'No property name'}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="font-mono text-[10px] text-industrial-muted mt-1">
                         Created {formatDate(campaign.created_at)}
                         {campaign.sent_at && ` • Sent ${formatDate(campaign.sent_at)}`}
                       </p>
@@ -239,35 +239,35 @@ export function OutreachPage() {
                     {/* Stats */}
                     <div className="flex items-center gap-6 ml-4">
                       <div className="text-center">
-                        <div className="flex items-center gap-1 text-gray-400">
+                        <div className="flex items-center gap-1 text-industrial-muted">
                           <Send className="w-4 h-4" />
-                          <span className="text-lg font-semibold text-white">
+                          <span className="font-mono text-lg font-semibold text-industrial">
                             {campaign.sent_count}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-500">Sent</div>
+                        <div className="label-technical">Sent</div>
                       </div>
 
                       <div className="text-center">
-                        <div className="flex items-center gap-1 text-gray-400">
+                        <div className="flex items-center gap-1 text-industrial-muted">
                           <Eye className="w-4 h-4" />
-                          <span className="text-lg font-semibold text-white">
+                          <span className="font-mono text-lg font-semibold text-industrial">
                             {campaign.opened_count}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="label-technical">
                           Opened ({calculateOpenRate(campaign)}%)
                         </div>
                       </div>
 
                       <div className="text-center">
-                        <div className="flex items-center gap-1 text-gray-400">
+                        <div className="flex items-center gap-1 text-industrial-muted">
                           <MessageCircle className="w-4 h-4" />
-                          <span className="text-lg font-semibold text-white">
+                          <span className="font-mono text-lg font-semibold text-industrial">
                             {campaign.replied_count}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-500">Replied</div>
+                        <div className="label-technical">Replied</div>
                       </div>
 
                       <button
@@ -275,8 +275,8 @@ export function OutreachPage() {
                           e.stopPropagation();
                           // TODO: Open actions menu
                         }}
-                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-700
-                                   rounded-lg transition-colors"
+                        className="p-2 text-industrial-muted hover:text-industrial hover:bg-[var(--bg-secondary)]
+                                   transition-colors"
                       >
                         <MoreVertical className="w-5 h-5" />
                       </button>
@@ -285,16 +285,16 @@ export function OutreachPage() {
 
                   {/* Progress bar for sent campaigns */}
                   {campaign.status === 'sent' && campaign.sent_count > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-700">
-                      <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                    <div className="mt-3 pt-3 border-t border-industrial-subtle">
+                      <div className="flex items-center gap-2 label-technical mb-1">
                         <span>Open rate</span>
-                        <span className="text-white font-medium">
+                        <span className="text-industrial font-medium">
                           {calculateOpenRate(campaign)}%
                         </span>
                       </div>
-                      <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-1 bg-[var(--bg-tertiary)] overflow-hidden">
                         <div
-                          className="h-full bg-blue-500 transition-all"
+                          className="h-full bg-[var(--accent)] transition-all"
                           style={{ width: `${calculateOpenRate(campaign)}%` }}
                         />
                       </div>

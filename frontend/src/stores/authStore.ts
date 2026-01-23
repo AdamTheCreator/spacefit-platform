@@ -122,6 +122,11 @@ export const useAuthStore = create<AuthStore>()(
           return;
         }
 
+        // Only set loading if we don't already have a user (avoid flicker after login)
+        if (!get().user) {
+          set({ isLoading: true });
+        }
+
         try {
           const response = await api.get<User>('/auth/me');
           set({

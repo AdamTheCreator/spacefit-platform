@@ -18,22 +18,22 @@ export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubbl
   if (variant === 'card' && !isUser) {
     return (
       <div className="mb-6">
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden">
+        <div className="card-industrial p-0 overflow-hidden">
           {/* Card Header with agent info */}
           {agent && (
-            <div className="flex items-center gap-3 px-5 py-3 bg-gray-800/80 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 px-5 py-3 bg-[var(--bg-tertiary)] border-b border-industrial">
               <span
-                className={`w-3 h-3 rounded-full ${agent.color} ${
-                  message.isStreaming ? 'animate-pulse' : ''
+                className={`w-2 h-2 ${agent.color} ${
+                  message.isStreaming ? 'animate-pulse-industrial' : ''
                 }`}
               />
-              <span className="font-medium text-gray-200">
+              <span className="font-mono text-xs font-medium uppercase tracking-wide text-industrial">
                 {agent.name}
               </span>
               {message.isStreaming && (
-                <span className="text-xs text-gray-500 ml-2">analyzing...</span>
+                <span className="label-technical ml-2">processing...</span>
               )}
-              <span className="ml-auto text-xs text-gray-500">
+              <span className="ml-auto font-mono text-[10px] text-industrial-muted">
                 {message.timestamp.toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -44,13 +44,13 @@ export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubbl
 
           {/* Card Content - full width */}
           <div className="p-5">
-            <div className="text-sm">
+            <div className="text-sm font-mono text-industrial">
               <MarkdownRenderer
                 content={message.content}
                 agentType={message.agentType}
               />
               {message.isStreaming && (
-                <span className="inline-block w-2 h-4 ml-1 bg-gray-400 animate-pulse" />
+                <span className="inline-block w-1.5 h-4 ml-1 bg-[var(--accent)] animate-pulse" />
               )}
             </div>
           </div>
@@ -59,7 +59,7 @@ export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubbl
     );
   }
 
-  // Bubble variant (default) - traditional chat bubbles
+  // Bubble variant (default) - industrial chat style
   const widthClasses = isUser
     ? 'max-w-[90%] sm:max-w-[75%] md:max-w-[60%] lg:max-w-[50%] xl:max-w-[40%]'
     : 'max-w-[95%] sm:max-w-[90%] md:max-w-[85%] lg:max-w-[80%]';
@@ -71,48 +71,48 @@ export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubbl
       <div
         className={`${widthClasses} ${
           isUser
-            ? 'bg-blue-600 text-white rounded-2xl rounded-br-md'
+            ? 'bg-[var(--accent)] text-[var(--color-industrial-900)]'
             : isSystem
-            ? 'bg-gray-700 text-gray-300 rounded-2xl border border-gray-600'
-            : 'bg-gray-800 text-gray-100 rounded-2xl rounded-bl-md border border-gray-700/50'
+            ? 'bg-[var(--bg-tertiary)] text-industrial-secondary border border-industrial'
+            : 'bg-[var(--bg-elevated)] text-industrial border border-industrial-subtle'
         } px-4 py-3 sm:px-5 sm:py-4`}
       >
         {!isUser && agent && (
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-industrial-subtle">
             <span
-              className={`w-2.5 h-2.5 rounded-full ${agent.color} ${
-                message.isStreaming ? 'animate-pulse' : ''
+              className={`w-2 h-2 ${agent.color} ${
+                message.isStreaming ? 'animate-pulse-industrial' : ''
               }`}
             />
-            <span className="text-sm font-medium text-gray-400">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-wide text-industrial-secondary">
               {agent.name}
             </span>
             {message.isStreaming && (
-              <span className="text-xs text-gray-500 ml-2">typing...</span>
+              <span className="label-technical ml-2">typing...</span>
             )}
           </div>
         )}
 
         {/* Render content - use markdown for agents, plain text for user */}
         {isUser ? (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+          <p className="text-sm font-mono leading-relaxed whitespace-pre-wrap">
             {message.content}
           </p>
         ) : (
-          <div className="text-sm">
+          <div className="text-sm font-mono">
             <MarkdownRenderer
               content={message.content}
               agentType={message.agentType}
             />
             {message.isStreaming && (
-              <span className="inline-block w-2 h-4 ml-1 bg-gray-400 animate-pulse" />
+              <span className="inline-block w-1.5 h-4 ml-1 bg-[var(--accent)] animate-pulse" />
             )}
           </div>
         )}
 
         <div
-          className={`text-xs mt-3 ${
-            isUser ? 'text-blue-200' : 'text-gray-500'
+          className={`font-mono text-[10px] mt-3 ${
+            isUser ? 'text-[var(--color-industrial-700)]' : 'text-industrial-muted'
           }`}
         >
           {message.timestamp.toLocaleTimeString([], {

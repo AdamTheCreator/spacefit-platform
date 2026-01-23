@@ -86,11 +86,11 @@ export function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-industrial flex flex-col dark">
       {/* Progress bar */}
-      <div className="w-full bg-gray-800 h-1">
+      <div className="w-full bg-[var(--bg-tertiary)] h-0.5">
         <div
-          className="bg-blue-500 h-1 transition-all duration-300"
+          className="bg-[var(--accent)] h-0.5 transition-all duration-300"
           style={{ width: `${((currentIndex + 1) / STEPS.length) * 100}%` }}
         />
       </div>
@@ -100,22 +100,22 @@ export function OnboardingPage() {
           {/* Welcome Step */}
           {currentStep === 'welcome' && (
             <div className="text-center">
-              <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-20 h-20 bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center mx-auto mb-6">
                 <span className="text-4xl">👋</span>
               </div>
-              <h1 className="text-3xl font-bold text-white mb-4">
+              <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">
                 Welcome to SpaceFit AI, {user?.first_name || 'there'}!
               </h1>
-              <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
+              <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
                 Let&apos;s get you set up. This will only take a few minutes and you can
                 always update these settings later.
               </p>
               <button
                 onClick={handleNext}
-                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                className="btn-industrial-primary px-8 py-3"
               >
                 Get started
-                <ArrowRight size={20} />
+                <ArrowRight size={18} />
               </button>
             </div>
           )}
@@ -124,23 +124,23 @@ export function OnboardingPage() {
           {currentStep === 'import' && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Upload className="text-purple-400" size={32} />
+                <div className="w-16 h-16 bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center mx-auto mb-4">
+                  <Upload className="text-[var(--accent)]" size={28} />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">
+                <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">
                   Import your customer list
                 </h2>
-                <p className="text-gray-400">
+                <p className="font-mono text-xs text-industrial-muted">
                   Upload a CSV or Excel file with your customers and their criteria
                 </p>
               </div>
 
-              <div className="bg-gray-800/50 border-2 border-dashed border-gray-700 rounded-xl p-12 text-center mb-6 hover:border-gray-600 transition-colors cursor-pointer">
-                <Upload className="mx-auto mb-4 text-gray-500" size={48} />
-                <p className="text-gray-300 mb-2">
+              <div className="bg-[var(--bg-tertiary)] border-2 border-dashed border-industrial p-12 text-center mb-6 hover:border-[var(--accent)] transition-colors cursor-pointer">
+                <Upload className="mx-auto mb-4 text-industrial-muted" size={48} />
+                <p className="font-mono text-sm text-industrial-secondary mb-2">
                   Drag and drop your file here, or click to browse
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="font-mono text-xs text-industrial-muted">
                   Supports CSV and Excel files up to 10MB
                 </p>
               </div>
@@ -148,24 +148,24 @@ export function OnboardingPage() {
               <div className="flex justify-between">
                 <button
                   onClick={handleBack}
-                  className="px-6 py-3 text-gray-400 hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="btn-industrial"
                 >
-                  <ArrowLeft size={20} />
+                  <ArrowLeft size={18} />
                   Back
                 </button>
                 <div className="flex gap-3">
                   <button
                     onClick={handleSkip}
-                    className="px-6 py-3 text-gray-400 hover:text-white transition-colors"
+                    className="font-mono text-xs uppercase tracking-wide text-industrial-muted hover:text-industrial transition-colors px-4 py-2"
                   >
                     Skip for now
                   </button>
                   <button
                     onClick={handleNext}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                    className="btn-industrial-primary"
                   >
                     Continue
-                    <ArrowRight size={20} />
+                    <ArrowRight size={18} />
                   </button>
                 </div>
               </div>
@@ -176,13 +176,13 @@ export function OnboardingPage() {
           {currentStep === 'connect' && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Link2 className="text-green-400" size={32} />
+                <div className="w-16 h-16 bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 flex items-center justify-center mx-auto mb-4">
+                  <Link2 className="text-[var(--color-success)]" size={28} />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">
+                <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">
                   Connect your data sources
                 </h2>
-                <p className="text-gray-400">
+                <p className="font-mono text-xs text-industrial-muted">
                   Select the platforms you use. You&apos;ll be able to add credentials later.
                 </p>
               </div>
@@ -192,22 +192,22 @@ export function OnboardingPage() {
                   <button
                     key={agent.id}
                     onClick={() => toggleAgent(agent.id)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    className={`p-4 border text-left transition-all ${
                       selectedAgents.includes(agent.id)
-                        ? 'border-blue-500 bg-blue-500/10'
-                        : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/10'
+                        : 'border-industrial-subtle bg-[var(--bg-tertiary)] hover:border-industrial'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">{agent.icon}</span>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <h3 className="font-medium text-white">{agent.name}</h3>
+                          <h3 className="font-mono text-sm font-medium text-industrial">{agent.name}</h3>
                           {selectedAgents.includes(agent.id) && (
-                            <CheckCircle className="text-blue-500" size={20} />
+                            <CheckCircle className="text-[var(--accent)]" size={18} />
                           )}
                         </div>
-                        <p className="text-sm text-gray-400 mt-1">{agent.description}</p>
+                        <p className="font-mono text-[10px] text-industrial-muted mt-1">{agent.description}</p>
                       </div>
                     </div>
                   </button>
@@ -217,24 +217,24 @@ export function OnboardingPage() {
               <div className="flex justify-between">
                 <button
                   onClick={handleBack}
-                  className="px-6 py-3 text-gray-400 hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="btn-industrial"
                 >
-                  <ArrowLeft size={20} />
+                  <ArrowLeft size={18} />
                   Back
                 </button>
                 <div className="flex gap-3">
                   <button
                     onClick={handleSkip}
-                    className="px-6 py-3 text-gray-400 hover:text-white transition-colors"
+                    className="font-mono text-xs uppercase tracking-wide text-industrial-muted hover:text-industrial transition-colors px-4 py-2"
                   >
                     Skip for now
                   </button>
                   <button
                     onClick={handleNext}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                    className="btn-industrial-primary"
                   >
                     Continue
-                    <ArrowRight size={20} />
+                    <ArrowRight size={18} />
                   </button>
                 </div>
               </div>
@@ -244,36 +244,36 @@ export function OnboardingPage() {
           {/* Complete Step */}
           {currentStep === 'complete' && (
             <div className="text-center">
-              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle className="text-green-400" size={48} />
+              <div className="w-20 h-20 bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="text-[var(--color-success)]" size={40} />
               </div>
-              <h1 className="text-3xl font-bold text-white mb-4">You&apos;re all set!</h1>
-              <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
+              <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">You&apos;re all set!</h1>
+              <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
                 Your account is ready. Start chatting with SpaceFit AI to analyze
                 properties and find the perfect matches for your clients.
               </p>
               <div className="flex justify-center gap-4">
                 <button
                   onClick={handleBack}
-                  className="px-6 py-3 text-gray-400 hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="btn-industrial"
                 >
-                  <ArrowLeft size={20} />
+                  <ArrowLeft size={18} />
                   Back
                 </button>
                 <button
                   onClick={handleComplete}
                   disabled={isLoading}
-                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                  className="btn-industrial-primary px-8 py-3 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 size={20} className="animate-spin" />
+                      <Loader2 size={18} className="animate-spin" />
                       Starting...
                     </>
                   ) : (
                     <>
                       Start using SpaceFit AI
-                      <ArrowRight size={20} />
+                      <ArrowRight size={18} />
                     </>
                   )}
                 </button>

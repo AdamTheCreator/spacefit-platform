@@ -70,8 +70,11 @@ export function PricingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      <div className="min-h-screen bg-industrial flex items-center justify-center dark">
+        <div className="relative w-8 h-8">
+          <div className="w-8 h-8 border border-industrial" />
+          <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+        </div>
       </div>
     );
   }
@@ -79,13 +82,13 @@ export function PricingPage() {
   const currentTier = currentSubscription?.subscription.tier || 'free';
 
   return (
-    <div className="min-h-screen bg-gray-900 py-12 px-4">
+    <div className="min-h-screen bg-industrial py-12 px-4 dark">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">
+          <h1 className="font-mono text-3xl font-bold tracking-tight text-industrial mb-4">
             Simple, transparent pricing
           </h1>
-          <p className="text-xl text-gray-400">
+          <p className="font-mono text-sm text-industrial-secondary">
             Choose the plan that fits your commercial real estate business
           </p>
         </div>
@@ -98,43 +101,43 @@ export function PricingPage() {
             return (
               <div
                 key={plan.id}
-                className={`relative bg-gray-800/50 border rounded-xl p-8 ${
+                className={`relative bg-[var(--bg-elevated)] border p-8 ${
                   isPopular
-                    ? 'border-blue-500 ring-2 ring-blue-500/20'
-                    : 'border-gray-700'
+                    ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]/20'
+                    : 'border-industrial'
                 }`}
               >
                 {isPopular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="bg-blue-500 text-white text-sm font-medium px-3 py-1 rounded-full">
+                    <span className="bg-[var(--accent)] text-[var(--color-industrial-900)] font-mono text-xs font-semibold uppercase tracking-wide px-3 py-1">
                       Most Popular
                     </span>
                   </div>
                 )}
 
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-white mb-2">{plan.name}</h2>
-                  <p className="text-gray-400 text-sm h-12">{plan.description}</p>
+                  <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">{plan.name}</h2>
+                  <p className="font-mono text-xs text-industrial-muted h-12">{plan.description}</p>
                 </div>
 
                 <div className="mb-6">
-                  <span className="text-4xl font-bold text-white">
+                  <span className="font-mono text-4xl font-bold text-[var(--accent)]">
                     {formatPrice(plan.price_monthly)}
                   </span>
                   {plan.price_monthly > 0 && (
-                    <span className="text-gray-400">/month</span>
+                    <span className="font-mono text-sm text-industrial-muted">/month</span>
                   )}
                 </div>
 
                 <button
                   onClick={() => handleSelectPlan(plan.tier)}
                   disabled={isCurrentPlan || checkoutLoading === plan.tier}
-                  className={`w-full py-3 px-4 rounded-lg font-medium transition mb-8 ${
+                  className={`w-full py-3 px-4 font-mono text-xs uppercase tracking-wide font-semibold transition mb-8 ${
                     isCurrentPlan
-                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                      ? 'bg-[var(--bg-tertiary)] text-industrial-muted cursor-not-allowed border border-industrial-subtle'
                       : isPopular
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                      : 'bg-gray-700 hover:bg-gray-600 text-white'
+                      ? 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--color-industrial-900)] border border-[var(--accent)]'
+                      : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] text-industrial border border-industrial-subtle'
                   }`}
                 >
                   {checkoutLoading === plan.tier ? (
@@ -149,7 +152,7 @@ export function PricingPage() {
                 </button>
 
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider">
+                  <h3 className="label-technical">
                     What's included
                   </h3>
 
@@ -182,8 +185,8 @@ export function PricingPage() {
                     label={`${formatLimit(plan.team_members)} team member${plan.team_members !== 1 ? 's' : ''}`}
                   />
 
-                  <div className="pt-4 border-t border-gray-700">
-                    <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-4">
+                  <div className="pt-4 border-t border-industrial-subtle">
+                    <h3 className="label-technical mb-4">
                       Data Sources
                     </h3>
                     <FeatureItem included label="Census Bureau" />
@@ -192,8 +195,8 @@ export function PricingPage() {
                     <FeatureItem included={plan.has_costar_access} label="CoStar" />
                   </div>
 
-                  <div className="pt-4 border-t border-gray-700">
-                    <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-4">
+                  <div className="pt-4 border-t border-industrial-subtle">
+                    <h3 className="label-technical mb-4">
                       Features
                     </h3>
                     <FeatureItem included={plan.has_email_outreach} label="Email Outreach" />
@@ -206,8 +209,8 @@ export function PricingPage() {
         </div>
 
         {currentSubscription && (
-          <div className="mt-12 bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Your Usage This Month</h2>
+          <div className="mt-12 bg-[var(--bg-elevated)] border border-industrial p-6">
+            <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-4">Your Usage This Month</h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <UsageItem
                 label="Chat Sessions"
@@ -238,9 +241,9 @@ export function PricingPage() {
           </div>
         )}
 
-        <div className="mt-12 text-center text-gray-400">
-          <p>Need a custom plan for your team?</p>
-          <a href="mailto:sales@spacefit.ai" className="text-blue-400 hover:text-blue-300">
+        <div className="mt-12 text-center">
+          <p className="font-mono text-xs text-industrial-muted">Need a custom plan for your team?</p>
+          <a href="mailto:sales@spacefit.ai" className="font-mono text-xs text-[var(--accent)] hover:underline uppercase tracking-wide">
             Contact us for Enterprise pricing
           </a>
         </div>
@@ -253,11 +256,11 @@ function FeatureItem({ included, label }: { included: boolean; label: string }) 
   return (
     <div className="flex items-center gap-3">
       {included ? (
-        <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
+        <Check className="h-4 w-4 text-[var(--color-success)] flex-shrink-0" />
       ) : (
-        <X className="h-5 w-5 text-gray-600 flex-shrink-0" />
+        <X className="h-4 w-4 text-industrial-muted flex-shrink-0" />
       )}
-      <span className={included ? 'text-gray-300' : 'text-gray-500'}>{label}</span>
+      <span className={`font-mono text-xs ${included ? 'text-industrial-secondary' : 'text-industrial-muted'}`}>{label}</span>
     </div>
   );
 }
@@ -269,16 +272,16 @@ function UsageItem({ label, used, limit }: { label: string; used: number; limit:
   const isAtLimit = !isUnlimited && percentage >= 100;
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="text-sm text-gray-400 mb-1">{label}</div>
-      <div className="text-xl font-bold text-white">
+    <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-4">
+      <div className="label-technical mb-1">{label}</div>
+      <div className="font-mono text-xl font-bold text-industrial">
         {used} / {isUnlimited ? '∞' : limit}
       </div>
       {!isUnlimited && limit > 0 && (
-        <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
+        <div className="mt-2 h-1 bg-[var(--bg-secondary)] overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${
-              isAtLimit ? 'bg-red-500' : isNearLimit ? 'bg-yellow-500' : 'bg-blue-500'
+            className={`h-full transition-all ${
+              isAtLimit ? 'bg-[var(--color-error)]' : isNearLimit ? 'bg-[var(--color-warning)]' : 'bg-[var(--accent)]'
             }`}
             style={{ width: `${Math.min(percentage, 100)}%` }}
           />

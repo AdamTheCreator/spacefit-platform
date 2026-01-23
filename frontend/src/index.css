@@ -1,6 +1,3 @@
-/* Google Fonts - Industrial Typography (must be first) */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -43,10 +40,10 @@
   --color-error: #EF4444;
   --color-info: #3B82F6;
 
-  /* Typography */
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --font-display: 'Space Grotesk', 'SF Pro Display', system-ui, sans-serif;
-  --font-body: 'Space Grotesk', system-ui, sans-serif;
+  /* Typography - System fonts only */
+  --font-mono: ui-monospace, 'SF Mono', 'Fira Code', Consolas, monospace;
+  --font-display: system-ui, -apple-system, sans-serif;
+  --font-body: system-ui, -apple-system, sans-serif;
 
   /* Spacing Scale */
   --spacing-grid: 8px;

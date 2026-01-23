@@ -26,16 +26,16 @@ export function PipelinePage() {
 
   return (
     <AppLayout>
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col bg-industrial">
         {/* Header */}
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-800">
+        <div className="flex-shrink-0 px-6 py-4 border-b border-industrial bg-[var(--bg-elevated)]">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-white">Deal Pipeline</h1>
-              <p className="text-sm text-gray-400">
-                {pipelineSummary?.total_deals || 0} active deals
+              <h1 className="font-mono text-lg font-bold tracking-tight text-industrial">Deal Pipeline</h1>
+              <p className="font-mono text-xs text-industrial-muted">
+                <span className="data-value">{pipelineSummary?.total_deals || 0}</span> active deals
                 {' '}&bull;{' '}
-                <span className="text-green-400">
+                <span className="text-[var(--accent)]">
                   {formatCurrency(pipelineSummary?.total_potential_commission || 0)} potential
                 </span>
               </p>
@@ -43,8 +43,7 @@ export function PipelinePage() {
 
             <button
               onClick={() => openDealForm()}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                         text-white rounded-lg transition-colors"
+              className="btn-industrial-primary"
             >
               <Plus className="w-4 h-4" />
               New Deal
@@ -55,42 +54,38 @@ export function PipelinePage() {
           <div className="flex items-center justify-between">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-industrial-muted" />
               <input
                 type="text"
                 placeholder="Search deals..."
                 value={filters.search || ''}
                 onChange={(e) => setFilters({ search: e.target.value || undefined })}
-                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white
-                           placeholder-gray-500 focus:outline-none focus:border-indigo-500 w-64"
+                className="input-industrial pl-10 w-64"
               />
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Filters */}
-              <button
-                className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700
-                           border border-gray-700 rounded-lg text-gray-300 transition-colors"
-              >
+              <button className="btn-industrial">
                 <Filter className="w-4 h-4" />
                 Filters
               </button>
 
               {/* View Mode Toggle */}
-              <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700 p-1">
+              <div className="flex items-center border border-industrial p-0.5">
                 {VIEW_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setViewMode(option.value)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
+                    className={`flex items-center gap-2 px-3 py-1.5 transition-colors font-mono text-xs uppercase tracking-wide ${
                       viewMode === option.value
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-gray-400 hover:text-white'
+                        ? 'bg-[var(--accent)] text-[var(--color-industrial-900)]'
+                        : 'text-industrial-muted hover:text-industrial'
                     }`}
                     title={option.label}
                   >
                     {option.icon}
-                    <span className="hidden sm:inline text-sm">{option.label}</span>
+                    <span className="hidden sm:inline">{option.label}</span>
                   </button>
                 ))}
               </div>
@@ -102,23 +97,26 @@ export function PipelinePage() {
         <div className="flex-1 overflow-hidden p-6">
           {dealsLoading ? (
             <div className="flex items-center justify-center h-full">
-              <div className="flex items-center gap-3 text-gray-400">
-                <span className="w-5 h-5 border-2 border-gray-600 border-t-indigo-500 rounded-full animate-spin" />
-                Loading deals...
+              <div className="flex items-center gap-3">
+                <div className="relative w-5 h-5">
+                  <div className="w-5 h-5 border border-industrial" />
+                  <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+                </div>
+                <span className="label-technical">Loading deals...</span>
               </div>
             </div>
           ) : viewMode === 'kanban' ? (
             <KanbanBoard deals={deals} />
           ) : viewMode === 'list' ? (
-            <div className="text-gray-400 text-center py-12">
+            <div className="label-technical text-center py-12">
               List view coming soon...
             </div>
           ) : viewMode === 'calendar' ? (
-            <div className="text-gray-400 text-center py-12">
+            <div className="label-technical text-center py-12">
               Calendar view coming soon...
             </div>
           ) : viewMode === 'map' ? (
-            <div className="text-gray-400 text-center py-12">
+            <div className="label-technical text-center py-12">
               Map view coming soon...
             </div>
           ) : null}

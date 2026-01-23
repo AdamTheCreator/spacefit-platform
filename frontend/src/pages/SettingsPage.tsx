@@ -31,15 +31,15 @@ function MultiSelect({
         <button
           key={option.value}
           onClick={() => toggle(option.value)}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wide transition-colors border ${
             selected.includes(option.value)
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              ? 'bg-[var(--accent)] text-[var(--color-industrial-900)] border-[var(--accent)]'
+              : 'bg-[var(--bg-tertiary)] text-industrial-secondary border-industrial hover:border-industrial-subtle'
           }`}
           title={option.description}
         >
           {option.label}
-          {selected.includes(option.value) && <Check size={14} className="inline ml-1" />}
+          {selected.includes(option.value) && <Check size={12} className="inline ml-1" />}
         </button>
       ))}
     </div>
@@ -75,11 +75,11 @@ function TagInput({
         {tags.map((tag) => (
           <span
             key={tag}
-            className="px-3 py-1 bg-blue-600/30 text-blue-300 rounded-full text-sm flex items-center gap-1"
+            className="px-3 py-1 bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30 font-mono text-xs flex items-center gap-1"
           >
             {tag}
-            <button onClick={() => removeTag(tag)} className="hover:text-white">
-              <X size={14} />
+            <button onClick={() => removeTag(tag)} className="hover:text-industrial">
+              <X size={12} />
             </button>
           </span>
         ))}
@@ -91,13 +91,13 @@ function TagInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="input-industrial flex-1"
         />
         <button
           onClick={addTag}
-          className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-300 transition-colors"
+          className="btn-industrial px-3 py-2"
         >
-          <Plus size={18} />
+          <Plus size={16} />
         </button>
       </div>
     </div>
@@ -141,59 +141,59 @@ function AIPreferencesSection() {
 
   if (optionsLoading || prefsLoading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 animate-pulse">
-        <div className="h-6 bg-gray-700 rounded w-48 mb-4"></div>
+      <div className="card-industrial animate-pulse">
+        <div className="h-4 bg-[var(--bg-tertiary)] w-48 mb-4"></div>
         <div className="space-y-3">
-          <div className="h-4 bg-gray-700 rounded w-full"></div>
-          <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+          <div className="h-3 bg-[var(--bg-tertiary)] w-full"></div>
+          <div className="h-3 bg-[var(--bg-tertiary)] w-3/4"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+    <div className="card-industrial">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Sparkles size={20} className="text-purple-400" />
-          <h2 className="text-lg font-medium text-white">AI Preferences</h2>
+          <Sparkles size={16} className="text-[var(--accent)]" />
+          <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial">AI Preferences</h2>
         </div>
         {preferences && (
           <div className="flex items-center gap-2">
-            <div className="h-2 w-24 bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-1 w-24 bg-[var(--bg-tertiary)] overflow-hidden">
               <div
-                className="h-full bg-purple-500 transition-all"
+                className="h-full bg-[var(--accent)] transition-all"
                 style={{ width: `${preferences.completion_percentage}%` }}
               />
             </div>
-            <span className="text-sm text-gray-400">
-              {preferences.completion_percentage}% complete
+            <span className="font-mono text-xs text-industrial-muted">
+              {preferences.completion_percentage}%
             </span>
           </div>
         )}
       </div>
 
-      <p className="text-gray-400 text-sm mb-6">
+      <p className="font-mono text-xs text-industrial-secondary mb-6">
         Help SpaceFit AI understand your business to provide more relevant analysis and recommendations.
       </p>
 
       <div className="space-y-6">
         {/* Role */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Your Role</label>
+          <label className="label-technical block mb-2">Your Role</label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {options?.roles.map((role) => (
               <button
                 key={role.value}
                 onClick={() => updateField('role', role.value)}
-                className={`p-3 rounded-lg border text-left transition-colors ${
+                className={`p-3 border text-left transition-colors ${
                   currentPrefs.role === role.value
-                    ? 'border-purple-500 bg-purple-500/20 text-white'
-                    : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-industrial'
+                    : 'border-industrial-subtle bg-[var(--bg-tertiary)] text-industrial-secondary hover:border-industrial'
                 }`}
               >
-                <div className="font-medium">{role.label}</div>
-                <div className="text-xs text-gray-400 mt-1">{role.description}</div>
+                <div className="font-mono text-xs font-medium">{role.label}</div>
+                <div className="font-mono text-[10px] text-industrial-muted mt-1">{role.description}</div>
               </button>
             ))}
           </div>
@@ -201,8 +201,8 @@ function AIPreferencesSection() {
 
         {/* Property Types */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Property Types</label>
-          <p className="text-gray-500 text-sm mb-2">Select all that apply</p>
+          <label className="label-technical block mb-2">Property Types</label>
+          <p className="font-mono text-[10px] text-industrial-muted mb-2">Select all that apply</p>
           <MultiSelect
             options={options?.property_types ?? []}
             selected={currentPrefs.property_types}
@@ -212,8 +212,8 @@ function AIPreferencesSection() {
 
         {/* Tenant Categories */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Tenant Categories</label>
-          <p className="text-gray-500 text-sm mb-2">What types of tenants do you work with?</p>
+          <label className="label-technical block mb-2">Tenant Categories</label>
+          <p className="font-mono text-[10px] text-industrial-muted mb-2">What types of tenants do you work with?</p>
           <MultiSelect
             options={options?.tenant_categories ?? []}
             selected={currentPrefs.tenant_categories}
@@ -223,8 +223,8 @@ function AIPreferencesSection() {
 
         {/* Geographic Markets */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Geographic Markets</label>
-          <p className="text-gray-500 text-sm mb-2">Add the markets you operate in</p>
+          <label className="label-technical block mb-2">Geographic Markets</label>
+          <p className="font-mono text-[10px] text-industrial-muted mb-2">Add the markets you operate in</p>
           <TagInput
             tags={currentPrefs.markets}
             onChange={(v) => updateField('markets', v)}
@@ -234,10 +234,10 @@ function AIPreferencesSection() {
 
         {/* Deal Size */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Typical Deal Size (SF)</label>
+          <label className="label-technical block mb-2">Typical Deal Size (SF)</label>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="text-gray-500 text-sm">Min</label>
+              <label className="font-mono text-[10px] text-industrial-muted">Min</label>
               <input
                 type="number"
                 value={currentPrefs.deal_size_min ?? ''}
@@ -245,11 +245,11 @@ function AIPreferencesSection() {
                   updateField('deal_size_min', e.target.value ? parseInt(e.target.value) : null)
                 }
                 placeholder="1,000"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="input-industrial"
               />
             </div>
             <div className="flex-1">
-              <label className="text-gray-500 text-sm">Max</label>
+              <label className="font-mono text-[10px] text-industrial-muted">Max</label>
               <input
                 type="number"
                 value={currentPrefs.deal_size_max ?? ''}
@@ -257,7 +257,7 @@ function AIPreferencesSection() {
                   updateField('deal_size_max', e.target.value ? parseInt(e.target.value) : null)
                 }
                 placeholder="50,000"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="input-industrial"
               />
             </div>
           </div>
@@ -265,8 +265,8 @@ function AIPreferencesSection() {
 
         {/* Key Tenants */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Key Tenant Relationships</label>
-          <p className="text-gray-500 text-sm mb-2">
+          <label className="label-technical block mb-2">Key Tenant Relationships</label>
+          <p className="font-mono text-[10px] text-industrial-muted mb-2">
             Tenants you have relationships with or frequently represent
           </p>
           <TagInput
@@ -278,8 +278,8 @@ function AIPreferencesSection() {
 
         {/* Analysis Priorities */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Analysis Priorities</label>
-          <p className="text-gray-500 text-sm mb-2">What matters most in your analyses?</p>
+          <label className="label-technical block mb-2">Analysis Priorities</label>
+          <p className="font-mono text-[10px] text-industrial-muted mb-2">What matters most in your analyses?</p>
           <MultiSelect
             options={options?.analysis_priorities ?? []}
             selected={currentPrefs.analysis_priorities}
@@ -289,8 +289,8 @@ function AIPreferencesSection() {
 
         {/* Custom Notes */}
         <div>
-          <label className="text-gray-300 block mb-2 font-medium">Additional Context</label>
-          <p className="text-gray-500 text-sm mb-2">
+          <label className="label-technical block mb-2">Additional Context</label>
+          <p className="font-mono text-[10px] text-industrial-muted mb-2">
             Any other information that would help the AI assist you better
           </p>
           <textarea
@@ -298,26 +298,26 @@ function AIPreferencesSection() {
             onChange={(e) => updateField('custom_notes', e.target.value || null)}
             placeholder="e.g., I specialize in drive-thru enabled sites for QSR tenants..."
             rows={3}
-            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+            className="input-industrial resize-none"
           />
         </div>
 
         {/* Save Button */}
         {hasChanges && (
-          <div className="flex justify-end pt-4 border-t border-gray-700">
+          <div className="flex justify-end pt-4 border-t border-industrial">
             <button
               onClick={saveChanges}
               disabled={updateMutation.isPending}
-              className="px-6 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              className="btn-industrial-primary"
             >
               {updateMutation.isPending ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border border-[var(--color-industrial-900)] border-t-transparent animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Check size={18} />
+                  <Check size={16} />
                   Save Preferences
                 </>
               )}
@@ -332,85 +332,85 @@ function AIPreferencesSection() {
 export function SettingsPage() {
   return (
     <AppLayout>
-      <div className="p-6 max-w-3xl mx-auto">
-        <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
+      <div className="p-6 max-w-3xl mx-auto bg-industrial min-h-full">
+        <h1 className="font-mono text-lg font-bold tracking-tight text-industrial mb-6">Settings</h1>
 
         <div className="space-y-6">
           {/* AI Preferences - Featured at top */}
           <AIPreferencesSection />
 
           {/* Notifications */}
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div className="card-industrial">
             <div className="flex items-center gap-3 mb-4">
-              <Bell size={20} className="text-gray-400" />
-              <h2 className="text-lg font-medium text-white">Notifications</h2>
+              <Bell size={16} className="text-industrial-muted" />
+              <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial">Notifications</h2>
             </div>
 
             <div className="space-y-4">
               <label className="flex items-center justify-between">
-                <span className="text-gray-300">Email notifications</span>
+                <span className="font-mono text-xs text-industrial-secondary">Email notifications</span>
                 <input
                   type="checkbox"
                   defaultChecked
-                  className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                  className="w-4 h-4 bg-[var(--bg-tertiary)] border-industrial text-[var(--accent)] focus:ring-[var(--accent)]"
                 />
               </label>
 
               <label className="flex items-center justify-between">
-                <span className="text-gray-300">Analysis complete alerts</span>
+                <span className="font-mono text-xs text-industrial-secondary">Analysis complete alerts</span>
                 <input
                   type="checkbox"
                   defaultChecked
-                  className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                  className="w-4 h-4 bg-[var(--bg-tertiary)] border-industrial text-[var(--accent)] focus:ring-[var(--accent)]"
                 />
               </label>
 
               <label className="flex items-center justify-between">
-                <span className="text-gray-300">Weekly digest</span>
+                <span className="font-mono text-xs text-industrial-secondary">Weekly digest</span>
                 <input
                   type="checkbox"
-                  className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                  className="w-4 h-4 bg-[var(--bg-tertiary)] border-industrial text-[var(--accent)] focus:ring-[var(--accent)]"
                 />
               </label>
             </div>
           </div>
 
           {/* Security */}
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div className="card-industrial">
             <div className="flex items-center gap-3 mb-4">
-              <Shield size={20} className="text-gray-400" />
-              <h2 className="text-lg font-medium text-white">Security</h2>
+              <Shield size={16} className="text-industrial-muted" />
+              <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial">Security</h2>
             </div>
 
-            <div className="space-y-4">
-              <button className="w-full text-left px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                <span className="text-gray-300">Change password</span>
-                <p className="text-gray-500 text-sm">Update your account password</p>
+            <div className="space-y-2">
+              <button className="w-full text-left px-4 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-industrial-subtle transition-colors">
+                <span className="font-mono text-xs text-industrial">Change password</span>
+                <p className="label-technical mt-1">Update your account password</p>
               </button>
 
-              <button className="w-full text-left px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                <span className="text-gray-300">Two-factor authentication</span>
-                <p className="text-gray-500 text-sm">Add an extra layer of security</p>
+              <button className="w-full text-left px-4 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-industrial-subtle transition-colors">
+                <span className="font-mono text-xs text-industrial">Two-factor authentication</span>
+                <p className="label-technical mt-1">Add an extra layer of security</p>
               </button>
 
-              <button className="w-full text-left px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                <span className="text-gray-300">Active sessions</span>
-                <p className="text-gray-500 text-sm">Manage devices where you're logged in</p>
+              <button className="w-full text-left px-4 py-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-industrial-subtle transition-colors">
+                <span className="font-mono text-xs text-industrial">Active sessions</span>
+                <p className="label-technical mt-1">Manage devices where you're logged in</p>
               </button>
             </div>
           </div>
 
           {/* Appearance */}
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div className="card-industrial">
             <div className="flex items-center gap-3 mb-4">
-              <Palette size={20} className="text-gray-400" />
-              <h2 className="text-lg font-medium text-white">Appearance</h2>
+              <Palette size={16} className="text-industrial-muted" />
+              <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial">Appearance</h2>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-gray-300 block mb-2">Theme</label>
-                <select className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <label className="label-technical block mb-2">Theme</label>
+                <select className="input-industrial">
                   <option value="dark">Dark (default)</option>
                   <option value="light" disabled>
                     Light (coming soon)
@@ -424,9 +424,9 @@ export function SettingsPage() {
           </div>
 
           {/* Danger Zone */}
-          <div className="bg-gray-800 rounded-lg p-6 border border-red-900/50">
-            <h2 className="text-lg font-medium text-red-400 mb-4">Danger Zone</h2>
-            <button className="px-4 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-700 rounded-lg transition-colors">
+          <div className="card-industrial border-[var(--color-error)]/30">
+            <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-[var(--color-error)] mb-4">Danger Zone</h2>
+            <button className="btn-industrial border-[var(--color-error)] text-[var(--color-error)] hover:bg-[var(--color-error)]/10">
               Delete Account
             </button>
           </div>
