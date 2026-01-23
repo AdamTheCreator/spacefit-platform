@@ -130,7 +130,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
                   key={suggestion}
                   onClick={() => handleSendMessage(suggestion)}
                   disabled={!isConnected}
-                  className="btn-industrial text-[11px] py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-industrial text-[11px] py-2.5 px-4 leading-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {suggestion}
                 </button>
