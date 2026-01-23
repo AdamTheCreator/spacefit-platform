@@ -17,6 +17,7 @@ const DocumentsPage = lazy(() => import('./pages/DocumentsPage').then(m => ({ de
 const OutreachPage = lazy(() => import('./pages/OutreachPage').then(m => ({ default: m.OutreachPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 
 // Loading fallback component
 function PageLoader() {
@@ -57,6 +58,9 @@ function App() {
             <Route path="/connections" element={<ConnectionsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
+
+          {/* Catch-all 404 route */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </div>
