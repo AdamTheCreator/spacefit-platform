@@ -119,17 +119,17 @@ def upgrade():
         (
             'plan_free_001', 'free', 'Free', 'Get started with SpaceFit', 0,
             10, 3, 5, 0, 5, 1,
-            0, 0, 0, 0, 0
+            false, false, false, false, false
         ),
         (
             'plan_pro_001', 'pro', 'Pro', 'For growing CRE professionals', 4900,
             -1, 50, -1, 500, 50, 3,
-            1, 1, 0, 1, 0
+            true, true, false, true, false
         ),
         (
             'plan_ent_001', 'enterprise', 'Enterprise', 'For teams that need everything', 19900,
             -1, -1, -1, 5000, -1, -1,
-            1, 1, 1, 1, 1
+            true, true, true, true, true
         )
         """
     )
