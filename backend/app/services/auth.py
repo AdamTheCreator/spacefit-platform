@@ -70,7 +70,7 @@ class AuthService:
         access_token = create_access_token(user.id)
         refresh_token, token_hash = create_refresh_token(user.id)
 
-        expires_at = datetime.now(timezone.utc) + timedelta(
+        expires_at = datetime.utcnow() + timedelta(
             days=settings.refresh_token_expire_days
         )
 
@@ -107,7 +107,7 @@ class AuthService:
                 RefreshToken.user_id == UUID(user_id),
                 RefreshToken.token_hash.startswith(jti),
                 RefreshToken.revoked == False,
-                RefreshToken.expires_at > datetime.now(timezone.utc),
+                RefreshToken.expires_at > datetime.utcnow(),
             )
         )
         token_record = result.scalar_one_or_none()
