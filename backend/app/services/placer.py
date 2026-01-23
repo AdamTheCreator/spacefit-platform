@@ -411,13 +411,14 @@ async def get_tenant_match(venue_id: str) -> list[TenantMatch]:
 
 def format_audience_report(audience: AudienceOverview) -> str:
     """Format audience overview as markdown for chat display."""
+    education_level = "Bachelor's degree or higher" if audience.bachelors_degree_pct and audience.bachelors_degree_pct > 40 else "Some college"
     lines = [
         f"**Customer Profile for {audience.venue_name}**\n",
         "*Based on actual visitors (mobile data), not just nearby residents*\n",
         "**Visitor Demographics:**",
         f"- Median Household Income: ${audience.median_household_income:,}" if audience.median_household_income else "",
         f"- Median Age: {audience.median_age:.1f} years" if audience.median_age else "",
-        f"- Most Common Education: {"Bachelor's degree or higher" if audience.bachelors_degree_pct and audience.bachelors_degree_pct > 40 else "Some college"}",
+        f"- Most Common Education: {education_level}",
         f"- Most Common Ethnicity: {audience.most_common_ethnicity}" if audience.most_common_ethnicity else "",
         "",
         "**Gender Split:**",
