@@ -54,6 +54,30 @@ const AgentIcons: Record<AgentType, React.ReactNode> = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
+  placer: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  ),
+  siteusa: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="9" y1="21" x2="9" y2="9" />
+    </svg>
+  ),
+  costar: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  ),
+  outreach: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  ),
 };
 
 // Color mappings for Tailwind classes
@@ -100,6 +124,30 @@ const colorMap: Record<AgentType, { bg: string; text: string; glow: string; shad
     glow: 'shadow-cyan-500/50',
     shadow: 'shadow-[0_0_20px_rgba(6,182,212,0.5)]',
   },
+  placer: {
+    bg: 'bg-emerald-500',
+    text: 'text-emerald-400',
+    glow: 'shadow-emerald-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
+  },
+  siteusa: {
+    bg: 'bg-amber-500',
+    text: 'text-amber-400',
+    glow: 'shadow-amber-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(245,158,11,0.5)]',
+  },
+  costar: {
+    bg: 'bg-indigo-500',
+    text: 'text-indigo-400',
+    glow: 'shadow-indigo-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(99,102,241,0.5)]',
+  },
+  outreach: {
+    bg: 'bg-pink-500',
+    text: 'text-pink-400',
+    glow: 'shadow-pink-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(236,72,153,0.5)]',
+  },
 };
 
 export function AgentActivityPanel({
@@ -117,6 +165,10 @@ export function AgentActivityPanel({
       'void-analysis': 'idle',
       'tenant-match': 'idle',
       notification: 'idle',
+      placer: 'idle',
+      siteusa: 'idle',
+      costar: 'idle',
+      outreach: 'idle',
     };
 
     // If processing but no workflow steps, orchestrator is thinking
