@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Loader2, Eye, EyeOff, Shield, Monitor, Trash2, BarChart3, Building2 } from 'lucide-react';
 import type { SiteConfig, Credential } from '../../types/credentials';
 
@@ -49,6 +49,18 @@ export function CredentialModal({
     setShowDeleteConfirm(false);
   }, [isOpen, existingCredential]);
 
+  // Handle Escape key to close modal
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape' && isOpen) {
+      onClose();
+    }
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   if (!isOpen || !site) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +87,12 @@ export function CredentialModal({
   const displayError = error || localError;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -91,7 +108,7 @@ export function CredentialModal({
               {SITE_ICONS[site.id] || <BarChart3 size={20} className="text-gray-400" />}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">
+              <h2 id="modal-title" className="text-lg font-semibold text-white">
                 {existingCredential ? 'Update' : 'Connect to'} {site.name}
               </h2>
               {site.is_browser_based && (
@@ -104,6 +121,7 @@ export function CredentialModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             <X size={20} />
@@ -119,10 +137,11 @@ export function CredentialModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="credential-username" className="block text-sm font-medium text-gray-300 mb-1">
               Email / Username
             </label>
             <input
+              id="credential-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -134,7 +153,7 @@ export function CredentialModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="credential-password" className="block text-sm font-medium text-gray-300 mb-1">
               Password
               {existingCredential && (
                 <span className="text-gray-500 font-normal ml-2">
@@ -144,6 +163,7 @@ export function CredentialModal({
             </label>
             <div className="relative">
               <input
+                id="credential-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -155,16 +175,17 @@ export function CredentialModal({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
               </button>
             </div>
           </div>
 
           {/* Security info */}
           <div className="flex items-start gap-2 p-3 bg-gray-700/50 rounded-lg">
-            <Shield size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
+            <Shield size={16} className="text-green-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
             <p className="text-xs text-gray-400">
               Your credentials are encrypted using AES-256 and stored securely.
               They are only used to access your {site.name} account on your behalf.

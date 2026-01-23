@@ -90,9 +90,10 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 rounded"
           >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
           </button>
         </div>
         {errors.password && (
@@ -107,7 +108,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
       >
         {isSubmitting ? (
           <>
-            <Loader2 size={20} className="animate-spin" />
+            <Loader2 size={20} className="animate-spin" aria-hidden="true" />
             Signing in...
           </>
         ) : (

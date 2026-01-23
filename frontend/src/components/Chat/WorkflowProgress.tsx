@@ -36,13 +36,20 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
       </div>
 
       {/* Progress bar */}
-      <div className="h-1.5 bg-gray-700 rounded-full mb-4 overflow-hidden">
+      <div
+        className="h-1.5 bg-gray-700 rounded-full mb-4 overflow-hidden"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress)}
+        aria-label={`Workflow progress: ${completedSteps.length} of ${steps.length} steps complete`}
+      >
         <div
           className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 rounded-full transition-all duration-500 ease-out relative"
           style={{ width: `${progress}%` }}
         >
           {runningSteps.length > 0 && (
-            <div className="absolute inset-0 bg-white/20 animate-pulse" />
+            <div className="absolute inset-0 bg-white/20 animate-pulse" aria-hidden="true" />
           )}
         </div>
       </div>
@@ -74,6 +81,7 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -100,6 +108,7 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"

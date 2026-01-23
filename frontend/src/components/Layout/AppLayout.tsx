@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   MessageSquare,
@@ -28,6 +28,8 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
   const { clearChat } = useChatStore();
   const navigate = useNavigate();
@@ -57,8 +59,71 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
+  // Menu items for keyboard navigation
+  const menuItems = [
+    { path: '/profile', label: 'Profile' },
+    { path: '/customers', label: 'Customers' },
+    { path: '/connections', label: 'Connections' },
+    { path: '/settings', label: 'Settings' },
+    { action: 'logout', label: 'Sign out' },
+  ];
+
+  // Handle keyboard navigation in dropdown
+  const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!dropdownOpen) return;
+
+    switch (e.key) {
+      case 'Escape':
+        setDropdownOpen(false);
+        setFocusedIndex(-1);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedIndex(prev => Math.min(prev + 1, menuItems.length - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedIndex(prev => Math.max(prev - 1, 0));
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (focusedIndex >= 0) {
+          const item = menuItems[focusedIndex];
+          if (item.action === 'logout') {
+            handleLogout();
+          } else if (item.path) {
+            navigate(item.path);
+            setDropdownOpen(false);
+          }
+        }
+        break;
+      case 'Tab':
+        setDropdownOpen(false);
+        setFocusedIndex(-1);
+        break;
+    }
+  }, [dropdownOpen, focusedIndex, menuItems, navigate, handleLogout]);
+
+  // Reset focus when dropdown opens/closes
+  useEffect(() => {
+    if (dropdownOpen) {
+      setFocusedIndex(0);
+    } else {
+      setFocusedIndex(-1);
+    }
+  }, [dropdownOpen]);
+
   return (
     <div className="h-screen flex bg-gray-900">
+      {/* Skip link for keyboard users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+      >
+        Skip to main content
+      </a>
+
       {/* Sidebar */}
       <div
         className={`${
@@ -130,6 +195,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     onClick={(e) => handleDeleteSession(e, session.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-600 rounded transition-opacity"
                     title="Delete conversation"
+                    aria-label="Delete conversation"
                   >
                     <X size={14} className="text-gray-400 hover:text-red-400" />
                   </button>
@@ -173,6 +239,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
               className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
             >
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -181,9 +248,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           {/* User Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
+              aria-haspopup="menu"
+              aria-expanded={dropdownOpen}
               className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
             >
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
@@ -203,7 +272,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                   className="fixed inset-0 z-10"
                   onClick={() => setDropdownOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                <div
+                  className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 py-1"
+                  role="menu"
+                  aria-orientation="vertical"
+                >
                   <div className="px-4 py-3 border-b border-gray-700">
                     <p className="text-sm font-medium text-white">
                       {user?.first_name} {user?.last_name}
@@ -214,7 +287,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     to="/profile"
                     onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors"
+                    role="menuitem"
+                    tabIndex={focusedIndex === 0 ? 0 : -1}
+                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 0 ? 'bg-gray-700' : ''}`}
                   >
                     <User size={16} />
                     <span className="text-sm">Profile</span>
@@ -223,7 +298,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     to="/customers"
                     onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors"
+                    role="menuitem"
+                    tabIndex={focusedIndex === 1 ? 0 : -1}
+                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 1 ? 'bg-gray-700' : ''}`}
                   >
                     <Users size={16} />
                     <span className="text-sm">Customers</span>
@@ -232,7 +309,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     to="/connections"
                     onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors"
+                    role="menuitem"
+                    tabIndex={focusedIndex === 2 ? 0 : -1}
+                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 2 ? 'bg-gray-700' : ''}`}
                   >
                     <Key size={16} />
                     <span className="text-sm">Connections</span>
@@ -241,7 +320,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     to="/settings"
                     onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors"
+                    role="menuitem"
+                    tabIndex={focusedIndex === 3 ? 0 : -1}
+                    className={`flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 transition-colors ${focusedIndex === 3 ? 'bg-gray-700' : ''}`}
                   >
                     <Settings size={16} />
                     <span className="text-sm">Settings</span>
@@ -250,7 +331,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <div className="border-t border-gray-700 mt-1 pt-1">
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-3 px-4 py-2 text-red-400 hover:bg-gray-700 transition-colors w-full"
+                      role="menuitem"
+                      tabIndex={focusedIndex === 4 ? 0 : -1}
+                      className={`flex items-center gap-3 px-4 py-2 text-red-400 hover:bg-gray-700 transition-colors w-full ${focusedIndex === 4 ? 'bg-gray-700' : ''}`}
                     >
                       <LogOut size={16} />
                       <span className="text-sm">Sign out</span>
@@ -263,7 +346,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main id="main-content" className="flex-1 overflow-hidden">{children}</main>
       </div>
     </div>
   );

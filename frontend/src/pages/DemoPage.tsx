@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDemoPlayback } from '../hooks/useDemoPlayback';
 import { useScrollDirection } from '../hooks/useScrollDirection';
@@ -32,10 +32,19 @@ export function DemoPage() {
     resetDemo,
   } = useDemoPlayback();
 
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
+  // Scroll to bottom function
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, workflowSteps]);
+  }, []);
+
+  // Auto-scroll to bottom when messages change (only when new messages are added)
+  const prevMessagesLength = useRef(messages.length);
+  useEffect(() => {
+    if (messages.length > prevMessagesLength.current) {
+      scrollToBottom();
+    }
+    prevMessagesLength.current = messages.length;
+  }, [messages.length, scrollToBottom]);
 
   const handleExitDemo = () => {
     navigate('/login');

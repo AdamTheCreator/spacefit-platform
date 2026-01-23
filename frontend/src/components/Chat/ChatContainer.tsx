@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useChat } from '../../hooks/useChat';
 import { ChatMessage } from './ChatMessage';
@@ -57,9 +57,9 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = useCallback((content: string) => {
     sendMessage(content);
-  };
+  }, [sendMessage]);
 
   return (
     <div className="flex flex-col h-full bg-gray-900">

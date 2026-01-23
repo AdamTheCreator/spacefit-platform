@@ -59,6 +59,7 @@ export function ChatInput({
       <button
         type="submit"
         disabled={disabled || !input.trim()}
+        aria-label="Send message"
         className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium
                    hover:bg-blue-700 transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed

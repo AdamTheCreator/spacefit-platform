@@ -1,3 +1,4 @@
+import { useCallback, memo } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Deal, DealStage } from '../../types/deal';
@@ -11,9 +12,13 @@ interface KanbanColumnProps {
   onDealClick: (dealId: string) => void;
 }
 
-export function KanbanColumn({ stage, deals, totalCommission, onDealClick }: KanbanColumnProps) {
+export const KanbanColumn = memo(function KanbanColumn({ stage, deals, totalCommission, onDealClick }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const stageConfig = getStageConfig(stage);
+
+  const handleCardClick = useCallback((dealId: string) => {
+    onDealClick(dealId);
+  }, [onDealClick]);
 
   return (
     <div
@@ -47,7 +52,7 @@ export function KanbanColumn({ stage, deals, totalCommission, onDealClick }: Kan
             <KanbanCard
               key={deal.id}
               deal={deal}
-              onClick={() => onDealClick(deal.id)}
+              onClick={() => handleCardClick(deal.id)}
             />
           ))}
         </SortableContext>
@@ -61,4 +66,4 @@ export function KanbanColumn({ stage, deals, totalCommission, onDealClick }: Kan
       </div>
     </div>
   );
-}
+});

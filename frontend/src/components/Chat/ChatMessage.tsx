@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { Message } from '../../types/chat';
 import { AGENTS } from '../../types/chat';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -7,7 +8,7 @@ interface ChatMessageProps {
   variant?: 'bubble' | 'card'; // bubble = chat style, card = full-width dashboard style
 }
 
-export function ChatMessage({ message, variant = 'bubble' }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubble' }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const agent = message.agentType ? AGENTS[message.agentType] : null;
@@ -122,4 +123,4 @@ export function ChatMessage({ message, variant = 'bubble' }: ChatMessageProps) {
       </div>
     </div>
   );
-}
+});

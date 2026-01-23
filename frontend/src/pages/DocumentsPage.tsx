@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import {
@@ -360,11 +360,11 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             Available Spaces ({data.available_spaces.length})
           </h4>
           <div className="space-y-2">
-            {data.available_spaces.map((space, i) => (
-              <div key={i} className="bg-gray-800 rounded-lg p-3">
+            {data.available_spaces.map((space, index) => (
+              <div key={space.suite_number || `space-${index}-${space.square_footage}`} className="bg-gray-800 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-white font-medium">
-                    {space.suite_number || `Space ${i + 1}`}
+                    {space.suite_number || `Space ${index + 1}`}
                   </span>
                   {space.square_footage && (
                     <span className="text-green-400 font-medium">
@@ -407,9 +407,9 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             Current Tenants ({data.existing_tenants.length})
           </h4>
           <div className="flex flex-wrap gap-2">
-            {data.existing_tenants.map((tenant, i) => (
+            {data.existing_tenants.map((tenant) => (
               <span
-                key={i}
+                key={tenant.name}
                 className={`px-2 py-1 rounded text-xs ${
                   tenant.is_anchor
                     ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
@@ -429,8 +429,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
         <div>
           <h4 className="text-sm font-medium text-gray-400 mb-2">Highlights</h4>
           <ul className="space-y-1">
-            {data.highlights.map((highlight, i) => (
-              <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
+            {data.highlights.map((highlight) => (
+              <li key={highlight} className="text-sm text-gray-300 flex items-start gap-2">
                 <span className="text-green-400 mt-1">•</span>
                 {highlight}
               </li>
@@ -465,9 +465,9 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
         <div>
           <h4 className="text-sm font-medium text-gray-400 mb-2">High Priority Opportunities</h4>
           <div className="space-y-2">
-            {data.summary.high_priority_voids.map((void_name, i) => (
+            {data.summary.high_priority_voids.map((void_name) => (
               <div
-                key={i}
+                key={void_name}
                 className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded-lg"
               >
                 <span className="w-2 h-2 rounded-full bg-red-500" />
@@ -483,8 +483,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
         <div>
           <h4 className="text-sm font-medium text-gray-400 mb-2">Categories</h4>
           <div className="space-y-2">
-            {data.categories.slice(0, 10).map((cat, i) => (
-              <div key={i} className="bg-gray-800 rounded-lg p-3">
+            {data.categories.slice(0, 10).map((cat) => (
+              <div key={cat.category_name} className="bg-gray-800 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-white font-medium">{cat.category_name}</span>
                   {cat.is_void ? (
@@ -510,9 +510,9 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
     </div>
   );
 
-  // Build property address for analysis
-  const getPropertyAddress = () => {
-    if (!document.extracted_data) return null;
+  // Build property address for analysis (memoized)
+  const propertyAddress = useMemo(() => {
+    if (!document?.extracted_data) return null;
     const data = document.extracted_data as ExtractedFlyerData;
     const info = data.property_info;
     if (!info) return null;
@@ -523,7 +523,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
     if (info.state) parts.push(info.state);
     if (info.zip_code) parts.push(info.zip_code);
     return parts.length > 0 ? parts.join(', ') : null;
-  };
+  }, [document?.extracted_data]);
 
   const canStartAnalysis = document.status === 'completed' &&
     document.document_type === 'leasing_flyer' &&
@@ -578,9 +578,9 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
         </div>
 
         {/* Property Address if available */}
-        {getPropertyAddress() && (
+        {propertyAddress && (
           <p className="text-sm text-gray-400 mt-2">
-            {getPropertyAddress()}
+            {propertyAddress}
           </p>
         )}
 
@@ -780,8 +780,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
                 <span className="text-xs text-gray-500">{analysisResult.competitors.length} found</span>
               </div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {analysisResult.competitors.slice(0, 10).map((competitor, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
+                {analysisResult.competitors.slice(0, 10).map((competitor) => (
+                  <div key={competitor.name} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
                     <div>
                       <p className="text-sm text-white">{competitor.name}</p>
                       <p className="text-xs text-gray-400">{competitor.category}</p>
@@ -853,8 +853,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
                 <div className="mb-4">
                   <h5 className="text-sm font-medium text-red-400 mb-2">High Priority Opportunities</h5>
                   <div className="space-y-1">
-                    {analysisResult.void_analysis.summary.high_priority.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded">
+                    {analysisResult.void_analysis.summary.high_priority.map((item) => (
+                      <div key={item} className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded">
                         <span className="w-2 h-2 rounded-full bg-red-500" />
                         <span className="text-sm text-white">{item}</span>
                       </div>
@@ -871,8 +871,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
                     {analysisResult.void_analysis.categories
                       .filter(cat => cat.is_void)
                       .slice(0, 8)
-                      .map((cat, i) => (
-                      <div key={i} className="bg-gray-800/50 rounded-lg p-3">
+                      .map((cat) => (
+                      <div key={cat.category_name} className="bg-gray-800/50 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-white font-medium">{cat.category_name}</span>
                           <div className="flex items-center gap-2">

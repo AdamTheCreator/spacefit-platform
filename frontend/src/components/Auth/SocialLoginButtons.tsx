@@ -26,6 +26,7 @@ export function SocialLoginButtons() {
         <button
           type="button"
           onClick={handleGoogleLogin}
+          aria-label="Continue with Google"
           className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-gray-100 text-gray-900 font-medium rounded-lg transition-colors"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -59,6 +60,7 @@ export function SocialLoginButtons() {
         <button
           type="button"
           onClick={handleSSOLogin}
+          aria-label="Continue with Company SSO"
           className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
@@ -281,13 +282,16 @@ const markdownComponents: Components = {
 };
 
 export function MarkdownRenderer({ content, agentType }: MarkdownRendererProps) {
-  // Determine chart type based on agent
-  let chartType: 'demographics' | 'traffic' | 'void' | null = null;
-  if (agentType === 'demographics') chartType = 'demographics';
-  if (agentType === 'foot-traffic') chartType = 'traffic';
-  if (agentType === 'void-analysis') chartType = 'void';
+  // Memoize chart data extraction to prevent recalculation on every render
+  const chartData = useMemo(() => {
+    // Determine chart type based on agent
+    let chartType: 'demographics' | 'traffic' | 'void' | null = null;
+    if (agentType === 'demographics') chartType = 'demographics';
+    if (agentType === 'foot-traffic') chartType = 'traffic';
+    if (agentType === 'void-analysis') chartType = 'void';
 
-  const chartData = chartType ? extractChartData(content, chartType) : null;
+    return chartType ? extractChartData(content, chartType) : null;
+  }, [content, agentType]);
 
   return (
     <div className="markdown-content">

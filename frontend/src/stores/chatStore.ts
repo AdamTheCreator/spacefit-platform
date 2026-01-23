@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import type { Message, WorkflowStep } from '../types/chat';
 
 interface ChatState {
@@ -80,3 +81,33 @@ export const useChatStore = create<ChatState>((set) => ({
       activeAgentType: null,
     }),
 }));
+
+// Selector hooks for optimized subscriptions (prevents unnecessary re-renders)
+export const useChatMessages = () => useChatStore(state => state.messages);
+export const useChatWorkflowSteps = () => useChatStore(state => state.workflowSteps);
+export const useChatIsProcessing = () => useChatStore(state => state.isProcessing);
+export const useChatActiveAgent = () => useChatStore(state => state.activeAgentType);
+export const useChatSessionId = () => useChatStore(state => state.currentSessionId);
+
+// Combined selector for components that need multiple values
+export const useChatStatus = () => useChatStore(
+  useShallow(state => ({
+    isProcessing: state.isProcessing,
+    activeAgentType: state.activeAgentType,
+  }))
+);
+
+// Actions-only selector (never causes re-renders on state changes)
+export const useChatActions = () => useChatStore(
+  useShallow(state => ({
+    setCurrentSession: state.setCurrentSession,
+    addMessage: state.addMessage,
+    setMessages: state.setMessages,
+    updateMessage: state.updateMessage,
+    setWorkflowSteps: state.setWorkflowSteps,
+    updateWorkflowStep: state.updateWorkflowStep,
+    setIsProcessing: state.setIsProcessing,
+    setActiveAgentType: state.setActiveAgentType,
+    clearChat: state.clearChat,
+  }))
+);

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Deal } from '../../types/deal';
@@ -8,7 +9,7 @@ interface KanbanCardProps {
   onClick: () => void;
 }
 
-export function KanbanCard({ deal, onClick }: KanbanCardProps) {
+export const KanbanCard = memo(function KanbanCard({ deal, onClick }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -30,8 +31,18 @@ export function KanbanCard({ deal, onClick }: KanbanCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Deal: ${deal.name}. ${deal.customer_name ? `Customer: ${deal.customer_name}.` : ''} Commission: ${formatCurrency(deal.commission_amount)}. Click to view details.`}
       className={`bg-gray-800 border border-gray-700 rounded-lg p-3 cursor-pointer
                   hover:border-gray-600 hover:bg-gray-750 transition-all
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900
                   ${isDragging ? 'opacity-50 shadow-lg ring-2 ring-indigo-500' : ''}`}
     >
       {/* Deal Name */}
@@ -79,4 +90,4 @@ export function KanbanCard({ deal, onClick }: KanbanCardProps) {
       )}
     </div>
   );
-}
+});
