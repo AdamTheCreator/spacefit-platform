@@ -2,11 +2,14 @@ export type AgentType =
   | 'orchestrator'
   | 'demographics'
   | 'tenant-roster'
+  | 'foot-traffic'
   | 'void-analysis'
   | 'tenant-match'
   | 'notification'
   | 'placer'
-  | 'siteusa';
+  | 'siteusa'
+  | 'costar'
+  | 'outreach';
 
 export type MessageRole = 'user' | 'agent' | 'system';
 
@@ -81,5 +84,23 @@ export const AGENTS: Record<AgentType, AgentInfo> = {
     name: 'SiteUSA',
     description: 'Vehicle traffic (VPD) and demographics data',
     color: 'bg-amber-500',
+  },
+  'foot-traffic': {
+    type: 'foot-traffic',
+    name: 'Foot Traffic Agent',
+    description: 'Analyzes foot traffic patterns from Placer.ai',
+    color: 'bg-orange-500',
+  },
+  costar: {
+    type: 'costar',
+    name: 'CoStar',
+    description: 'Premium tenant and lease data',
+    color: 'bg-indigo-500',
+  },
+  outreach: {
+    type: 'outreach',
+    name: 'Outreach Agent',
+    description: 'Email campaign management',
+    color: 'bg-pink-500',
   },
 };

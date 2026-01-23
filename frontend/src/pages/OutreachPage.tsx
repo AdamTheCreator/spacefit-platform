@@ -1,26 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Mail,
   Send,
   Eye,
-  MousePointerClick,
   MessageCircle,
   AlertCircle,
   Plus,
   MoreVertical,
   Search,
-  Filter,
 } from 'lucide-react';
 import { AppLayout } from '../components/Layout';
-import { useAuthStore } from '../stores/authStore';
+import api from '../lib/axios';
 import type {
   OutreachCampaignListItem,
   OutreachCampaign,
   CampaignStatus,
 } from '../types/outreach';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 // Status badge colors
 const STATUS_COLORS: Record<CampaignStatus, { bg: string; text: string }> = {
@@ -47,31 +42,20 @@ function calculateOpenRate(campaign: OutreachCampaignListItem): number {
 }
 
 export function OutreachPage() {
-  const { accessToken } = useAuthStore();
   const [campaigns, setCampaigns] = useState<OutreachCampaignListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'all'>('all');
-  const [selectedCampaign, setSelectedCampaign] = useState<OutreachCampaign | null>(null);
+  const [_selectedCampaign, _setSelectedCampaign] = useState<OutreachCampaign | null>(null);
 
   // Fetch campaigns
   useEffect(() => {
     async function fetchCampaigns() {
       try {
         setIsLoading(true);
-        const response = await fetch(`${API_BASE}/outreach/campaigns`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch campaigns');
-        }
-
-        const data = await response.json();
-        setCampaigns(data);
+        const response = await api.get<OutreachCampaignListItem[]>('/outreach/campaigns');
+        setCampaigns(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load campaigns');
       } finally {
@@ -79,10 +63,8 @@ export function OutreachPage() {
       }
     }
 
-    if (accessToken) {
-      fetchCampaigns();
-    }
-  }, [accessToken]);
+    fetchCampaigns();
+  }, []);
 
   // Filter campaigns
   const filteredCampaigns = campaigns.filter((campaign) => {

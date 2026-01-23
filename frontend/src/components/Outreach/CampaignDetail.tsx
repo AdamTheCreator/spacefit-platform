@@ -6,10 +6,7 @@ import {
   MousePointerClick,
   MessageCircle,
   AlertCircle,
-  Clock,
   Users,
-  Mail,
-  ExternalLink,
 } from 'lucide-react';
 import type { OutreachCampaign, OutreachRecipient, CampaignStatus } from '../../types/outreach';
 
