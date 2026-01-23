@@ -29,6 +29,7 @@ dependencies = [
     # Authentication
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.0,<4.1.0",  # Pin for passlib compatibility
     "cryptography>=42.0.0",
     "authlib>=1.3.0",
 
