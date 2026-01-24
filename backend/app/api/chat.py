@@ -20,6 +20,7 @@ from app.models.chat import (
     WorkflowStep,
     WorkflowStepStatus,
 )
+from app.services.orchestrator import execute_tool
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -421,6 +422,186 @@ async def get_best_credential_for_agent(user_id: str, agent_name: str) -> SiteCr
     return None
 
 
+async def handle_tool_calls(
+    websocket: WebSocket,
+    tool_calls: list[dict],
+    session_id: str | None,
+    user_id: str,
+    conversation_history: list[dict[str, str]],
+    user_context: str | None,
+    has_placer: bool = False,
+    has_siteusa: bool = False,
+) -> None:
+    """
+    Handle tool calls from Claude's native tool use.
+
+    This function:
+    1. Creates workflow UI for user feedback
+    2. Executes each tool in parallel (when possible)
+    3. Sends results back to Claude for synthesis
+    4. Returns the final synthesized response
+    """
+    print(f"[HANDLE_TOOLS] Starting with {len(tool_calls)} tool calls")
+    from app.services.orchestrator import get_orchestrator_response
+
+    # Map tool names to AgentType for UI
+    tool_to_agent_type = {
+        "business_search": AgentType.TENANT_ROSTER,  # Use tenant roster icon for business search
+        "demographics_analysis": AgentType.DEMOGRAPHICS,
+        "tenant_roster": AgentType.TENANT_ROSTER,
+        "void_analysis": AgentType.VOID_ANALYSIS,
+        "visitor_traffic": AgentType.PLACER,
+        "vehicle_traffic": AgentType.SITEUSA,
+    }
+
+    tool_descriptions = {
+        "business_search": "Google Places: Business Search",
+        "demographics_analysis": "Census: Demographics",
+        "tenant_roster": "Google: Tenant Roster",
+        "void_analysis": "AI: Void Analysis",
+        "visitor_traffic": "Placer.ai: Visitor Traffic",
+        "vehicle_traffic": "SiteUSA: Vehicle Traffic",
+    }
+
+    # Create workflow steps for UI
+    workflow: list[WorkflowStep] = []
+    for tool_call in tool_calls:
+        tool_name = tool_call["name"]
+        workflow.append(
+            WorkflowStep(
+                id=tool_call["id"],
+                agent_type=tool_to_agent_type.get(tool_name, AgentType.ORCHESTRATOR),
+                description=tool_descriptions.get(tool_name, tool_name.replace("_", " ").title()),
+            )
+        )
+
+    # Send workflow init to UI
+    if workflow:
+        await send_ws_message(
+            websocket,
+            "workflow_init",
+            [step.model_dump(mode="json") for step in workflow],
+        )
+        await asyncio.sleep(0.2)
+
+    # Mark all tools as running
+    for step in workflow:
+        await send_ws_message(
+            websocket,
+            "workflow_update",
+            {"step_id": step.id, "status": WorkflowStepStatus.RUNNING.value},
+        )
+
+    # Execute tools in parallel
+    async def execute_single_tool(tool_call: dict) -> dict:
+        tool_name = tool_call["name"]
+        tool_input = tool_call["input"]
+        print(f"[HANDLE_TOOLS] Executing tool: {tool_name} with input: {tool_input}")
+
+        # Get credential if needed
+        credential = await get_best_credential_for_agent(user_id, tool_name)
+
+        try:
+            result = await execute_tool(tool_name, tool_input, user_id, credential)
+            print(f"[HANDLE_TOOLS] Tool {tool_name} returned {len(result)} chars")
+            return {
+                "tool_call_id": tool_call["id"],
+                "tool_name": tool_name,
+                "result": result,
+                "success": True,
+            }
+        except Exception as e:
+            print(f"[HANDLE_TOOLS] Tool {tool_name} ERROR: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "tool_call_id": tool_call["id"],
+                "tool_name": tool_name,
+                "result": f"Error executing {tool_name}: {str(e)}",
+                "success": False,
+            }
+
+    # Run all tools in parallel
+    print(f"[HANDLE_TOOLS] Running {len(tool_calls)} tools in parallel...")
+    tool_results = await asyncio.gather(*[execute_single_tool(tc) for tc in tool_calls])
+    print(f"[HANDLE_TOOLS] All tools completed, got {len(tool_results)} results")
+
+    # Send results for each tool and update workflow UI
+    for result_dict in tool_results:
+        tool_name = result_dict["tool_name"]
+        result = result_dict["result"]
+        tool_call_id = result_dict["tool_call_id"]
+
+        # Send tool result as a message
+        agent_type = tool_to_agent_type.get(tool_name, AgentType.ORCHESTRATOR)
+        tool_msg = Message(
+            role=MessageRole.AGENT,
+            agent_type=agent_type,
+            content=result,
+        )
+        await send_ws_message(websocket, "message", tool_msg.model_dump(mode="json"))
+
+        # Save to database
+        if session_id:
+            await save_message_to_db(session_id, "agent", result, tool_name)
+
+        # Mark step as completed
+        await send_ws_message(
+            websocket,
+            "workflow_update",
+            {"step_id": tool_call_id, "status": WorkflowStepStatus.COMPLETED.value},
+        )
+
+    # Now send results back to Claude for synthesis
+    pending_results = [
+        {"tool_name": r["tool_name"], "result": r["result"]}
+        for r in tool_results
+    ]
+
+    try:
+        synthesis_response = get_orchestrator_response(
+            conversation_history,
+            pending_tool_results=pending_results,
+            user_context=user_context,
+            has_placer_credentials=has_placer,
+            has_siteusa_credentials=has_siteusa,
+        )
+
+        # Check if Claude wants to use more tools (rare, but possible)
+        if synthesis_response.get("tool_calls"):
+            # Recursive call for additional tools
+            await handle_tool_calls(
+                websocket=websocket,
+                tool_calls=synthesis_response["tool_calls"],
+                session_id=session_id,
+                user_id=user_id,
+                conversation_history=conversation_history,
+                user_context=user_context,
+                has_placer=has_placer,
+                has_siteusa=has_siteusa,
+            )
+        elif synthesis_response["content"]:
+            # Send synthesized response
+            synthesis_msg = Message(
+                role=MessageRole.AGENT,
+                agent_type=AgentType.ORCHESTRATOR,
+                content=synthesis_response["content"],
+            )
+            await send_ws_message(websocket, "message", synthesis_msg.model_dump(mode="json"))
+
+            if session_id:
+                await save_message_to_db(session_id, "agent", synthesis_response["content"], "orchestrator")
+
+            conversation_history.append({"role": "assistant", "content": synthesis_response["content"]})
+
+    except Exception as e:
+        error_msg = Message(
+            role=MessageRole.SYSTEM,
+            content=f"Error synthesizing results: {str(e)}",
+        )
+        await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
+
+
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
@@ -606,9 +787,18 @@ async def websocket_endpoint(
                             current_address = resolved_address
                             print(f"Resolved to address: {current_address}")
 
-            # Get orchestrator response with personalized context
+            # Check user credentials for premium data sources
+            has_placer = await get_user_placer_credential(user_id) is not None
+            has_siteusa = await get_user_siteusa_credential(user_id) is not None
+
+            # Get orchestrator response with native tool calling
             try:
-                response = get_orchestrator_response(conversation_history, user_context=user_context)
+                response = get_orchestrator_response(
+                    conversation_history,
+                    user_context=user_context,
+                    has_placer_credentials=has_placer,
+                    has_siteusa_credentials=has_siteusa,
+                )
             except Exception as e:
                 error_msg = Message(
                     role=MessageRole.SYSTEM,
@@ -617,28 +807,47 @@ async def websocket_endpoint(
                 await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue
 
-            # Send orchestrator response
-            orchestrator_msg = Message(
-                role=MessageRole.AGENT,
-                agent_type=AgentType.ORCHESTRATOR,
-                content=response["content"],
-            )
-            await send_ws_message(
-                websocket, "message", orchestrator_msg.model_dump(mode="json")
-            )
+            # Check if Claude wants to use tools
+            tool_calls = response.get("tool_calls", [])
+            print(f"[CHAT] Response received: {len(tool_calls)} tool_calls, stop_reason={response.get('stop_reason')}")
 
-            # Save orchestrator response to database
-            if actual_session_id:
-                await save_message_to_db(
-                    actual_session_id, "agent", response["content"], "orchestrator"
+            if tool_calls:
+                print(f"[CHAT] Executing {len(tool_calls)} tool calls...")
+                # Claude is requesting to use tools - execute them
+                await handle_tool_calls(
+                    websocket=websocket,
+                    tool_calls=tool_calls,
+                    session_id=actual_session_id,
+                    user_id=user_id,
+                    conversation_history=conversation_history,
+                    user_context=user_context,
+                    has_placer=has_placer,
+                    has_siteusa=has_siteusa,
                 )
+            else:
+                # No tools requested - just send the response
+                if response["content"]:
+                    orchestrator_msg = Message(
+                        role=MessageRole.AGENT,
+                        agent_type=AgentType.ORCHESTRATOR,
+                        content=response["content"],
+                    )
+                    await send_ws_message(
+                        websocket, "message", orchestrator_msg.model_dump(mode="json")
+                    )
 
-            # Add assistant response to history
-            conversation_history.append({"role": "assistant", "content": response["content"]})
+                    # Save orchestrator response to database
+                    if actual_session_id:
+                        await save_message_to_db(
+                            actual_session_id, "agent", response["content"], "orchestrator"
+                        )
 
-            # If orchestrator wants to run agents
+                    # Add assistant response to history
+                    conversation_history.append({"role": "assistant", "content": response["content"]})
+
+            # Legacy: If orchestrator wants to run agents (backward compatibility)
             tools_to_run = response.get("tools_to_run", [])
-            if tools_to_run and current_address:
+            if tools_to_run and current_address and not tool_calls:
                 # Create workflow steps
                 workflow: list[WorkflowStep] = []
                 agent_type_map = {
@@ -990,9 +1199,18 @@ async def websocket_chat_endpoint(
                 if current_address:
                     current_addresses[session_id] = current_address
 
+            # Check user credentials for premium data sources
+            has_placer = await get_user_placer_credential(user_id) is not None
+            has_siteusa = await get_user_siteusa_credential(user_id) is not None
+
             # Get orchestrator response
             try:
-                response = get_orchestrator_response(conversation_history, user_context=user_context)
+                response = get_orchestrator_response(
+                    conversation_history,
+                    user_context=user_context,
+                    has_placer_credentials=has_placer,
+                    has_siteusa_credentials=has_siteusa,
+                )
             except Exception as e:
                 error_msg = Message(
                     role=MessageRole.SYSTEM,
@@ -1001,19 +1219,37 @@ async def websocket_chat_endpoint(
                 await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue
 
-            # Send orchestrator response
-            orchestrator_msg = Message(
-                role=MessageRole.AGENT,
-                agent_type=AgentType.ORCHESTRATOR,
-                content=response["content"],
-            )
-            await send_ws_message(websocket, "message", orchestrator_msg.model_dump(mode="json"))
-            await save_message_to_db(session_id, "agent", response["content"], "orchestrator")
-            conversation_history.append({"role": "assistant", "content": response["content"]})
+            # Check if Claude wants to use tools (native tool calling)
+            tool_calls = response.get("tool_calls", [])
+            print(f"[CHAT-WS] Response: {len(tool_calls)} tool_calls, {len(response.get('content', ''))} chars text")
 
-            # Run agents if needed
+            if tool_calls:
+                print(f"[CHAT-WS] Executing {len(tool_calls)} tool calls...")
+                # Claude is requesting to use tools - execute them
+                await handle_tool_calls(
+                    websocket=websocket,
+                    tool_calls=tool_calls,
+                    session_id=session_id,
+                    user_id=user_id,
+                    conversation_history=conversation_history,
+                    user_context=user_context,
+                    has_placer=has_placer,
+                    has_siteusa=has_siteusa,
+                )
+            elif response["content"]:
+                # No tools requested - just send the response
+                orchestrator_msg = Message(
+                    role=MessageRole.AGENT,
+                    agent_type=AgentType.ORCHESTRATOR,
+                    content=response["content"],
+                )
+                await send_ws_message(websocket, "message", orchestrator_msg.model_dump(mode="json"))
+                await save_message_to_db(session_id, "agent", response["content"], "orchestrator")
+                conversation_history.append({"role": "assistant", "content": response["content"]})
+
+            # Legacy: Run agents if needed (backward compatibility)
             tools_to_run = response.get("tools_to_run", [])
-            if tools_to_run and current_address:
+            if tools_to_run and current_address and not tool_calls:
                 await run_agent_workflow(
                     websocket=websocket,
                     session_id=session_id,
