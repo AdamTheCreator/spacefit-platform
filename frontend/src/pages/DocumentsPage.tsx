@@ -55,16 +55,16 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
   return (
     <div
       onClick={() => onSelect(document.id)}
-      className={`p-4 border cursor-pointer transition-all ${
+      className={`p-4 rounded-xl border cursor-pointer transition-all shadow-sm hover:shadow-md ${
         isSelected
-          ? 'bg-[var(--accent)]/10 border-[var(--accent)]'
-          : 'bg-[var(--bg-tertiary)] border-industrial-subtle hover:border-industrial'
+          ? 'bg-[var(--accent)]/10 border-[var(--accent)] ring-1 ring-[var(--accent)]/20'
+          : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
       }`}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           {/* File icon based on type */}
-          <div className="w-10 h-10 bg-[var(--bg-secondary)] border border-industrial-subtle flex items-center justify-center">
+          <div className="w-10 h-10 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg flex items-center justify-center">
             {document.mime_type === 'application/pdf' ? (
               <svg className="w-5 h-5 text-[var(--color-error)]" fill="currentColor" viewBox="0 0 20 20">
                 <path
@@ -85,10 +85,10 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
           </div>
 
           <div>
-            <h3 className="font-mono text-sm font-medium text-industrial truncate max-w-[200px]">
+            <h3 className="text-sm font-medium text-industrial truncate max-w-[200px]">
               {document.filename}
             </h3>
-            <p className="font-mono text-[10px] text-industrial-muted">
+            <p className="text-xs text-industrial-muted mt-0.5">
               {formatFileSize(document.file_size)} • {formatDate(document.created_at)}
             </p>
           </div>
@@ -99,7 +99,7 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
             e.stopPropagation();
             onDelete(document.id);
           }}
-          className="p-1.5 text-industrial-muted hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors"
+          className="p-1.5 rounded-lg text-industrial-muted hover:text-[var(--color-error)] hover:bg-[var(--bg-error)] transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -112,22 +112,22 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
         </button>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
         <span
-          className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide border ${
+          className={`px-2.5 py-1 text-[11px] font-medium rounded-full border ${
             STATUS_COLORS[document.status]
           }`}
         >
           {document.status === 'processing' && (
-            <span className="inline-block w-1.5 h-1.5 mr-1 bg-current animate-pulse" />
+            <span className="inline-block w-1.5 h-1.5 mr-1.5 rounded-full bg-current animate-pulse" />
           )}
-          {document.status}
+          {document.status.charAt(0).toUpperCase() + document.status.slice(1)}
         </span>
-        <span className="px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide bg-[var(--bg-secondary)] text-industrial-secondary border border-industrial-subtle">
+        <span className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-[var(--bg-tertiary)] text-industrial-secondary border border-[var(--border-subtle)]">
           {DOCUMENT_TYPE_LABELS[document.document_type]}
         </span>
         {document.confidence_score && (
-          <span className="px-2 py-0.5 font-mono text-[10px] bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30">
+          <span className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30">
             {Math.round(document.confidence_score * 100)}% confidence
           </span>
         )}
@@ -205,10 +205,10 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => fileInputRef.current?.click()}
-      className={`relative p-8 border-2 border-dashed cursor-pointer transition-all ${
+      className={`relative p-8 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
         isDragging
-          ? 'border-[var(--accent)] bg-[var(--accent)]/10'
-          : 'border-industrial hover:border-industrial-subtle bg-[var(--bg-tertiary)]'
+          ? 'border-[var(--accent)] bg-[var(--accent)]/10 scale-[1.02]'
+          : 'border-[var(--border-default)] hover:border-[var(--accent)] bg-[var(--bg-tertiary)]'
       }`}
     >
       <input
@@ -224,16 +224,16 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
         {isUploading ? (
           <>
             <div className="relative w-12 h-12 mb-4">
-              <div className="w-12 h-12 border border-industrial" />
-              <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+              <div className="w-12 h-12 rounded-full border-2 border-[var(--border-default)]" />
+              <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
             </div>
-            <p className="font-mono text-sm text-industrial">Uploading...</p>
+            <p className="text-sm font-medium text-industrial">Uploading...</p>
           </>
         ) : (
           <>
-            <div className="w-12 h-12 bg-[var(--bg-secondary)] border border-industrial-subtle flex items-center justify-center mb-4">
+            <div className="w-14 h-14 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-industrial-muted"
+                className="w-7 h-7 text-industrial-muted"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -241,15 +241,15 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.5}
                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                 />
               </svg>
             </div>
-            <p className="font-mono text-sm text-industrial mb-1">
+            <p className="text-sm font-medium text-industrial mb-1">
               Drop files here or click to upload
             </p>
-            <p className="font-mono text-xs text-industrial-muted">
+            <p className="text-xs text-industrial-muted">
               Supports PDF, PNG, JPG (max 50MB)
             </p>
           </>
@@ -311,14 +311,17 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="relative w-8 h-8">
+          <div className="w-8 h-8 rounded-full border-2 border-[var(--border-default)]" />
+          <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+        </div>
       </div>
     );
   }
 
   if (!document) {
     return (
-      <div className="text-center text-gray-400 py-8">Document not found</div>
+      <div className="text-center text-industrial-muted py-8 text-sm">Document not found</div>
     );
   }
 
@@ -327,13 +330,13 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* Property Info */}
       {data.property_info && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Property Information</h4>
-          <div className="bg-gray-800 rounded-lg p-4 space-y-2">
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Property Information</h4>
+          <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-2">
             {data.property_info.name && (
-              <p className="text-white font-medium">{data.property_info.name}</p>
+              <p className="text-sm font-semibold text-industrial">{data.property_info.name}</p>
             )}
             {data.property_info.address && (
-              <p className="text-gray-300 text-sm">
+              <p className="text-xs text-industrial-secondary">
                 {data.property_info.address}
                 {data.property_info.city && `, ${data.property_info.city}`}
                 {data.property_info.state && `, ${data.property_info.state}`}
@@ -342,12 +345,12 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             )}
             <div className="flex flex-wrap gap-2 mt-2">
               {data.property_info.total_sf && (
-                <span className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300">
+                <span className="px-2.5 py-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full text-[11px] font-medium text-industrial-secondary">
                   {data.property_info.total_sf.toLocaleString()} SF Total
                 </span>
               )}
               {data.property_info.property_type && (
-                <span className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300 capitalize">
+                <span className="px-2.5 py-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full text-[11px] font-medium text-industrial-secondary">
                   {data.property_info.property_type}
                 </span>
               )}
@@ -359,40 +362,40 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* Available Spaces */}
       {data.available_spaces && data.available_spaces.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">
             Available Spaces ({data.available_spaces.length})
           </h4>
           <div className="space-y-2">
             {data.available_spaces.map((space, index) => (
-              <div key={space.suite_number || `space-${index}-${space.square_footage}`} className="bg-gray-800 rounded-lg p-3">
+              <div key={space.suite_number || `space-${index}-${space.square_footage}`} className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-white font-medium">
+                  <span className="text-sm font-medium text-industrial">
                     {space.suite_number || `Space ${index + 1}`}
                   </span>
                   {space.square_footage && (
-                    <span className="text-green-400 font-medium">
+                    <span className="text-sm font-semibold text-[var(--color-success)]">
                       {space.square_footage.toLocaleString()} SF
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1 mt-2">
+                <div className="flex flex-wrap gap-1.5 mt-2">
                   {space.asking_rent_psf && (
-                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
+                    <span className="px-2 py-0.5 bg-[var(--bg-success)] text-[var(--color-success)] rounded-full text-[10px] font-medium">
                       ${space.asking_rent_psf}/SF {space.rent_type || ''}
                     </span>
                   )}
                   {space.is_endcap && (
-                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs">
+                    <span className="px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full text-[10px] font-medium">
                       Endcap
                     </span>
                   )}
                   {space.has_drive_thru && (
-                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
+                    <span className="px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full text-[10px] font-medium">
                       Drive-Thru
                     </span>
                   )}
                   {space.has_patio && (
-                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs">
+                    <span className="px-2 py-0.5 bg-[var(--color-warning)]/10 text-[var(--color-warning)] rounded-full text-[10px] font-medium">
                       Patio
                     </span>
                   )}
@@ -406,17 +409,17 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* Existing Tenants */}
       {data.existing_tenants && data.existing_tenants.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">
             Current Tenants ({data.existing_tenants.length})
           </h4>
           <div className="flex flex-wrap gap-2">
             {data.existing_tenants.map((tenant) => (
               <span
                 key={tenant.name}
-                className={`px-2 py-1 rounded text-xs ${
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${
                   tenant.is_anchor
-                    ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                    : 'bg-gray-700 text-gray-300'
+                    ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
+                    : 'bg-[var(--bg-secondary)] text-industrial-secondary border border-[var(--border-subtle)]'
                 }`}
               >
                 {tenant.name}
@@ -430,11 +433,11 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* Highlights */}
       {data.highlights && data.highlights.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Highlights</h4>
-          <ul className="space-y-1">
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Highlights</h4>
+          <ul className="space-y-1.5">
             {data.highlights.map((highlight) => (
-              <li key={highlight} className="text-sm text-gray-300 flex items-start gap-2">
-                <span className="text-green-400 mt-1">•</span>
+              <li key={highlight} className="text-xs text-industrial-secondary flex items-start gap-2">
+                <span className="text-[var(--color-success)] mt-0.5">•</span>
                 {highlight}
               </li>
             ))}
@@ -447,18 +450,18 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
   const renderVoidData = (data: ExtractedVoidData) => (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h4 className="text-sm font-medium text-gray-400 mb-2">Analysis Summary</h4>
+      <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-4">
+        <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-3">Analysis Summary</h4>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-2xl font-bold text-red-400">{data.summary?.total_voids || 0}</p>
-            <p className="text-xs text-gray-400">Total Voids</p>
+            <p className="text-2xl font-bold text-[var(--color-error)] tabular-nums">{data.summary?.total_voids || 0}</p>
+            <p className="text-[11px] text-industrial-muted">Total Voids</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-white">
+            <p className="text-2xl font-bold text-industrial tabular-nums">
               {data.summary?.total_categories_analyzed || 0}
             </p>
-            <p className="text-xs text-gray-400">Categories Analyzed</p>
+            <p className="text-[11px] text-industrial-muted">Categories Analyzed</p>
           </div>
         </div>
       </div>
@@ -466,15 +469,15 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* High Priority Voids */}
       {data.summary?.high_priority_voids && data.summary.high_priority_voids.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">High Priority Opportunities</h4>
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">High Priority Opportunities</h4>
           <div className="space-y-2">
             {data.summary.high_priority_voids.map((void_name) => (
               <div
                 key={void_name}
-                className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded-lg"
+                className="flex items-center gap-2 p-3 rounded-lg bg-[var(--bg-error)] border border-[var(--color-error)]/20"
               >
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-sm text-white">{void_name}</span>
+                <span className="w-2 h-2 rounded-full bg-[var(--color-error)]" />
+                <span className="text-sm text-industrial">{void_name}</span>
               </div>
             ))}
           </div>
@@ -484,24 +487,24 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* Categories */}
       {data.categories && data.categories.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Categories</h4>
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Categories</h4>
           <div className="space-y-2">
             {data.categories.slice(0, 10).map((cat) => (
-              <div key={cat.category_name} className="bg-gray-800 rounded-lg p-3">
+              <div key={cat.category_name} className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-white font-medium">{cat.category_name}</span>
+                  <span className="text-sm font-medium text-industrial">{cat.category_name}</span>
                   {cat.is_void ? (
-                    <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
-                      VOID
+                    <span className="px-2.5 py-0.5 bg-[var(--bg-error)] text-[var(--color-error)] rounded-full text-[10px] font-medium">
+                      Void
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
+                    <span className="px-2.5 py-0.5 bg-[var(--bg-success)] text-[var(--color-success)] rounded-full text-[10px] font-medium">
                       Present
                     </span>
                   )}
                 </div>
                 {cat.void_opportunities && cat.void_opportunities.length > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-[11px] text-industrial-muted mt-1">
                     Opportunities: {cat.void_opportunities.join(', ')}
                   </p>
                 )}
@@ -533,21 +536,21 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
     document.extracted_data;
 
   return (
-    <div className="h-full overflow-y-auto p-4">
+    <div className="h-full overflow-y-auto p-5">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-white mb-1">{document.filename}</h3>
+            <h3 className="text-base font-semibold text-industrial mb-2">{document.filename}</h3>
             <div className="flex items-center gap-2">
               <span
-                className={`px-2 py-0.5 text-xs rounded-full border ${
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-full border ${
                   STATUS_COLORS[document.status]
                 }`}
               >
-                {document.status}
+                {document.status.charAt(0).toUpperCase() + document.status.slice(1)}
               </span>
-              <span className="text-sm text-gray-400">
+              <span className="text-xs text-industrial-muted">
                 {DOCUMENT_TYPE_LABELS[document.document_type]}
               </span>
             </div>
@@ -558,13 +561,11 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             <button
               onClick={handleRunAnalysis}
               disabled={analysisMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600
-                       hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-medium
-                       rounded-lg transition-all shadow-lg shadow-indigo-500/25 disabled:opacity-50"
+              className="btn-industrial-primary flex items-center gap-2 disabled:opacity-50"
             >
               {analysisMutation.isPending ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 rounded-full border-2 border-[var(--color-neutral-900)] border-t-transparent animate-spin" />
                   Analyzing...
                 </>
               ) : (
@@ -582,7 +583,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
         {/* Property Address if available */}
         {propertyAddress && (
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-xs text-industrial-muted mt-2">
             {propertyAddress}
           </p>
         )}
@@ -592,8 +593,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
           <button
             onClick={handleViewDocument}
             disabled={isFileLoading || !fileUrl}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600
-                     text-gray-200 text-sm rounded-lg transition-colors disabled:opacity-50"
+            className="btn-industrial flex items-center gap-2 disabled:opacity-50"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -606,8 +606,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
           <button
             onClick={handleDownload}
             disabled={isFileLoading || !fileUrl}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600
-                     text-gray-200 text-sm rounded-lg transition-colors disabled:opacity-50"
+            className="btn-industrial flex items-center gap-2 disabled:opacity-50"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -618,8 +617,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
           <button
             onClick={() => setShowPreview(!showPreview)}
             disabled={isFileLoading || !fileUrl}
-            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500
-                     text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+            className="btn-industrial-primary flex items-center gap-2 disabled:opacity-50"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -632,7 +630,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
       {/* Document Preview */}
       {showPreview && fileUrl && (
-        <div className="mb-6 rounded-lg overflow-hidden border border-gray-700 bg-gray-800">
+        <div className="mb-6 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-tertiary)]">
           {document.mime_type.startsWith('image/') ? (
             <img
               src={fileUrl}
@@ -646,11 +644,11 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
               className="w-full h-[600px] border-0"
             />
           ) : (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-8 text-center text-sm text-industrial-muted">
               Preview not available for this file type.
               <button
                 onClick={handleViewDocument}
-                className="block mx-auto mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg"
+                className="btn-industrial-primary block mx-auto mt-4"
               >
                 Open in New Tab
               </button>
@@ -663,8 +661,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {showAnalysis && analysisResult && (
         <div className="mb-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-lg font-semibold text-white flex items-center gap-2">
-              <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <h4 className="font-mono text-sm font-bold tracking-tight text-industrial flex items-center gap-2">
+              <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
@@ -672,7 +670,8 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             </h4>
             <button
               onClick={() => setShowAnalysis(false)}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-industrial-muted hover:text-industrial transition-colors"
+              aria-label="Close analysis results"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -682,19 +681,19 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
           {/* Location Info */}
           {analysisResult.property_address && (
-            <div className="bg-gray-800 rounded-lg p-4">
+            <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
               <div className="flex items-center gap-2 mb-2">
-                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="text-sm font-medium text-gray-400">Geocoded Location</span>
+                <span className="label-technical">Geocoded Location</span>
               </div>
-              <p className="text-white">{analysisResult.property_address}</p>
+              <p className="font-mono text-sm text-industrial">{analysisResult.property_address}</p>
               {analysisResult.latitude && analysisResult.longitude && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="font-mono text-[10px] text-industrial-muted mt-1">
                   {analysisResult.latitude.toFixed(6)}, {analysisResult.longitude.toFixed(6)}
                 </p>
               )}
@@ -703,64 +702,64 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
           {/* Demographics */}
           {analysisResult.demographics && (
-            <div className="bg-gray-800 rounded-lg p-4">
+            <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
               <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <span className="text-sm font-medium text-gray-400">Trade Area Demographics</span>
+                <span className="label-technical">Trade Area Demographics</span>
               </div>
               {(() => {
                 const demo = analysisResult.demographics as Record<string, number | null>;
                 return (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {demo.population != null && (
-                      <div className="bg-gray-700/50 rounded-lg p-3">
-                        <p className="text-lg font-bold text-white">
+                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
+                        <p className="font-mono text-lg font-bold text-industrial">
                           {demo.population.toLocaleString()}
                         </p>
-                        <p className="text-xs text-gray-400">Population</p>
+                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Population</p>
                       </div>
                     )}
                     {demo.households != null && (
-                      <div className="bg-gray-700/50 rounded-lg p-3">
-                        <p className="text-lg font-bold text-white">
+                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
+                        <p className="font-mono text-lg font-bold text-industrial">
                           {demo.households.toLocaleString()}
                         </p>
-                        <p className="text-xs text-gray-400">Households</p>
+                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Households</p>
                       </div>
                     )}
                     {demo.median_income != null && (
-                      <div className="bg-gray-700/50 rounded-lg p-3">
-                        <p className="text-lg font-bold text-green-400">
+                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
+                        <p className="font-mono text-lg font-bold text-[var(--color-success)]">
                           ${demo.median_income.toLocaleString()}
                         </p>
-                        <p className="text-xs text-gray-400">Median Income</p>
+                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Median Income</p>
                       </div>
                     )}
                     {demo.median_age != null && (
-                      <div className="bg-gray-700/50 rounded-lg p-3">
-                        <p className="text-lg font-bold text-white">
+                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
+                        <p className="font-mono text-lg font-bold text-industrial">
                           {demo.median_age.toFixed(1)}
                         </p>
-                        <p className="text-xs text-gray-400">Median Age</p>
+                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Median Age</p>
                       </div>
                     )}
                     {demo.bachelors_plus_pct != null && (
-                      <div className="bg-gray-700/50 rounded-lg p-3">
-                        <p className="text-lg font-bold text-white">
+                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
+                        <p className="font-mono text-lg font-bold text-industrial">
                           {demo.bachelors_plus_pct.toFixed(1)}%
                         </p>
-                        <p className="text-xs text-gray-400">College Educated</p>
+                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">College Educated</p>
                       </div>
                     )}
                     {demo.owner_occupied_pct != null && (
-                      <div className="bg-gray-700/50 rounded-lg p-3">
-                        <p className="text-lg font-bold text-white">
+                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
+                        <p className="font-mono text-lg font-bold text-industrial">
                           {demo.owner_occupied_pct.toFixed(1)}%
                         </p>
-                        <p className="text-xs text-gray-400">Owner Occupied</p>
+                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Owner Occupied</p>
                       </div>
                     )}
                   </div>
@@ -771,36 +770,36 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
           {/* Competitors */}
           {analysisResult.competitors && analysisResult.competitors.length > 0 && (
-            <div className="bg-gray-800 rounded-lg p-4">
+            <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-[var(--color-warning)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  <span className="text-sm font-medium text-gray-400">Nearby Competitors</span>
+                  <span className="label-technical">Nearby Competitors</span>
                 </div>
-                <span className="text-xs text-gray-500">{analysisResult.competitors.length} found</span>
+                <span className="font-mono text-[10px] text-industrial-muted">{analysisResult.competitors.length} found</span>
               </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-industrial">
                 {analysisResult.competitors.slice(0, 10).map((competitor) => (
-                  <div key={competitor.name} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
+                  <div key={competitor.name} className="flex items-center justify-between p-2 bg-[var(--bg-secondary)] border border-industrial-subtle">
                     <div>
-                      <p className="text-sm text-white">{competitor.name}</p>
-                      <p className="text-xs text-gray-400">{competitor.category}</p>
+                      <p className="font-mono text-xs text-industrial">{competitor.name}</p>
+                      <p className="font-mono text-[10px] text-industrial-muted">{competitor.category}</p>
                     </div>
                     {competitor.rating && (
                       <div className="flex items-center gap-1">
-                        <svg className="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-3 h-3 text-[var(--color-warning)]" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
-                        <span className="text-xs text-gray-300">{competitor.rating}</span>
+                        <span className="font-mono text-[10px] text-industrial-secondary">{competitor.rating}</span>
                       </div>
                     )}
                   </div>
                 ))}
                 {analysisResult.competitors.length > 10 && (
-                  <p className="text-xs text-gray-500 text-center pt-2">
+                  <p className="font-mono text-[10px] text-industrial-muted text-center pt-2">
                     +{analysisResult.competitors.length - 10} more competitors
                   </p>
                 )}
@@ -810,18 +809,18 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
           {/* Void Analysis */}
           {analysisResult.void_analysis && (
-            <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/30 rounded-lg p-4 border border-indigo-500/30">
+            <div className="bg-[var(--accent)]/5 border border-[var(--accent)]/30 p-4">
               <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
-                <span className="text-sm font-medium text-indigo-300">Void Analysis Results</span>
+                <span className="label-technical text-[var(--accent)]">Void Analysis Results</span>
               </div>
 
               {/* Property Summary */}
               {analysisResult.void_analysis.property_summary && (
-                <p className="text-sm text-gray-300 mb-4 italic">
+                <p className="font-mono text-xs text-industrial-secondary mb-4 italic">
                   {analysisResult.void_analysis.property_summary}
                 </p>
               )}
@@ -829,23 +828,23 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
               {/* Summary Stats */}
               {analysisResult.void_analysis.summary && (
                 <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-red-400">
+                  <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3 text-center">
+                    <p className="font-mono text-2xl font-bold text-[var(--color-error)]">
                       {analysisResult.void_analysis.summary.total_voids || 0}
                     </p>
-                    <p className="text-xs text-gray-400">Voids Found</p>
+                    <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Voids Found</p>
                   </div>
-                  <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-yellow-400">
+                  <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3 text-center">
+                    <p className="font-mono text-2xl font-bold text-[var(--color-warning)]">
                       {analysisResult.void_analysis.summary.high_priority?.length || 0}
                     </p>
-                    <p className="text-xs text-gray-400">High Priority</p>
+                    <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">High Priority</p>
                   </div>
-                  <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-green-400">
+                  <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3 text-center">
+                    <p className="font-mono text-2xl font-bold text-[var(--color-success)]">
                       {analysisResult.void_analysis.summary.well_served?.length || 0}
                     </p>
-                    <p className="text-xs text-gray-400">Well Served</p>
+                    <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Well Served</p>
                   </div>
                 </div>
               )}
@@ -854,12 +853,12 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
               {analysisResult.void_analysis.summary?.high_priority &&
                analysisResult.void_analysis.summary.high_priority.length > 0 && (
                 <div className="mb-4">
-                  <h5 className="text-sm font-medium text-red-400 mb-2">High Priority Opportunities</h5>
+                  <h5 className="label-technical text-[var(--color-error)] mb-2">High Priority Opportunities</h5>
                   <div className="space-y-1">
                     {analysisResult.void_analysis.summary.high_priority.map((item) => (
-                      <div key={item} className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded">
-                        <span className="w-2 h-2 rounded-full bg-red-500" />
-                        <span className="text-sm text-white">{item}</span>
+                      <div key={item} className="flex items-center gap-2 p-2 bg-[var(--color-error)]/10 border border-[var(--color-error)]/20">
+                        <span className="w-2 h-2 bg-[var(--color-error)]" />
+                        <span className="font-mono text-xs text-industrial">{item}</span>
                       </div>
                     ))}
                   </div>
@@ -869,37 +868,37 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
               {/* Categories with Details */}
               {analysisResult.void_analysis.categories && analysisResult.void_analysis.categories.length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium text-gray-400 mb-2">Category Breakdown</h5>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <h5 className="label-technical mb-2">Category Breakdown</h5>
+                  <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-industrial">
                     {analysisResult.void_analysis.categories
                       .filter(cat => cat.is_void)
                       .slice(0, 8)
                       .map((cat) => (
-                      <div key={cat.category_name} className="bg-gray-800/50 rounded-lg p-3">
+                      <div key={cat.category_name} className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-white font-medium">{cat.category_name}</span>
+                          <span className="font-mono text-sm font-medium text-industrial">{cat.category_name}</span>
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 text-xs rounded ${
+                            <span className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide border ${
                               cat.priority === 'high'
-                                ? 'bg-red-500/20 text-red-400'
+                                ? 'bg-[var(--color-error)]/10 text-[var(--color-error)] border-[var(--color-error)]/30'
                                 : cat.priority === 'medium'
-                                ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-gray-500/20 text-gray-400'
+                                ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-[var(--color-warning)]/30'
+                                : 'bg-[var(--bg-secondary)] text-industrial-muted border-industrial-subtle'
                             }`}>
                               {cat.priority}
                             </span>
-                            <span className="text-xs text-indigo-400">
+                            <span className="font-mono text-[10px] text-[var(--accent)]">
                               {Math.round(cat.match_score * 100)}% match
                             </span>
                           </div>
                         </div>
                         {cat.rationale && (
-                          <p className="text-xs text-gray-400 mt-1">{cat.rationale}</p>
+                          <p className="font-mono text-[10px] text-industrial-muted mt-1">{cat.rationale}</p>
                         )}
                         {cat.suggested_tenants && cat.suggested_tenants.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {cat.suggested_tenants.slice(0, 4).map((tenant, j) => (
-                              <span key={j} className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-xs rounded">
+                              <span key={j} className="px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 font-mono text-[10px]">
                                 {tenant}
                               </span>
                             ))}
@@ -913,9 +912,9 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
               {/* Key Recommendation */}
               {analysisResult.void_analysis.summary?.key_recommendation && (
-                <div className="mt-4 p-3 bg-indigo-500/20 border border-indigo-500/30 rounded-lg">
-                  <p className="text-sm font-medium text-indigo-300 mb-1">Key Recommendation</p>
-                  <p className="text-sm text-white">{analysisResult.void_analysis.summary.key_recommendation}</p>
+                <div className="mt-4 p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/30">
+                  <p className="label-technical text-[var(--accent)] mb-1">Key Recommendation</p>
+                  <p className="font-mono text-xs text-industrial">{analysisResult.void_analysis.summary.key_recommendation}</p>
                 </div>
               )}
             </div>
@@ -923,17 +922,17 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
           {/* Analysis Errors */}
           {analysisResult.errors && analysisResult.errors.length > 0 && (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+            <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 p-4">
               <div className="flex items-center gap-2 mb-2">
-                <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-[var(--color-warning)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <span className="text-sm font-medium text-yellow-400">Partial Results</span>
+                <span className="label-technical text-[var(--color-warning)]">Partial Results</span>
               </div>
               <ul className="space-y-1">
                 {analysisResult.errors.map((error, i) => (
-                  <li key={i} className="text-xs text-yellow-300">{error}</li>
+                  <li key={i} className="font-mono text-[10px] text-[var(--color-warning)]">{error}</li>
                 ))}
               </ul>
             </div>
@@ -943,16 +942,19 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
       {/* Error message */}
       {document.error_message && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <p className="text-sm text-red-400">{document.error_message}</p>
+        <div className="mb-4 p-4 rounded-xl bg-[var(--bg-error)] border border-[var(--color-error)]/20">
+          <p className="text-sm text-[var(--color-error)]">{document.error_message}</p>
         </div>
       )}
 
       {/* Processing indicator */}
       {(document.status === 'pending' || document.status === 'processing') && (
         <div className="flex flex-col items-center justify-center py-12">
-          <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-gray-400">
+          <div className="relative w-10 h-10 mb-4">
+            <div className="w-10 h-10 rounded-full border-2 border-[var(--border-default)]" />
+            <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+          </div>
+          <p className="text-sm text-industrial-muted">
             {document.status === 'pending'
               ? 'Waiting to process...'
               : 'Analyzing document with AI...'}
@@ -969,9 +971,9 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             renderVoidData(document.extracted_data as ExtractedVoidData)}
           {document.document_type !== 'leasing_flyer' &&
             document.document_type !== 'void_analysis' && (
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-400 mb-2">Raw Extracted Data</h4>
-                <pre className="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap">
+              <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
+                <h4 className="label-technical mb-2">Raw Extracted Data</h4>
+                <pre className="font-mono text-[10px] text-industrial-secondary overflow-x-auto whitespace-pre-wrap">
                   {JSON.stringify(document.extracted_data, null, 2)}
                 </pre>
               </div>
@@ -982,18 +984,18 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
       {/* Available Spaces from DB */}
       {document.available_spaces && document.available_spaces.length > 0 && (
         <div className="mt-6">
-          <h4 className="text-sm font-medium text-gray-400 mb-2">
+          <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">
             Saved Available Spaces ({document.available_spaces.length})
           </h4>
           <div className="space-y-2">
             {document.available_spaces.map((space) => (
-              <div key={space.id} className="bg-gray-800 rounded-lg p-3">
+              <div key={space.id} className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-white font-medium">
+                  <span className="text-sm font-medium text-industrial">
                     {space.suite_number || 'Unknown Suite'}
                   </span>
                   {space.square_footage && (
-                    <span className="text-green-400">
+                    <span className="text-sm font-semibold text-[var(--color-success)]">
                       {space.square_footage.toLocaleString()} SF
                     </span>
                   )}
@@ -1080,12 +1082,12 @@ Please run a void analysis on this property to identify potential tenant opportu
 
   return (
     <AppLayout>
-      <div className="h-full flex bg-industrial">
+      <div className="h-full flex bg-[var(--bg-primary)]">
         {/* Left Panel - Document List */}
-        <div className="w-96 flex-shrink-0 border-r border-industrial flex flex-col">
-          <div className="p-4 border-b border-industrial">
-            <h1 className="font-mono text-lg font-bold tracking-tight text-industrial mb-1">Documents</h1>
-            <p className="font-mono text-xs text-industrial-muted">
+        <div className="w-96 flex-shrink-0 border-r border-[var(--border-subtle)] flex flex-col bg-[var(--bg-secondary)]">
+          <div className="p-5 border-b border-[var(--border-subtle)]">
+            <h1 className="text-lg font-semibold text-industrial mb-1">Documents</h1>
+            <p className="text-sm text-industrial-muted">
               Upload leasing flyers, void analyses, and investment memos
             </p>
           </div>
@@ -1101,13 +1103,13 @@ Please run a void analysis on this property to identify potential tenant opportu
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="relative w-6 h-6">
-                  <div className="w-6 h-6 border border-industrial" />
-                  <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+                  <div className="w-6 h-6 rounded-full border-2 border-[var(--border-default)]" />
+                  <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
                 </div>
               </div>
             ) : data?.items.length === 0 ? (
               <div className="text-center py-8">
-                <p className="font-mono text-xs text-industrial-muted">No documents uploaded yet</p>
+                <p className="text-sm text-industrial-muted">No documents uploaded yet</p>
               </div>
             ) : (
               data?.items.map((doc) => (
@@ -1132,7 +1134,7 @@ Please run a void analysis on this property to identify potential tenant opportu
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-industrial-subtle flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-2xl flex items-center justify-center mb-4">
                 <svg
                   className="w-8 h-8 text-industrial-muted"
                   fill="none"
@@ -1142,15 +1144,15 @@ Please run a void analysis on this property to identify potential tenant opportu
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
+                    strokeWidth={1.5}
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
               </div>
-              <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">
+              <h2 className="text-base font-semibold text-industrial mb-2">
                 Select a document to view details
               </h2>
-              <p className="font-mono text-xs text-industrial-muted max-w-md">
+              <p className="text-sm text-industrial-muted max-w-md leading-relaxed">
                 Upload a leasing flyer, void analysis, or investment memo to extract
                 property data, available spaces, and tenant information automatically.
               </p>

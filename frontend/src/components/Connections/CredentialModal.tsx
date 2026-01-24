@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Loader2, Eye, EyeOff, Shield, Monitor, Trash2, BarChart3, Building2 } from 'lucide-react';
+import { X, Eye, EyeOff, Shield, Monitor, Trash2, BarChart3, Building2 } from 'lucide-react';
 import type { SiteConfig, Credential } from '../../types/credentials';
 
 // Map site IDs to Lucide icons
 const SITE_ICONS: Record<string, React.ReactNode> = {
-  siteusa: <BarChart3 size={20} className="text-blue-400" />,
-  costar: <Building2 size={20} className="text-purple-400" />,
+  siteusa: <BarChart3 size={20} className="text-[var(--accent)]" />,
+  costar: <Building2 size={20} className="text-[var(--accent)]" />,
 };
 
 interface CredentialModalProps {
@@ -88,32 +88,32 @@ export function CredentialModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative bg-gray-800 rounded-xl border border-gray-700 shadow-xl w-full max-w-md mx-4">
+      <div className="relative bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-2xl shadow-xl w-full max-w-md animate-scale-in">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between p-5 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
-              {SITE_ICONS[site.id] || <BarChart3 size={20} className="text-gray-400" />}
+            <div className="w-10 h-10 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center">
+              {SITE_ICONS[site.id] || <BarChart3 size={20} className="text-industrial-muted" />}
             </div>
             <div>
-              <h2 id="modal-title" className="text-lg font-semibold text-white">
+              <h2 id="modal-title" className="text-base font-semibold text-industrial">
                 {existingCredential ? 'Update' : 'Connect to'} {site.name}
               </h2>
               {site.is_browser_based && (
-                <p className="text-xs text-purple-400 flex items-center gap-1">
-                  <Monitor size={10} />
+                <p className="text-xs text-[var(--accent)] flex items-center gap-1 mt-0.5">
+                  <Monitor size={12} aria-hidden="true" />
                   Browser-based connection
                 </p>
               )}
@@ -122,22 +122,22 @@ export function CredentialModal({
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
+            className="p-2 rounded-lg text-industrial-muted hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
           >
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {displayError && (
-            <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-red-400 text-sm">
+            <div className="p-3 rounded-lg bg-[var(--bg-error)] border border-[var(--color-error)]/20 text-sm text-[var(--color-error)]">
               {displayError}
             </div>
           )}
 
           <div>
-            <label htmlFor="credential-username" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="credential-username" className="text-sm font-medium text-industrial mb-2 block">
               Email / Username
             </label>
             <input
@@ -146,17 +146,17 @@ export function CredentialModal({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder={`Enter your ${site.name} email`}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="input-industrial w-full"
               autoComplete="username"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label htmlFor="credential-password" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="credential-password" className="text-sm font-medium text-industrial mb-2 block">
               Password
               {existingCredential && (
-                <span className="text-gray-500 font-normal ml-2">
+                <span className="text-industrial-muted font-normal ml-2">
                   (leave blank to keep current)
                 </span>
               )}
@@ -168,7 +168,7 @@ export function CredentialModal({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={existingCredential ? '••••••••' : 'Enter password'}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+                className="input-industrial w-full pr-12"
                 autoComplete="current-password"
                 disabled={isLoading}
               />
@@ -176,7 +176,7 @@ export function CredentialModal({
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-industrial-muted hover:text-industrial focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2"
               >
                 {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
               </button>
@@ -184,9 +184,9 @@ export function CredentialModal({
           </div>
 
           {/* Security info */}
-          <div className="flex items-start gap-2 p-3 bg-gray-700/50 rounded-lg">
-            <Shield size={16} className="text-green-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
-            <p className="text-xs text-gray-400">
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-[var(--bg-success)] border border-[var(--color-success)]/20">
+            <Shield size={16} className="text-[var(--color-success)] mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <p className="text-xs text-industrial-secondary leading-relaxed">
               Your credentials are encrypted using AES-256 and stored securely.
               They are only used to access your {site.name} account on your behalf.
             </p>
@@ -194,9 +194,9 @@ export function CredentialModal({
 
           {/* Browser automation info */}
           {site.is_browser_based && (
-            <div className="flex items-start gap-2 p-3 bg-purple-900/20 border border-purple-700/30 rounded-lg">
-              <Monitor size={16} className="text-purple-400 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-gray-400">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-[var(--accent-subtle)] border border-[var(--accent)]/20">
+              <Monitor size={16} className="text-[var(--accent)] mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <p className="text-xs text-industrial-secondary leading-relaxed">
                 This connection uses browser automation. Queries will take
                 approximately {site.typical_duration_seconds} seconds. You'll see
                 progress updates during analysis.
@@ -206,7 +206,7 @@ export function CredentialModal({
         </form>
 
         {/* Footer */}
-        <div className="flex gap-3 p-4 border-t border-gray-700">
+        <div className="flex gap-3 p-5 border-t border-[var(--border-subtle)]">
           {existingCredential && onDelete && (
             showDeleteConfirm ? (
               <div className="flex gap-2 flex-1">
@@ -214,7 +214,7 @@ export function CredentialModal({
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={isLoading}
-                  className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50 text-sm"
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-[var(--border-default)] text-sm font-medium text-industrial hover:bg-[var(--hover-overlay)] transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -225,9 +225,13 @@ export function CredentialModal({
                     onClose();
                   }}
                   disabled={isLoading}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-[var(--color-error)] hover:bg-[var(--color-error)]/90 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  {isLoading ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  ) : (
+                    <Trash2 size={16} aria-hidden="true" />
+                  )}
                   Confirm Delete
                 </button>
               </div>
@@ -236,10 +240,10 @@ export function CredentialModal({
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isLoading}
-                className="p-2 bg-gray-700 hover:bg-red-600/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors disabled:opacity-50"
+                className="p-2.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-error)] text-industrial-muted hover:text-[var(--color-error)] border border-[var(--border-subtle)] transition-colors disabled:opacity-50"
                 title="Delete credential"
               >
-                <Trash2 size={18} />
+                <Trash2 size={18} aria-hidden="true" />
               </button>
             )
           )}
@@ -249,7 +253,7 @@ export function CredentialModal({
                 type="button"
                 onClick={onClose}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 rounded-lg border border-[var(--border-default)] text-sm font-medium text-industrial hover:bg-[var(--hover-overlay)] transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -257,11 +261,11 @@ export function CredentialModal({
                 type="submit"
                 onClick={handleSubmit}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--color-neutral-900)] text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" />
+                    <div className="w-4 h-4 rounded-full border-2 border-[var(--color-neutral-900)] border-t-transparent animate-spin" />
                     Saving...
                   </>
                 ) : existingCredential ? (

@@ -5,39 +5,27 @@ interface WorkflowProgressProps {
   steps: WorkflowStep[];
 }
 
-// Map agent types to gradient colors for the glow effect
-const glowColors: Record<string, string> = {
-  orchestrator: 'rgba(59, 130, 246, 0.5)',
-  demographics: 'rgba(168, 85, 247, 0.5)',
-  'tenant-roster': 'rgba(34, 197, 94, 0.5)',
-  'void-analysis': 'rgba(239, 68, 68, 0.5)',
-  notification: 'rgba(20, 184, 166, 0.5)',
-  placer: 'rgba(16, 185, 129, 0.5)',
-  siteusa: 'rgba(245, 158, 11, 0.5)',
-};
-
 export function WorkflowProgress({ steps }: WorkflowProgressProps) {
   if (steps.length === 0) return null;
 
   const runningSteps = steps.filter((s) => s.status === 'running');
   const completedSteps = steps.filter((s) => s.status === 'completed');
   const progress = steps.length > 0 ? (completedSteps.length / steps.length) * 100 : 0;
+  const allComplete = completedSteps.length === steps.length;
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 mb-4 overflow-hidden">
+    <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl p-4 mb-4 overflow-hidden shadow-sm">
       {/* Header with progress bar */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-gray-400">
-          Workflow Progress
-        </h3>
-        <span className="text-xs text-gray-500">
-          {completedSteps.length}/{steps.length} complete
+        <h3 className="text-sm font-medium text-industrial">Workflow Progress</h3>
+        <span className="text-xs text-industrial-muted">
+          {completedSteps.length} of {steps.length} complete
         </span>
       </div>
 
       {/* Progress bar */}
       <div
-        className="h-1.5 bg-gray-700 rounded-full mb-4 overflow-hidden"
+        className="h-1.5 bg-[var(--bg-tertiary)] rounded-full mb-4 overflow-hidden"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -45,39 +33,40 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
         aria-label={`Workflow progress: ${completedSteps.length} of ${steps.length} steps complete`}
       >
         <div
-          className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 rounded-full transition-all duration-500 ease-out relative"
+          className={`h-full rounded-full transition-all duration-500 ease-out relative ${
+            allComplete ? 'bg-[var(--color-success)]' : 'bg-[var(--accent)]'
+          }`}
           style={{ width: `${progress}%` }}
         >
           {runningSteps.length > 0 && (
-            <div className="absolute inset-0 bg-white/20 animate-pulse" aria-hidden="true" />
+            <div className="absolute inset-0 bg-white/20 animate-pulse-soft rounded-full" aria-hidden="true" />
           )}
         </div>
       </div>
 
       {/* Steps */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         {steps.map((step) => {
           const agent = AGENTS[step.agentType];
           const isRunning = step.status === 'running';
           const isCompleted = step.status === 'completed';
-          const glowColor = glowColors[step.agentType] || 'rgba(59, 130, 246, 0.5)';
+          const isError = step.status === 'error';
 
           return (
             <div
               key={step.id}
               className={`
-                flex items-center gap-3 p-2 rounded-lg transition-all duration-300
-                ${isRunning ? 'bg-gray-700/50' : ''}
-                ${isCompleted ? 'opacity-60' : ''}
+                flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200
+                ${isRunning ? 'bg-[var(--accent-subtle)]' : ''}
+                ${isCompleted ? 'opacity-70' : ''}
               `}
-              style={isRunning ? { boxShadow: `0 0 20px ${glowColor}` } : {}}
             >
               {/* Status indicator */}
-              <div className="flex items-center justify-center w-6 h-6 relative">
+              <div className="flex items-center justify-center w-5 h-5 relative flex-shrink-0">
                 {isCompleted ? (
-                  <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full bg-[var(--bg-success)] flex items-center justify-center">
                     <svg
-                      className="w-4 h-4 text-green-500"
+                      className="w-3 h-3 text-[var(--color-success)]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -92,19 +81,13 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
                     </svg>
                   </div>
                 ) : isRunning ? (
-                  <div className="relative">
-                    {/* Pulsing background */}
-                    <div
-                      className={`absolute inset-0 rounded-full ${agent?.color} opacity-30 animate-ping`}
-                      style={{ animationDuration: '1.5s' }}
-                    />
-                    {/* Spinning ring */}
-                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="relative w-5 h-5">
+                    <div className="w-5 h-5 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
                   </div>
-                ) : step.status === 'error' ? (
-                  <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                ) : isError ? (
+                  <div className="w-5 h-5 rounded-full bg-[var(--bg-error)] flex items-center justify-center">
                     <svg
-                      className="w-4 h-4 text-red-500"
+                      className="w-3 h-3 text-[var(--color-error)]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -119,36 +102,37 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
                     </svg>
                   </div>
                 ) : (
-                  <div className="w-5 h-5 rounded-full bg-gray-600 opacity-50" />
+                  <div className="w-4 h-4 rounded-full border-2 border-[var(--border-default)] opacity-50" />
                 )}
               </div>
 
               {/* Agent color indicator */}
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <span
                   className={`
-                    block w-2.5 h-2.5 rounded-full transition-all duration-300
+                    block w-2 h-2 rounded-full transition-all duration-200
                     ${agent?.color}
-                    ${isRunning ? 'animate-pulse' : ''}
+                    ${isRunning ? 'animate-pulse-soft' : ''}
                     ${!isRunning && !isCompleted ? 'opacity-40' : ''}
                   `}
                 />
                 {isRunning && (
                   <span
-                    className={`absolute inset-0 w-2.5 h-2.5 rounded-full ${agent?.color} animate-ping opacity-75`}
+                    className={`absolute inset-0 w-2 h-2 rounded-full ${agent?.color} animate-ping opacity-50`}
+                    aria-hidden="true"
                   />
                 )}
               </div>
 
               {/* Description */}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <span
-                  className={`text-sm transition-colors duration-300 ${
+                  className={`text-sm transition-colors duration-200 ${
                     isRunning
-                      ? 'text-white font-medium'
+                      ? 'text-industrial font-medium'
                       : isCompleted
-                      ? 'text-gray-400 line-through'
-                      : 'text-gray-500'
+                      ? 'text-industrial-muted line-through'
+                      : 'text-industrial-muted'
                   }`}
                 >
                   {step.description}
@@ -157,8 +141,8 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
 
               {/* Status label */}
               {isRunning && (
-                <span className="text-xs text-blue-400 animate-pulse">
-                  Running...
+                <span className="text-xs font-medium text-[var(--accent)] animate-pulse-soft flex-shrink-0">
+                  Running
                 </span>
               )}
             </div>

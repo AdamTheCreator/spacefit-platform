@@ -1,15 +1,15 @@
 import type { AgentType, WorkflowStep } from '../../types/chat';
 
-// Agent configuration
-const AGENT_CONFIG: Record<string, { name: string; shortName: string; color: string; borderColor: string }> = {
-  'demographics': { name: 'Demographics', shortName: 'Demo', color: 'bg-purple-500', borderColor: 'border-purple-500' },
-  'tenant-roster': { name: 'Tenant Roster', shortName: 'Tenants', color: 'bg-green-500', borderColor: 'border-green-500' },
-  'void-analysis': { name: 'Void Analysis', shortName: 'Voids', color: 'bg-red-500', borderColor: 'border-red-500' },
-  'tenant-match': { name: 'Tenant Match', shortName: 'Match', color: 'bg-cyan-500', borderColor: 'border-cyan-500' },
-  'notification': { name: 'Notifications', shortName: 'Notify', color: 'bg-teal-500', borderColor: 'border-teal-500' },
-  'orchestrator': { name: 'Assistant', shortName: 'Main', color: 'bg-blue-500', borderColor: 'border-blue-500' },
-  'placer': { name: 'Placer.ai', shortName: 'Placer', color: 'bg-emerald-500', borderColor: 'border-emerald-500' },
-  'siteusa': { name: 'SiteUSA', shortName: 'SiteUSA', color: 'bg-amber-500', borderColor: 'border-amber-500' },
+// Agent configuration with softer colors
+const AGENT_CONFIG: Record<string, { name: string; shortName: string; color: string; bgColor: string }> = {
+  'demographics': { name: 'Demographics', shortName: 'Demo', color: 'bg-[var(--accent)]', bgColor: 'bg-[var(--accent-subtle)]' },
+  'tenant-roster': { name: 'Tenant Roster', shortName: 'Tenants', color: 'bg-[var(--color-success)]', bgColor: 'bg-[var(--bg-success)]' },
+  'void-analysis': { name: 'Void Analysis', shortName: 'Voids', color: 'bg-[var(--color-error)]', bgColor: 'bg-[var(--bg-error)]' },
+  'tenant-match': { name: 'Tenant Match', shortName: 'Match', color: 'bg-cyan-500', bgColor: 'bg-cyan-50' },
+  'notification': { name: 'Notifications', shortName: 'Notify', color: 'bg-teal-500', bgColor: 'bg-teal-50' },
+  'orchestrator': { name: 'Assistant', shortName: 'Main', color: 'bg-[var(--accent)]', bgColor: 'bg-[var(--accent-subtle)]' },
+  'placer': { name: 'Placer.ai', shortName: 'Placer', color: 'bg-[var(--color-success)]', bgColor: 'bg-[var(--bg-success)]' },
+  'siteusa': { name: 'SiteUSA', shortName: 'SiteUSA', color: 'bg-[var(--color-warning)]', bgColor: 'bg-[var(--bg-warning)]' },
 };
 
 interface AgentStatusStripProps {
@@ -18,7 +18,7 @@ interface AgentStatusStripProps {
   isProcessing: boolean;
 }
 
-// Horizontal agent status strip (Warp-style) - sits above input
+// Horizontal agent status strip - sits above input
 export function AgentStatusStrip({
   workflowSteps,
   activeAgentType,
@@ -30,19 +30,17 @@ export function AgentStatusStrip({
   // Show simple processing indicator if processing but no workflow steps yet
   if (workflowSteps.length === 0 && isProcessing) {
     return (
-      <div className="border-t border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
         {/* Animated progress bar */}
-        <div className="h-0.5 bg-gray-800 overflow-hidden">
-          <div
-            className="h-full w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_100%] animate-shimmer"
-          />
+        <div className="h-1 bg-[var(--bg-tertiary)] overflow-hidden rounded-full mx-4 mt-3">
+          <div className="h-full w-1/3 bg-[var(--accent)] rounded-full animate-shimmer" />
         </div>
 
         {/* Processing indicator */}
-        <div className="px-3 sm:px-6 py-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
-            <span className="text-xs text-gray-400">Thinking...</span>
+        <div className="px-4 sm:px-6 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] animate-pulse-soft" />
+            <span className="text-sm text-industrial-secondary">Thinking...</span>
           </div>
         </div>
       </div>
@@ -55,45 +53,45 @@ export function AgentStatusStrip({
   const allComplete = completedCount === totalCount;
 
   return (
-    <div className="border-t border-gray-800 bg-gray-900/95 backdrop-blur-sm">
-      {/* Progress bar - thin line at top */}
-      <div className="h-0.5 bg-gray-800">
+    <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+      {/* Progress bar - rounded at top */}
+      <div className="h-1 bg-[var(--bg-tertiary)] mx-4 mt-3 rounded-full overflow-hidden">
         <div
-          className={`h-full transition-all duration-500 ${
+          className={`h-full rounded-full transition-all duration-500 ease-out ${
             allComplete
-              ? 'bg-green-500'
-              : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_100%] animate-shimmer'
+              ? 'bg-[var(--color-success)]'
+              : 'bg-[var(--accent)]'
           }`}
           style={{ width: `${progressPercent}%` }}
         />
       </div>
 
       {/* Agent chips */}
-      <div className="px-3 sm:px-6 py-2">
+      <div className="px-4 sm:px-6 py-2.5">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
           {/* Status label */}
-          <div className="flex-shrink-0 flex items-center gap-2 pr-3 border-r border-gray-700">
+          <div className="flex-shrink-0 flex items-center gap-2 pr-3 border-r border-[var(--border-subtle)]">
             {isProcessing && !allComplete ? (
-              <span className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] animate-pulse-soft" />
             ) : allComplete ? (
-              <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 text-[var(--color-success)]" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             ) : (
-              <span className="w-2 h-2 bg-gray-500 rounded-full" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-muted)]" />
             )}
-            <span className="text-xs text-gray-400 whitespace-nowrap">
-              {allComplete ? 'Complete' : `${completedCount}/${totalCount}`}
+            <span className="text-xs font-medium text-industrial-muted whitespace-nowrap">
+              {allComplete ? 'Complete' : `${completedCount} of ${totalCount}`}
             </span>
           </div>
 
-          {/* Agent chips */}
+          {/* Agent chips - softer pill style */}
           {workflowSteps.map((step) => {
             const config = AGENT_CONFIG[step.agentType] || {
               name: step.agentType,
               shortName: step.agentType.slice(0, 4),
-              color: 'bg-gray-500',
-              borderColor: 'border-gray-500',
+              color: 'bg-[var(--text-muted)]',
+              bgColor: 'bg-[var(--bg-tertiary)]',
             };
             const isActive = step.agentType === activeAgentType;
             const isCompleted = step.status === 'completed';
@@ -102,40 +100,40 @@ export function AgentStatusStrip({
             return (
               <div
                 key={step.id}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-300 ${
+                className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
                   isCompleted
-                    ? 'bg-gray-800 text-gray-400 border border-gray-700'
+                    ? 'bg-[var(--bg-success)] text-[var(--color-success)]'
                     : isRunning || isActive
-                    ? `bg-gray-800 text-white border ${config.borderColor}`
-                    : 'bg-gray-800/50 text-gray-500 border border-gray-700/50'
+                    ? `${config.bgColor} text-industrial`
+                    : 'bg-[var(--bg-tertiary)] text-industrial-muted'
                 }`}
               >
                 {/* Status dot */}
                 <span className="relative flex-shrink-0">
                   <span
                     className={`block w-2 h-2 rounded-full ${
-                      isCompleted ? 'bg-green-400' : isRunning ? config.color : 'bg-gray-600'
-                    } ${isRunning ? 'animate-pulse' : ''}`}
+                      isCompleted ? 'bg-[var(--color-success)]' : isRunning ? config.color : 'bg-[var(--text-muted)]'
+                    } ${isRunning ? 'animate-pulse-soft' : ''}`}
                   />
                   {isRunning && (
-                    <span className={`absolute inset-0 rounded-full ${config.color} animate-ping opacity-50`} />
+                    <span className={`absolute inset-0 rounded-full ${config.color} animate-ping opacity-40`} />
                   )}
                 </span>
 
-                {/* Agent name - use step description if available, otherwise config name */}
+                {/* Agent name */}
                 <span className="sm:hidden">{step.description?.split(':')[0] || config.shortName}</span>
                 <span className="hidden sm:inline">{step.description || config.name}</span>
 
                 {/* Checkmark for completed */}
                 {isCompleted && (
-                  <svg className="w-3 h-3 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-3.5 h-3.5 text-[var(--color-success)]" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 )}
 
                 {/* Spinner for running */}
                 {isRunning && (
-                  <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
                 )}
               </div>
             );

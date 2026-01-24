@@ -13,6 +13,7 @@ export function ChatInput({
   placeholder = 'Type your message...',
 }: ChatInputProps) {
   const [input, setInput] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -41,21 +42,29 @@ export function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-      <div className="flex-1 relative">
+    <form onSubmit={handleSubmit} className="flex gap-3 items-end">
+      <div
+        className={`flex-1 relative rounded-xl border transition-all duration-150 ${
+          isFocused
+            ? 'border-[var(--accent)] shadow-sm ring-2 ring-[var(--accent-subtle)]'
+            : 'border-[var(--border-default)] hover:border-[var(--border-strong)]'
+        } ${disabled ? 'opacity-60' : ''} bg-[var(--bg-elevated)]`}
+      >
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="input-industrial resize-none pr-12"
+          className="w-full px-4 py-3 pr-12 bg-transparent text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-xl"
         />
         {/* Character count indicator */}
         {input.length > 0 && (
-          <span className="absolute right-3 bottom-3 font-mono text-[10px] text-industrial-muted">
+          <span className="absolute right-3 bottom-3 text-[10px] text-industrial-muted tabular-nums">
             {input.length}
           </span>
         )}
@@ -64,9 +73,9 @@ export function ChatInput({
         type="submit"
         disabled={disabled || !input.trim()}
         aria-label="Send message"
-        className="btn-industrial-primary px-4 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--color-neutral-900)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-sm hover:shadow-md active:scale-95"
       >
-        <Send size={16} strokeWidth={2} aria-hidden="true" />
+        <Send size={18} strokeWidth={2} aria-hidden="true" />
       </button>
     </form>
   );

@@ -45,15 +45,15 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {error && (
-        <div className="flex items-start gap-3 p-3 border border-[var(--color-error)] bg-[var(--color-error)]/10">
-          <span className="status-indicator status-indicator-error mt-0.5" />
+        <div className="flex items-start gap-3 p-4 rounded-xl border border-[var(--color-error)]/30 bg-[var(--bg-error)]">
+          <span className="w-2 h-2 rounded-full bg-[var(--color-error)] mt-1.5 flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-xs font-mono text-[var(--color-error)]">{error}</p>
+            <p className="text-sm text-[var(--color-error)]">{error}</p>
           </div>
           <button
             type="button"
             onClick={clearError}
-            className="text-[var(--color-error)] hover:opacity-70 text-xs font-mono uppercase"
+            className="text-[var(--color-error)] hover:opacity-70 text-xs font-medium transition-opacity"
           >
             Dismiss
           </button>
@@ -61,7 +61,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
       )}
 
       <div>
-        <label htmlFor="email" className="label-technical block mb-2">
+        <label htmlFor="email" className="text-sm font-medium text-industrial block mb-2">
           Email address
         </label>
         <input
@@ -71,15 +71,15 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
           autoComplete="email"
           spellCheck={false}
           className="input-industrial"
-          placeholder="you@company.com…"
+          placeholder="you@company.com"
         />
         {errors.email && (
-          <p className="mt-1 text-xs font-mono text-[var(--color-error)]">{errors.email.message}</p>
+          <p className="mt-2 text-sm text-[var(--color-error)]">{errors.email.message}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor="password" className="label-technical block mb-2">
+        <label htmlFor="password" className="text-sm font-medium text-industrial block mb-2">
           Password
         </label>
         <div className="relative">
@@ -89,19 +89,19 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             id="password"
             autoComplete="current-password"
             className="input-industrial pr-12"
-            placeholder="Enter your password…"
+            placeholder="Enter your password"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-industrial-muted hover:text-industrial-secondary"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-industrial-muted hover:text-industrial transition-colors"
           >
             {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
           </button>
         </div>
         {errors.password && (
-          <p className="mt-1 text-xs font-mono text-[var(--color-error)]">{errors.password.message}</p>
+          <p className="mt-2 text-sm text-[var(--color-error)]">{errors.password.message}</p>
         )}
       </div>
 
@@ -113,19 +113,19 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
         {isSubmitting ? (
           <>
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            Authenticating...
+            Signing in...
           </>
         ) : (
           'Sign in'
         )}
       </button>
 
-      <p className="text-center text-xs font-mono text-industrial-muted">
-        No account?{' '}
+      <p className="text-center text-sm text-industrial-muted">
+        Don't have an account?{' '}
         <button
           type="button"
           onClick={onSwitchToRegister}
-          className="text-[var(--accent)] hover:underline uppercase tracking-wide"
+          className="text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium transition-colors"
         >
           Register
         </button>

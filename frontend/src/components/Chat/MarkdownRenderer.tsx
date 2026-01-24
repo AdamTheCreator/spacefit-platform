@@ -21,16 +21,16 @@ interface MarkdownRendererProps {
   agentType?: string;
 }
 
-// Chart color palette
+// Chart color palette - softer, coordinated with design system
 const CHART_COLORS = [
-  '#8b5cf6', // purple
-  '#06b6d4', // cyan
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#ec4899', // pink
-  '#6366f1', // indigo
-  '#14b8a6', // teal
+  '#E5A840', // accent gold
+  '#22C55E', // success green
+  '#3B82F6', // info blue
+  '#F59E0B', // warning amber
+  '#8B5CF6', // purple
+  '#06B6D4', // cyan
+  '#EC4899', // pink
+  '#14B8A6', // teal
 ];
 
 // Extract data for charts from specific content patterns
@@ -95,8 +95,8 @@ function ChartComponent({ chartData }: { chartData: ReturnType<typeof extractCha
 
   if (chartData.type === 'pie') {
     return (
-      <div className="my-3 sm:my-4 p-3 sm:p-4 bg-gray-800/50 rounded-lg border border-gray-700 -mx-2 sm:mx-0">
-        <h4 className="text-xs sm:text-sm font-medium text-gray-300 mb-2 sm:mb-3">{chartData.title}</h4>
+      <div className="my-4 p-4 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-subtle)]">
+        <h4 className="text-sm font-medium text-industrial mb-3">{chartData.title}</h4>
         <ResponsiveContainer width="100%" height={180}>
           <PieChart>
             <Pie
@@ -115,12 +115,17 @@ function ChartComponent({ chartData }: { chartData: ReturnType<typeof extractCha
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-              labelStyle={{ color: '#9ca3af' }}
+              contentStyle={{
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '10px',
+                boxShadow: 'var(--shadow-md)'
+              }}
+              labelStyle={{ color: 'var(--text-secondary)' }}
             />
             <Legend
               wrapperStyle={{ fontSize: '11px' }}
-              formatter={(value) => <span className="text-gray-300">{value}</span>}
+              formatter={(value) => <span style={{ color: 'var(--text-secondary)' }}>{value}</span>}
             />
           </PieChart>
         </ResponsiveContainer>
@@ -133,30 +138,35 @@ function ChartComponent({ chartData }: { chartData: ReturnType<typeof extractCha
     const xKey = 'day' in (chartData.data[0] || {}) ? 'day' : 'name';
 
     return (
-      <div className="my-3 sm:my-4 p-3 sm:p-4 bg-gray-800/50 rounded-lg border border-gray-700 -mx-2 sm:mx-0">
-        <h4 className="text-xs sm:text-sm font-medium text-gray-300 mb-2 sm:mb-3">{chartData.title}</h4>
+      <div className="my-4 p-4 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-subtle)]">
+        <h4 className="text-sm font-medium text-industrial mb-3">{chartData.title}</h4>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={chartData.data} margin={{ top: 10, right: 5, left: -15, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
             <XAxis
               dataKey={xKey}
-              tick={{ fill: '#9ca3af', fontSize: 10 }}
-              axisLine={{ stroke: '#4b5563' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--border-default)' }}
             />
             <YAxis
-              tick={{ fill: '#9ca3af', fontSize: 10 }}
-              axisLine={{ stroke: '#4b5563' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--border-default)' }}
               width={35}
             />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-              labelStyle={{ color: '#9ca3af' }}
-              cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+              contentStyle={{
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '10px',
+                boxShadow: 'var(--shadow-md)'
+              }}
+              labelStyle={{ color: 'var(--text-secondary)' }}
+              cursor={{ fill: 'var(--accent-subtle)' }}
             />
             <Bar
               dataKey={dataKey}
-              fill="#8b5cf6"
-              radius={[4, 4, 0, 0]}
+              fill="var(--accent)"
+              radius={[6, 6, 0, 0]}
             />
           </BarChart>
         </ResponsiveContainer>
@@ -167,35 +177,35 @@ function ChartComponent({ chartData }: { chartData: ReturnType<typeof extractCha
   return null;
 }
 
-// Custom markdown components with Tailwind styling
+// Custom markdown components with design system styling
 const markdownComponents: Components = {
   // Headings
   h1: ({ children }) => (
-    <h1 className="text-2xl font-bold text-white mt-6 mb-4 first:mt-0">{children}</h1>
+    <h1 className="text-xl font-semibold text-industrial mt-6 mb-4 first:mt-0">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-xl font-bold text-white mt-5 mb-3 first:mt-0 border-b border-gray-700 pb-2">{children}</h2>
+    <h2 className="text-lg font-semibold text-industrial mt-5 mb-3 first:mt-0 border-b border-[var(--border-subtle)] pb-2">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-lg font-semibold text-white mt-4 mb-2">{children}</h3>
+    <h3 className="text-base font-semibold text-industrial mt-4 mb-2">{children}</h3>
   ),
   h4: ({ children }) => (
-    <h4 className="text-base font-semibold text-gray-200 mt-3 mb-2">{children}</h4>
+    <h4 className="text-sm font-semibold text-industrial mt-3 mb-2">{children}</h4>
   ),
 
   // Paragraphs
   p: ({ children }) => (
-    <p className="text-gray-300 mb-3 leading-relaxed">{children}</p>
+    <p className="text-industrial-secondary mb-3 leading-relaxed">{children}</p>
   ),
 
   // Strong/Bold
   strong: ({ children }) => (
-    <strong className="font-semibold text-white">{children}</strong>
+    <strong className="font-semibold text-industrial">{children}</strong>
   ),
 
   // Emphasis/Italic
   em: ({ children }) => (
-    <em className="text-gray-400 italic">{children}</em>
+    <em className="text-industrial-muted italic">{children}</em>
   ),
 
   // Lists
@@ -203,37 +213,37 @@ const markdownComponents: Components = {
     <ul className="list-none space-y-1.5 mb-4 ml-1">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="list-decimal list-inside space-y-1.5 mb-4 text-gray-300">{children}</ol>
+    <ol className="list-decimal list-inside space-y-1.5 mb-4 text-industrial-secondary">{children}</ol>
   ),
   li: ({ children }) => (
-    <li className="text-gray-300 flex items-start gap-2">
-      <span className="text-purple-400 mt-1.5">•</span>
+    <li className="text-industrial-secondary flex items-start gap-2">
+      <span className="text-[var(--accent)] mt-1.5 flex-shrink-0">•</span>
       <span className="flex-1">{children}</span>
     </li>
   ),
 
-  // Tables - fully styled with responsive padding
+  // Tables - fully styled with design tokens
   table: ({ children }) => (
-    <div className="my-3 sm:my-4 overflow-x-auto rounded-lg border border-gray-700 -mx-2 sm:mx-0">
-      <table className="w-full text-xs sm:text-sm min-w-[300px]">{children}</table>
+    <div className="my-4 overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+      <table className="w-full text-sm min-w-[300px]">{children}</table>
     </div>
   ),
   thead: ({ children }) => (
-    <thead className="bg-gray-800/80 border-b border-gray-700">{children}</thead>
+    <thead className="bg-[var(--bg-tertiary)] border-b border-[var(--border-subtle)]">{children}</thead>
   ),
   tbody: ({ children }) => (
-    <tbody className="divide-y divide-gray-700/50">{children}</tbody>
+    <tbody className="divide-y divide-[var(--border-subtle)]">{children}</tbody>
   ),
   tr: ({ children }) => (
-    <tr className="hover:bg-gray-800/30 transition-colors">{children}</tr>
+    <tr className="hover:bg-[var(--hover-overlay)] transition-colors">{children}</tr>
   ),
   th: ({ children }) => (
-    <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
+    <th className="px-4 py-3 text-left text-xs font-semibold text-industrial-secondary uppercase tracking-wide">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-300">{children}</td>
+    <td className="px-4 py-3 text-industrial-secondary">{children}</td>
   ),
 
   // Code
@@ -241,13 +251,13 @@ const markdownComponents: Components = {
     const isInline = !className;
     if (isInline) {
       return (
-        <code className="px-1.5 py-0.5 bg-gray-800 text-purple-300 rounded text-sm font-mono">
+        <code className="px-1.5 py-0.5 bg-[var(--bg-tertiary)] text-[var(--accent)] rounded-md text-[13px] font-mono">
           {children}
         </code>
       );
     }
     return (
-      <code className="block p-4 bg-gray-800 rounded-lg text-gray-300 text-sm font-mono overflow-x-auto">
+      <code className="block p-4 bg-[var(--bg-tertiary)] rounded-lg text-industrial-secondary text-sm font-mono overflow-x-auto">
         {children}
       </code>
     );
@@ -258,21 +268,21 @@ const markdownComponents: Components = {
 
   // Blockquotes
   blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-purple-500 pl-4 my-4 text-gray-400 italic">
+    <blockquote className="border-l-4 border-[var(--accent)] pl-4 my-4 text-industrial-muted italic bg-[var(--accent-subtle)] py-2 rounded-r-lg">
       {children}
     </blockquote>
   ),
 
   // Horizontal rule
   hr: () => (
-    <hr className="my-6 border-gray-700" />
+    <hr className="my-6 border-[var(--border-subtle)]" />
   ),
 
   // Links
   a: ({ href, children }) => (
     <a
       href={href}
-      className="text-purple-400 hover:text-purple-300 underline underline-offset-2"
+      className="text-[var(--accent)] hover:text-[var(--accent-hover)] underline underline-offset-2 transition-colors"
       target="_blank"
       rel="noopener noreferrer"
     >
