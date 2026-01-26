@@ -85,15 +85,7 @@ class SiteUSADemographicsAgent(BrowserBasedAgent):
 
                 success = await scraper.login(browser_context, username, password)
                 if not success:
-                    return Message(
-                        role=MessageRole.AGENT,
-                        agent_type=self.agent_type,
-                        content=(
-                            "**Login Failed**\n\n"
-                            "Could not log in to SiteUSA. Please verify your credentials "
-                            "in Settings > Connections."
-                        ),
-                    )
+                    return self._create_login_failed_message("SitesUSA")
 
             self.report_progress("scrape", 30, f"Searching for {address}...")
 
@@ -105,6 +97,18 @@ class SiteUSADemographicsAgent(BrowserBasedAgent):
             )
 
             if result.success:
+                # Check for meaningful data before formatting
+                meaningful_keys = [
+                    "population", "households", "daytime_pop",
+                    "median_income", "avg_income", "avg_age", "median_age",
+                ]
+                has_data = any(result.data.get(k) for k in meaningful_keys)
+
+                if not has_data:
+                    return self._create_empty_data_message(
+                        "Demographics", address, "SitesUSA"
+                    )
+
                 self.report_progress("complete", 100, "Demographics retrieved!")
                 return Message(
                     role=MessageRole.AGENT,
@@ -236,10 +240,10 @@ class SiteUSAVehicleTrafficAgent(BrowserBasedAgent):
                     username = decrypt_credential(credential.username_encrypted)
                     password = decrypt_credential(credential.password_encrypted)
                 except Exception:
-                    return self._create_error_message("Failed to decrypt credentials")
+                    return self._create_login_failed_message("SitesUSA")
 
                 if not await scraper.login(browser_context, username, password):
-                    return self._create_error_message("Login to SiteUSA failed")
+                    return self._create_login_failed_message("SitesUSA")
 
             self.report_progress("scrape", 30, "Analyzing vehicle traffic...")
 
@@ -250,6 +254,18 @@ class SiteUSAVehicleTrafficAgent(BrowserBasedAgent):
             )
 
             if result.success:
+                # Check for meaningful data before formatting
+                meaningful_keys = [
+                    "primary_road_vpd", "secondary_road_vpd",
+                    "intersection_vpd", "peak_hours",
+                ]
+                has_data = any(result.data.get(k) for k in meaningful_keys)
+
+                if not has_data:
+                    return self._create_empty_data_message(
+                        "Vehicle Traffic", address, "SitesUSA"
+                    )
+
                 return Message(
                     role=MessageRole.AGENT,
                     agent_type=self.agent_type,

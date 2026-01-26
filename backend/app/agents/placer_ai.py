@@ -82,22 +82,12 @@ class PlacerAIFootTrafficAgent(BrowserBasedAgent):
                 try:
                     username = decrypt_credential(credential.username_encrypted)
                     password = decrypt_credential(credential.password_encrypted)
-                except Exception as e:
-                    return self._create_error_message(
-                        f"Failed to decrypt credentials: {str(e)}"
-                    )
+                except Exception:
+                    return self._create_login_failed_message("Placer.ai")
 
                 success = await scraper.login(browser_context, username, password)
                 if not success:
-                    return Message(
-                        role=MessageRole.AGENT,
-                        agent_type=self.agent_type,
-                        content=(
-                            "**Login Failed**\n\n"
-                            "Could not log in to Placer.ai. Please verify your credentials "
-                            "in Settings > Connections."
-                        ),
-                    )
+                    return self._create_login_failed_message("Placer.ai")
 
             self.report_progress("scrape", 30, f"Searching for {address}...")
 
@@ -109,6 +99,18 @@ class PlacerAIFootTrafficAgent(BrowserBasedAgent):
             )
 
             if result.success:
+                # Check for meaningful data before formatting
+                meaningful_keys = [
+                    "monthly_visitors", "daily_avg_visitors",
+                    "vehicles_per_day", "peak_day", "peak_hour",
+                ]
+                has_data = any(result.data.get(k) for k in meaningful_keys)
+
+                if not has_data:
+                    return self._create_empty_data_message(
+                        "Visitor Traffic", address, "Placer.ai"
+                    )
+
                 self.report_progress("complete", 100, "Visitor traffic data retrieved!")
                 return Message(
                     role=MessageRole.AGENT,
@@ -229,22 +231,12 @@ class PlacerAICustomerProfileAgent(BrowserBasedAgent):
                 try:
                     username = decrypt_credential(credential.username_encrypted)
                     password = decrypt_credential(credential.password_encrypted)
-                except Exception as e:
-                    return self._create_error_message(
-                        f"Failed to decrypt credentials: {str(e)}"
-                    )
+                except Exception:
+                    return self._create_login_failed_message("Placer.ai")
 
                 success = await scraper.login(browser_context, username, password)
                 if not success:
-                    return Message(
-                        role=MessageRole.AGENT,
-                        agent_type=self.agent_type,
-                        content=(
-                            "**Login Failed**\n\n"
-                            "Could not log in to Placer.ai. Please verify your credentials "
-                            "in Settings > Connections."
-                        ),
-                    )
+                    return self._create_login_failed_message("Placer.ai")
 
             self.report_progress("scrape", 30, f"Analyzing customers for {address}...")
 
@@ -255,6 +247,18 @@ class PlacerAICustomerProfileAgent(BrowserBasedAgent):
             )
 
             if result.success:
+                # Check for meaningful data before formatting
+                meaningful_keys = [
+                    "median_household_income", "median_age",
+                    "male_pct", "female_pct",
+                ]
+                has_data = any(result.data.get(k) for k in meaningful_keys)
+
+                if not has_data:
+                    return self._create_empty_data_message(
+                        "Customer Profile", address, "Placer.ai"
+                    )
+
                 self.report_progress("complete", 100, "Customer profile retrieved!")
                 return Message(
                     role=MessageRole.AGENT,
@@ -386,22 +390,12 @@ class PlacerAIVoidAnalysisAgent(BrowserBasedAgent):
                 try:
                     username = decrypt_credential(credential.username_encrypted)
                     password = decrypt_credential(credential.password_encrypted)
-                except Exception as e:
-                    return self._create_error_message(
-                        f"Failed to decrypt credentials: {str(e)}"
-                    )
+                except Exception:
+                    return self._create_login_failed_message("Placer.ai")
 
                 success = await scraper.login(browser_context, username, password)
                 if not success:
-                    return Message(
-                        role=MessageRole.AGENT,
-                        agent_type=self.agent_type,
-                        content=(
-                            "**Login Failed**\n\n"
-                            "Could not log in to Placer.ai. Please verify your credentials "
-                            "in Settings > Connections."
-                        ),
-                    )
+                    return self._create_login_failed_message("Placer.ai")
 
             self.report_progress("scrape", 30, f"Analyzing voids for {address}...")
 
@@ -412,6 +406,12 @@ class PlacerAIVoidAnalysisAgent(BrowserBasedAgent):
             )
 
             if result.success:
+                # Check for meaningful data before formatting
+                if not result.data.get("voids"):
+                    return self._create_empty_data_message(
+                        "Void Analysis", address, "Placer.ai"
+                    )
+
                 self.report_progress("complete", 100, "Void analysis complete!")
                 return Message(
                     role=MessageRole.AGENT,

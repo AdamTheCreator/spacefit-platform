@@ -172,3 +172,51 @@ class BrowserBasedAgent(BaseAgent):
                 f"Your credentials are encrypted and stored securely."
             ),
         )
+
+    # ------------------------------------------------------------------
+    # Actionable failure messages
+    # ------------------------------------------------------------------
+
+    def _create_login_failed_message(self, site_display_name: str) -> Message:
+        """Actionable message when automated login fails."""
+        return Message(
+            role=MessageRole.AGENT,
+            agent_type=self.agent_type,
+            content=(
+                f"**{site_display_name} Connection Issue**\n\n"
+                f"I was unable to log in to {site_display_name} to retrieve data. "
+                "This usually means the session has expired or the saved credentials need updating.\n\n"
+                "**To fix this:**\n"
+                "1. Open **Connections** from the sidebar\n"
+                f"2. Find **{site_display_name}** and click **Refresh Session**\n"
+                "3. Complete the login (solve the CAPTCHA if prompted)\n"
+                "4. Come back here and ask me again\n\n"
+                "*Your data request has not been lost — just re-send your last message after reconnecting.*"
+            ),
+        )
+
+    def _create_empty_data_message(
+        self,
+        data_type_label: str,
+        address: str,
+        site_display_name: str,
+    ) -> Message:
+        """Actionable message when the scraper returns success but no data."""
+        return Message(
+            role=MessageRole.AGENT,
+            agent_type=self.agent_type,
+            content=(
+                f"**No {data_type_label} Found**\n\n"
+                f"I connected to {site_display_name} successfully, but no "
+                f"{data_type_label.lower()} data was returned for:\n"
+                f"> {address}\n\n"
+                "**Possible reasons:**\n"
+                f"- {site_display_name} may not have coverage for this address\n"
+                "- The address may need to be more specific (include city and state)\n"
+                "- The property may not be in the database yet\n\n"
+                "**What to try:**\n"
+                "- Re-phrase with a more precise street address\n"
+                "- Try a nearby major intersection instead\n"
+                f"- Log in to {site_display_name} directly to confirm the property exists"
+            ),
+        )
