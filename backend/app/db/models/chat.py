@@ -31,6 +31,13 @@ class ChatSession(Base):
         String(36), ForeignKey("parsed_documents.id", ondelete="SET NULL"), nullable=True
     )
     document_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    analysis_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Prompt selection — determines which system prompt is used at runtime.
+    # Defaults to MASTER_DEFAULT for normal chats; set explicitly for analysis chats.
+    system_prompt_id: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default="MASTER_DEFAULT"
+    )
 
     user: Mapped["User"] = relationship(back_populates="chat_sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(
