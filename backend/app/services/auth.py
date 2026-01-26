@@ -104,7 +104,7 @@ class AuthService:
 
         result = await self.db.execute(
             select(RefreshToken).where(
-                RefreshToken.user_id == UUID(user_id),
+                RefreshToken.user_id == user_id,
                 RefreshToken.token_hash.startswith(jti),
                 RefreshToken.revoked == False,
                 RefreshToken.expires_at > datetime.utcnow(),
@@ -118,7 +118,7 @@ class AuthService:
         token_record.revoked = True
 
         result = await self.db.execute(
-            select(User).where(User.id == UUID(user_id), User.is_active == True)
+            select(User).where(User.id == user_id, User.is_active == True)
         )
         user = result.scalar_one_or_none()
 
@@ -142,7 +142,7 @@ class AuthService:
 
         result = await self.db.execute(
             select(RefreshToken).where(
-                RefreshToken.user_id == UUID(user_id),
+                RefreshToken.user_id == user_id,
                 RefreshToken.token_hash.startswith(jti),
             )
         )
@@ -215,9 +215,10 @@ class AuthService:
 
         return user
 
-    async def get_user_by_id(self, user_id: UUID) -> User | None:
+    async def get_user_by_id(self, user_id: UUID | str) -> User | None:
         """Get user by ID."""
-        result = await self.db.execute(select(User).where(User.id == user_id))
+        user_id_str = str(user_id) if isinstance(user_id, UUID) else user_id
+        result = await self.db.execute(select(User).where(User.id == user_id_str))
         return result.scalar_one_or_none()
 
     async def update_password(
