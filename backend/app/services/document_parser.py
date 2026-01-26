@@ -18,6 +18,8 @@ from app.models.document import (
     ExtractedPropertyInfo,
     ExtractedAvailableSpace,
     ExtractedTenant,
+    ExtractedSitePlanData,
+    SitePlanLocationArea,
 )
 
 # Initialize Anthropic client
@@ -59,12 +61,15 @@ async def classify_document(file_path: str) -> tuple[DocumentType, float]:
 
     system_prompt = """You are a commercial real estate document classifier.
 Analyze the provided document and classify it into one of these types:
-- leasing_flyer: Marketing materials showing available spaces, site plans, tenant lists
+- leasing_flyer: Marketing materials showing available spaces, tenant lists, property brochures with text descriptions
+- site_plan: Architectural site plans, plot layouts, CAD drawings showing building footprints, parking areas, and tenant locations from an aerial/birds-eye view. These are primarily visual/diagrammatic rather than text-heavy.
 - void_analysis: Gap analysis reports showing missing retail categories in a trade area
 - investment_memo: One-pagers or investment summaries with financials, demographics, ROI
 - loan_document: Loan agreements, financing documents, mortgage paperwork
 - comp_report: Comparable lease/sale reports
 - other: Any document that doesn't fit the above categories
+
+KEY DISTINCTION: If the document is primarily a visual layout/diagram showing building footprints and spatial arrangement (like an architectural drawing or plot plan), classify as "site_plan". If it's a marketing brochure with photos and text descriptions, classify as "leasing_flyer".
 
 Respond with JSON only: {"type": "document_type", "confidence": 0.95}"""
 
@@ -243,6 +248,161 @@ IMPORTANT:
         amenities=data.get("amenities", []),
         highlights=data.get("highlights", []),
         contact_info=data.get("contact_info"),
+    )
+
+
+async def parse_site_plan(file_path: str) -> ExtractedSitePlanData:
+    """
+    Parse a site plan/plot PDF and extract spatial and location data.
+
+    Site plans typically show:
+    - Property layout from aerial/birds-eye view
+    - Building footprints with tenant names
+    - Available/vacant spaces (often color-coded)
+    - Parking areas and counts
+    - Pad sites and outparcels
+    """
+    base64_data = encode_file_to_base64(file_path)
+    media_type = get_media_type(file_path)
+
+    system_prompt = """You are a commercial real estate site plan analyst.
+Analyze this site plan/plot drawing and extract all location and spatial information.
+
+Return a JSON object with this exact structure:
+{
+    "property_info": {
+        "name": "Property/Center Name or null",
+        "address": "Street Address (look in title block, header, or labels) or null",
+        "city": "City or null",
+        "state": "State abbreviation or null",
+        "zip_code": "ZIP or null",
+        "property_type": "retail/office/industrial/mixed-use or null",
+        "total_sf": integer (total building square footage if shown) or null,
+        "year_built": null,
+        "parking_ratio": "X:1000 SF or null",
+        "landlord_name": "Owner name if shown or null"
+    },
+    "location_areas": [
+        {
+            "name": "Building A or Suite 100 or Pad A",
+            "area_type": "building/pad/outparcel/inline",
+            "square_footage": integer or null,
+            "tenant_name": "Tenant occupying this space or null",
+            "is_available": boolean (true if labeled AVAILABLE, PROPOSED, FOR LEASE, or color-coded as vacant),
+            "position_description": "northwest corner/inline/outparcel/etc",
+            "notes": "Additional details like drive-thru, endcap, etc."
+        }
+    ],
+    "tenant_locations": [
+        {
+            "name": "Tenant Name visible on plan",
+            "category": "dining/retail/service/grocery/fitness/etc or null",
+            "suite_number": "Suite # if shown or null",
+            "square_footage": integer if labeled or null,
+            "is_anchor": boolean (true if large/prominent tenant),
+            "is_national": boolean (true if recognizable national brand)
+        }
+    ],
+    "available_areas": [
+        {
+            "name": "Space identifier (Suite #, Pad letter, etc.)",
+            "area_type": "building/pad/outparcel/inline",
+            "square_footage": integer or null,
+            "tenant_name": null,
+            "is_available": true,
+            "position_description": "Location description",
+            "notes": "Features like endcap, drive-thru potential, etc."
+        }
+    ],
+    "total_site_sf": integer (total site/land area if shown) or null,
+    "parking_spaces": integer (total parking count if shown) or null,
+    "parking_ratio": "X:1000 SF or null",
+    "site_dimensions": {
+        "width_ft": integer or null,
+        "depth_ft": integer or null,
+        "acres": float or null
+    },
+    "highlights": ["Key features visible on the plan"]
+}
+
+IMPORTANT EXTRACTION GUIDELINES:
+- Look for property name/address in title blocks, headers, legends, or corner labels
+- Color coding: Yellow/Green typically = AVAILABLE, Blue/Gray = OCCUPIED
+- "PROPOSED", "FUTURE", "FOR LEASE", "AVAILABLE" labels indicate vacant spaces
+- Extract ALL visible tenant names from the plan
+- Identify anchor tenants (large footprints, typically >10,000 SF)
+- Note special features: drive-thru lanes, endcaps, patio areas, pad sites
+- If address is partially visible, extract what you can see
+- Return valid JSON only, no markdown formatting"""
+
+    response = client.messages.create(
+        model=VISION_MODEL,
+        max_tokens=8192,
+        system=system_prompt,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": base64_data,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": "Extract all property information, tenant locations, and available spaces from this site plan. Pay special attention to identifying the property address and all tenant names visible on the plan. Return JSON only.",
+                    },
+                ],
+            }
+        ],
+    )
+
+    response_text = response.content[0].text.strip()
+
+    # Extract JSON from response (handle markdown code blocks)
+    json_match = re.search(r'\{[\s\S]*\}', response_text)
+    if json_match:
+        data = json.loads(json_match.group())
+    else:
+        data = {
+            "property_info": {},
+            "location_areas": [],
+            "tenant_locations": [],
+            "available_areas": [],
+            "highlights": [],
+        }
+
+    # Convert to Pydantic models
+    property_info = ExtractedPropertyInfo(**data.get("property_info", {}))
+
+    location_areas = [
+        SitePlanLocationArea(**area)
+        for area in data.get("location_areas", [])
+    ]
+
+    tenant_locations = [
+        ExtractedTenant(**tenant)
+        for tenant in data.get("tenant_locations", [])
+    ]
+
+    available_areas = [
+        SitePlanLocationArea(**area)
+        for area in data.get("available_areas", [])
+    ]
+
+    return ExtractedSitePlanData(
+        property_info=property_info,
+        location_areas=location_areas,
+        tenant_locations=tenant_locations,
+        available_areas=available_areas,
+        total_site_sf=data.get("total_site_sf"),
+        parking_spaces=data.get("parking_spaces"),
+        parking_ratio=data.get("parking_ratio"),
+        site_dimensions=data.get("site_dimensions"),
+        highlights=data.get("highlights", []),
     )
 
 
@@ -470,6 +630,9 @@ async def parse_document(file_path: str, document_type: DocumentType | None = No
     if document_type == DocumentType.LEASING_FLYER:
         flyer_data = await parse_leasing_flyer(file_path)
         extracted_data = flyer_data.model_dump()
+    elif document_type == DocumentType.SITE_PLAN:
+        site_plan_data = await parse_site_plan(file_path)
+        extracted_data = site_plan_data.model_dump()
     elif document_type == DocumentType.VOID_ANALYSIS:
         extracted_data = await parse_void_analysis(file_path)
     elif document_type == DocumentType.INVESTMENT_MEMO:

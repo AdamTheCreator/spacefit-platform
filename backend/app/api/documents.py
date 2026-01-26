@@ -25,12 +25,19 @@ from app.db.models.document import (
 )
 from app.models.document import (
     DocumentListResponse,
+    DocumentType as PydanticDocumentType,
     DocumentUploadResponse,
     ParsedDocumentDetailResponse,
     ParsedDocumentResponse,
     InvestmentMemoResponse,
+    StartAnalysisResponse,
 )
 from app.services.document_parser import parse_document
+from app.services.document_workflow import (
+    build_analysis_context,
+    create_analysis_session_from_document,
+    get_or_create_analysis_session,
+)
 from app.agents.void_analysis import analyze_voids_for_property, generate_void_report
 from app.agents.investment_memo import generate_investment_memo, generate_memo_text
 
@@ -413,6 +420,98 @@ async def reprocess_document(
         filename=document.filename,
         status=DocumentStatus.PENDING,
         message="Document queued for reprocessing.",
+    )
+
+
+# ============================================================================
+# Start Analysis Session from Document
+# ============================================================================
+
+
+@router.post("/{document_id}/start-analysis", response_model=StartAnalysisResponse)
+async def start_analysis_from_document(
+    document_id: str,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> StartAnalysisResponse:
+    """
+    Start a void analysis session from a parsed document.
+
+    This endpoint:
+    1. Validates the document is parsed and has extractable data
+    2. Extracts property address, tenants, and available spaces
+    3. Creates a new chat session pre-seeded with document context
+    4. Returns session ID for frontend to connect via WebSocket
+
+    The created session will have document_context populated with all
+    extracted data, allowing immediate void analysis without re-entering
+    property information.
+    """
+    # Fetch document with ownership check
+    result = await db.execute(
+        select(ParsedDocument).where(
+            ParsedDocument.id == document_id,
+            ParsedDocument.user_id == current_user.id,
+        )
+    )
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    # Validate document is processed
+    if document.status != DocumentStatus.COMPLETED.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document is not ready for analysis. Current status: {document.status}",
+        )
+
+    if not document.extracted_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document has no extracted data. Please reprocess the document.",
+        )
+
+    # Check if document type supports analysis
+    supported_types = [
+        DocumentType.LEASING_FLYER.value,
+        DocumentType.SITE_PLAN.value,
+    ]
+    if document.document_type not in supported_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document type '{document.document_type}' does not support void analysis. "
+                   f"Supported types: {', '.join(supported_types)}",
+        )
+
+    # Get or create analysis session
+    session = await get_or_create_analysis_session(
+        document_id=document_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create analysis session",
+        )
+
+    # Build context for response
+    context = build_analysis_context(document)
+
+    return StartAnalysisResponse(
+        session_id=session.id,
+        property_address=context.full_address,
+        property_name=context.property_name,
+        tenant_count=len(context.existing_tenants),
+        available_space_count=len(context.available_spaces),
+        document_type=PydanticDocumentType(document.document_type),
+        message=f"Analysis session created. {len(context.existing_tenants)} tenants and "
+                f"{len(context.available_spaces)} available spaces extracted from document.",
     )
 
 

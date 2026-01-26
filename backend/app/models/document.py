@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class DocumentType(str, Enum):
     LEASING_FLYER = "leasing_flyer"
+    SITE_PLAN = "site_plan"
     VOID_ANALYSIS = "void_analysis"
     INVESTMENT_MEMO = "investment_memo"
     LOAN_DOCUMENT = "loan_document"
@@ -164,6 +165,43 @@ class ExtractedFlyerData(BaseModel):
     amenities: list[str] = []
     highlights: list[str] = []
     contact_info: dict | None = None
+
+
+# Site Plan Extracted Data Models
+class SitePlanLocationArea(BaseModel):
+    """A distinct area/zone within a site plan (building, pad, outparcel)."""
+    name: str | None = None
+    area_type: str | None = None  # building, pad, outparcel, parking
+    square_footage: int | None = None
+    tenant_name: str | None = None  # If occupied
+    is_available: bool = False
+    position_description: str | None = None  # e.g., "northwest corner", "inline"
+    notes: str | None = None
+
+
+class ExtractedSitePlanData(BaseModel):
+    """Complete data extracted from a site plan/plot PDF."""
+    property_info: ExtractedPropertyInfo
+    location_areas: list[SitePlanLocationArea] = []
+    tenant_locations: list[ExtractedTenant] = []  # Tenants with positions
+    available_areas: list[SitePlanLocationArea] = []  # Vacant/available spaces
+    total_site_sf: int | None = None
+    parking_spaces: int | None = None
+    parking_ratio: str | None = None
+    site_dimensions: dict | None = None  # width, depth, etc.
+    highlights: list[str] = []
+
+
+# Start Analysis Response
+class StartAnalysisResponse(BaseModel):
+    """Response when starting void analysis from a document."""
+    session_id: str
+    property_address: str | None = None
+    property_name: str | None = None
+    tenant_count: int = 0
+    available_space_count: int = 0
+    document_type: DocumentType
+    message: str = "Analysis session created successfully"
 
 
 # Void Analysis Models

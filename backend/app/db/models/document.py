@@ -26,6 +26,7 @@ def uuid_str() -> str:
 
 class DocumentType(str, Enum):
     LEASING_FLYER = "leasing_flyer"
+    SITE_PLAN = "site_plan"
     VOID_ANALYSIS = "void_analysis"
     INVESTMENT_MEMO = "investment_memo"
     LOAN_DOCUMENT = "loan_document"
@@ -76,6 +77,11 @@ class ParsedDocument(Base):
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Analysis session link (created when user starts analysis from this document)
+    analysis_session_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="documents")
