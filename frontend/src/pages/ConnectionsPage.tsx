@@ -14,6 +14,7 @@ import {
   BarChart3,
   Building2,
   Users,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../lib/axios';
 import type {
@@ -24,6 +25,7 @@ import type {
   SessionStatus,
 } from '../types/credentials';
 import { CredentialModal } from '../components/Connections/CredentialModal';
+import { BrowserLoginModal } from '../components/Connections/BrowserLoginModal';
 
 // Map site IDs to Lucide icons
 const SITE_ICONS: Record<string, React.ReactNode> = {
@@ -43,6 +45,7 @@ const DEFAULT_SITES: SiteConfig[] = [
     data_types: ['foot_traffic', 'customer_profile', 'void_analysis'],
     typical_duration_seconds: 45,
     is_browser_based: true,
+    requires_manual_login: true, // Has CAPTCHA
   },
   {
     id: 'siteusa',
@@ -53,6 +56,7 @@ const DEFAULT_SITES: SiteConfig[] = [
     data_types: ['demographics', 'foot_traffic', 'tenant_data'],
     typical_duration_seconds: 45,
     is_browser_based: true,
+    requires_manual_login: false,
   },
   {
     id: 'costar',
@@ -63,14 +67,16 @@ const DEFAULT_SITES: SiteConfig[] = [
     data_types: ['property_info', 'tenant_data'],
     typical_duration_seconds: 60,
     is_browser_based: true,
+    requires_manual_login: false,
     coming_soon: true,
   },
 ];
 
 function getStatusBadge(
   credential: Credential | undefined,
-  isVerifying: boolean
-): { icon: React.ReactNode; text: string; className: string } {
+  isVerifying: boolean,
+  requiresManualLogin?: boolean
+): { icon: React.ReactNode; text: string; className: string; needsManualRefresh?: boolean } {
   if (!credential) {
     return {
       icon: <Key size={14} />,
@@ -99,14 +105,23 @@ function getStatusBadge(
     case 'expired':
       return {
         icon: <Clock size={14} />,
-        text: 'Session expired',
+        text: requiresManualLogin ? 'Session expired - refresh needed' : 'Session expired',
         className: 'text-[var(--color-warning)]',
+        needsManualRefresh: requiresManualLogin,
+      };
+    case 'requires_manual_login':
+      return {
+        icon: <ExternalLink size={14} />,
+        text: 'Manual login required',
+        className: 'text-[var(--color-warning)]',
+        needsManualRefresh: true,
       };
     case 'error':
       return {
         icon: <XCircle size={14} />,
         text: credential.session_error_message || 'Connection error',
         className: 'text-[var(--color-error)]',
+        needsManualRefresh: requiresManualLogin,
       };
     default:
       if (credential.is_verified) {
@@ -118,8 +133,9 @@ function getStatusBadge(
       }
       return {
         icon: <AlertTriangle size={14} />,
-        text: 'Not verified',
+        text: requiresManualLogin ? 'Login required' : 'Not verified',
         className: 'text-industrial-secondary',
+        needsManualRefresh: requiresManualLogin,
       };
   }
 }
@@ -129,6 +145,7 @@ interface ConnectionCardProps {
   credential?: Credential;
   onConnect: () => void;
   onVerify: () => void;
+  onBrowserLogin: () => void;
   isVerifying: boolean;
 }
 
@@ -137,9 +154,10 @@ function ConnectionCard({
   credential,
   onConnect,
   onVerify,
+  onBrowserLogin,
   isVerifying,
 }: ConnectionCardProps) {
-  const statusBadge = getStatusBadge(credential, isVerifying);
+  const statusBadge = getStatusBadge(credential, isVerifying, site.requires_manual_login);
 
   return (
     <div className="card-industrial">
@@ -155,6 +173,12 @@ function ConnectionCard({
                 <span className="font-mono text-[10px] uppercase tracking-wide bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-0.5 border border-[var(--accent)]/30 flex items-center gap-1">
                   <Monitor size={10} />
                   Browser
+                </span>
+              )}
+              {site.requires_manual_login && (
+                <span className="font-mono text-[10px] uppercase tracking-wide bg-amber-500/10 text-amber-500 px-2 py-0.5 border border-amber-500/30 flex items-center gap-1">
+                  <ExternalLink size={10} />
+                  CAPTCHA
                 </span>
               )}
               {site.coming_soon && (
@@ -174,7 +198,20 @@ function ConnectionCard({
           </span>
 
           <div className="flex gap-2">
-            {credential && !site.coming_soon && (
+            {/* Show Refresh Session button for manual login sites that need it */}
+            {credential && site.requires_manual_login && statusBadge.needsManualRefresh && !site.coming_soon && (
+              <button
+                onClick={onBrowserLogin}
+                className="btn-industrial bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
+                title="Open browser to refresh session"
+              >
+                <ExternalLink size={14} />
+                Refresh Session
+              </button>
+            )}
+
+            {/* Regular verify button for non-manual sites */}
+            {credential && !site.requires_manual_login && !site.coming_soon && (
               <button
                 onClick={onVerify}
                 disabled={isVerifying}
@@ -185,14 +222,27 @@ function ConnectionCard({
               </button>
             )}
 
-            <button
-              onClick={onConnect}
-              disabled={site.coming_soon}
-              className="btn-industrial disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {credential ? 'Update' : 'Connect'}
-              {!credential && <Plus size={14} />}
-            </button>
+            {/* Connect/Update button */}
+            {site.requires_manual_login ? (
+              // For CAPTCHA sites: save credentials first, then use browser login
+              <button
+                onClick={onConnect}
+                disabled={site.coming_soon}
+                className="btn-industrial disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {credential ? 'Update Credentials' : 'Connect'}
+                {!credential && <Plus size={14} />}
+              </button>
+            ) : (
+              <button
+                onClick={onConnect}
+                disabled={site.coming_soon}
+                className="btn-industrial disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {credential ? 'Update' : 'Connect'}
+                {!credential && <Plus size={14} />}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -202,6 +252,7 @@ function ConnectionCard({
           <p className="font-mono text-[10px] text-industrial-muted flex items-center gap-1 uppercase tracking-wide">
             <Clock size={12} />
             Browser-based connection: ~{site.typical_duration_seconds}s per query
+            {site.requires_manual_login && ' • Requires manual CAPTCHA solve'}
           </p>
         </div>
       )}
@@ -222,6 +273,7 @@ export function ConnectionsPage() {
   const queryClient = useQueryClient();
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [browserLoginOpen, setBrowserLoginOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteConfig | null>(null);
   const [existingCredential, setExistingCredential] = useState<Credential | null>(null);
 
@@ -303,6 +355,18 @@ export function ConnectionsPage() {
     setModalOpen(true);
   };
 
+  const handleBrowserLogin = (site: SiteConfig) => {
+    const existing = getCredentialForSite(site.id);
+    setSelectedSite(site);
+    setExistingCredential(existing || null);
+    setBrowserLoginOpen(true);
+  };
+
+  const handleBrowserLoginSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['credentials'] });
+    setBrowserLoginOpen(false);
+  };
+
   const handleSave = async (username: string, password: string) => {
     if (!selectedSite) return;
 
@@ -344,6 +408,7 @@ export function ConnectionsPage() {
                 credential={credential}
                 onConnect={() => handleConnect(site)}
                 onVerify={() => credential && verifyMutation.mutate(credential.id)}
+                onBrowserLogin={() => handleBrowserLogin(site)}
                 isVerifying={verifyingId === credential?.id}
               />
             );
@@ -386,6 +451,14 @@ export function ConnectionsPage() {
           deleteMutation.error?.message ||
           null
         }
+      />
+
+      <BrowserLoginModal
+        isOpen={browserLoginOpen}
+        onClose={() => setBrowserLoginOpen(false)}
+        site={selectedSite}
+        existingCredential={existingCredential}
+        onSuccess={handleBrowserLoginSuccess}
       />
     </AppLayout>
   );

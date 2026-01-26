@@ -8,9 +8,10 @@ export interface SiteConfig {
   typical_duration_seconds: number;
   is_browser_based: boolean;
   coming_soon?: boolean;
+  requires_manual_login?: boolean; // Site has CAPTCHA requiring manual browser login
 }
 
-export type SessionStatus = 'unknown' | 'valid' | 'expired' | 'error';
+export type SessionStatus = 'unknown' | 'valid' | 'expired' | 'error' | 'requires_manual_login';
 
 export interface Credential {
   id: string;

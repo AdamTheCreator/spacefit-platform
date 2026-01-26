@@ -13,6 +13,12 @@ from app.services.tools import (
     get_tools_for_context,
     should_force_tool_use,
 )
+from app.services.prompt_registry import (
+    get_system_prompt_for_session,
+    format_document_context_block,
+    DEFAULT_PROMPT_ID,
+    VOID_ANALYSIS_PROMPT_ID,
+)
 
 # Initialize the Anthropic client
 client = Anthropic(api_key=settings.anthropic_api_key)
@@ -48,6 +54,109 @@ RESPONSE STYLE:
 - If you need more information from the user, ask specific questions"""
 
 
+def build_void_analysis_system_prompt(document_context: dict) -> str:
+    """
+    Build a specialized system prompt for void analysis sessions
+    that are pre-seeded with document context.
+    """
+    property_name = document_context.get("property_name", "Unknown Property")
+    property_address = document_context.get("property_address", "Unknown Address")
+    existing_tenants = document_context.get("existing_tenants", [])
+    available_spaces = document_context.get("available_spaces", [])
+    property_info = document_context.get("property_info", {})
+    trade_area_miles = document_context.get("trade_area_miles", 3.0)
+    notes = document_context.get("notes")
+    doc_type = document_context.get("document_type", "leasing_flyer")
+
+    # Format tenants list
+    tenant_lines = []
+    for t in existing_tenants:
+        name = t.get("name", "Unknown")
+        cat = t.get("category", "")
+        sf = t.get("square_footage")
+        anchor = " (Anchor)" if t.get("is_anchor") else ""
+        line = f"  - {name}{anchor}"
+        if cat:
+            line += f" [{cat}]"
+        if sf:
+            line += f" — {sf:,} SF"
+        tenant_lines.append(line)
+
+    # Format available spaces
+    space_lines = []
+    for s in available_spaces:
+        suite = s.get("suite_number") or s.get("name", "Space")
+        sf = s.get("square_footage")
+        rent = s.get("asking_rent_psf")
+        line = f"  - {suite}"
+        if sf:
+            line += f" — {sf:,} SF"
+        if rent:
+            line += f" @ ${rent}/SF"
+        endcap = " (Endcap)" if s.get("is_endcap") else ""
+        drive_thru = " (Drive-Thru)" if s.get("has_drive_thru") else ""
+        line += endcap + drive_thru
+        space_lines.append(line)
+
+    # Property summary
+    total_sf = property_info.get("total_sf", "")
+    prop_type = property_info.get("property_type", "")
+
+    prompt = f"""You are the SpaceFit AI Void Analysis Agent, an expert in commercial real estate tenant mix optimization.
+
+You are analyzing a property based on data extracted from an uploaded {doc_type.replace('_', ' ')}. Your goal is to perform a comprehensive void analysis and identify the best tenant categories and specific tenants to fill available spaces.
+
+## PROPERTY CONTEXT (pre-loaded from document)
+
+**Property:** {property_name}
+**Address:** {property_address}
+{f'**Total SF:** {total_sf:,}' if total_sf else ''}
+{f'**Type:** {prop_type}' if prop_type else ''}
+**Trade Area:** {trade_area_miles} mile radius
+
+**Existing Tenants ({len(existing_tenants)}):**
+{chr(10).join(tenant_lines) if tenant_lines else '  (none extracted)'}
+
+**Available Spaces ({len(available_spaces)}):**
+{chr(10).join(space_lines) if space_lines else '  (none extracted)'}
+
+{f'**User Notes:** {notes}' if notes else ''}
+
+## YOUR TASK
+
+You already have the property details above. Proceed immediately with the analysis — do NOT ask the user to re-enter property information.
+
+1. **Acknowledge** the property and summarize what you see (briefly — 2-3 sentences).
+2. **Use tools** to gather supporting data:
+   - `demographics_analysis` for trade area demographics at the property address
+   - `business_search` to find nearby competitors and complementary businesses
+   - `void_analysis` to identify category gaps
+   - `visitor_traffic` for foot traffic data (if credentials available)
+   - `vehicle_traffic` for VPD data (if credentials available)
+3. **Synthesize** findings into a void analysis report with:
+   - Executive summary
+   - Category gap analysis (what's missing vs. what's present)
+   - Top 5 recommended tenant categories with rationale
+   - Specific tenant suggestions for each available space
+   - Competitive context (nearby centers, overlap)
+   - Risk factors and considerations
+
+## QUESTION POLICY
+
+- If the property address is clear, do NOT ask for it again — proceed directly.
+- If critical info is ambiguous (e.g., the address couldn't be parsed), ask ONE targeted question.
+- Prefer action over clarification. The user expects you to start working immediately.
+
+## RESPONSE STYLE
+- Lead with action, not questions
+- Use structured headings and bullet points
+- Be specific about tenant recommendations (name actual brands/concepts)
+- Cite data sources when presenting findings
+- Keep the tone professional but direct"""
+
+    return prompt
+
+
 def get_orchestrator_response(
     messages: list[dict[str, str]],
     pending_tool_results: list[dict] | None = None,
@@ -55,6 +164,9 @@ def get_orchestrator_response(
     has_placer_credentials: bool = False,
     has_siteusa_credentials: bool = False,
     has_costar_credentials: bool = False,
+    document_context: dict | None = None,
+    system_prompt_id: str | None = None,
+    analysis_type: str | None = None,
 ) -> dict:
     """
     Get a response from the orchestrator using Claude's native tool calling.
@@ -64,6 +176,9 @@ def get_orchestrator_response(
         pending_tool_results: Results from previously executed tools
         user_context: Personalized context string from user preferences
         has_*_credentials: Flags indicating which premium data sources are available
+        document_context: Extracted document data for analysis sessions
+        system_prompt_id: Explicit prompt ID from the session's system_prompt_id field
+        analysis_type: Session analysis_type for fallback prompt resolution
 
     Returns:
         dict with:
@@ -84,10 +199,28 @@ def get_orchestrator_response(
         # Don't force tool use for synthesis - just let Claude respond naturally
         print(f"[ORCHESTRATOR] Added tool results to conversation for synthesis")
 
-    # Build the full system prompt with user context
-    full_system_prompt = SYSTEM_PROMPT
+    # --- System prompt selection via Prompt Registry ---
+    # Resolve the prompt: explicit ID > analysis_type inference > default.
+    # For backward compat, if no system_prompt_id but document_context exists,
+    # infer void analysis.
+    effective_prompt_id = system_prompt_id
+    effective_analysis_type = analysis_type
+    if not effective_prompt_id and document_context:
+        effective_prompt_id = VOID_ANALYSIS_PROMPT_ID
+        effective_analysis_type = "void_analysis"
+
+    prompt_def = get_system_prompt_for_session(effective_prompt_id, effective_analysis_type)
+    full_system_prompt = prompt_def.content
+    print(f"[ORCHESTRATOR] Using prompt: {prompt_def.prompt_id} (v{prompt_def.version})")
+
+    # Inject document context as a structured block after the system prompt
+    if document_context:
+        context_block = format_document_context_block(document_context)
+        if context_block:
+            full_system_prompt = full_system_prompt + "\n\n" + context_block
+
     if user_context:
-        full_system_prompt = SYSTEM_PROMPT + "\n\n" + user_context
+        full_system_prompt = full_system_prompt + "\n\n" + user_context
 
     # Get available tools based on user credentials
     tools = get_tools_for_context(

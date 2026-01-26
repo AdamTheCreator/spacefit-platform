@@ -38,6 +38,8 @@ class SiteCredentialResponse(BaseModel):
     # Usage tracking
     last_used_at: datetime | None = None
     total_uses: int = 0
+    # CAPTCHA/manual login info
+    requires_manual_login: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -56,3 +58,9 @@ class AgentConnectionResponse(BaseModel):
 class VerifyCredentialResponse(BaseModel):
     success: bool
     message: str
+    # CAPTCHA-specific fields
+    captcha_detected: bool = False
+    captcha_type: str | None = None
+    requires_manual_session: bool = False
+    error_type: str | None = None
+    screenshot_path: str | None = None

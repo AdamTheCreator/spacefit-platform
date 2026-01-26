@@ -28,6 +28,7 @@ SITE_CONFIGS = {
         "data_types": ["demographics", "foot_traffic", "tenant_data", "trade_area"],
         "typical_duration_seconds": 45,
         "is_browser_based": True,
+        "requires_manual_login": False,
     },
     "costar": {
         "name": "CoStar",
@@ -37,6 +38,8 @@ SITE_CONFIGS = {
         "data_types": ["property_info", "tenant_data"],
         "typical_duration_seconds": 60,
         "is_browser_based": True,
+        "requires_manual_login": False,
+        "coming_soon": True,
     },
     "placer": {
         "name": "Placer.ai",
@@ -46,6 +49,7 @@ SITE_CONFIGS = {
         "data_types": ["foot_traffic", "customer_profile", "void_analysis"],
         "typical_duration_seconds": 45,
         "is_browser_based": True,
+        "requires_manual_login": True,
     },
 }
 

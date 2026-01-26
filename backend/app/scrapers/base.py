@@ -11,6 +11,53 @@ from enum import Enum
 from playwright.async_api import BrowserContext, Page
 
 
+class ScraperError(Exception):
+    """Base exception for scraper errors."""
+
+    pass
+
+
+class CaptchaError(ScraperError):
+    """Raised when CAPTCHA is detected and blocks automation."""
+
+    def __init__(
+        self,
+        message: str = "CAPTCHA detected - manual login required",
+        captcha_type: str = "unknown",
+    ):
+        self.message = message
+        self.captcha_type = captcha_type  # "recaptcha", "hcaptcha", "turnstile", etc.
+        super().__init__(self.message)
+
+
+class LoginError(ScraperError):
+    """Raised when login fails for non-CAPTCHA reasons."""
+
+    def __init__(self, message: str, error_type: str = "unknown"):
+        self.message = message
+        self.error_type = error_type  # "invalid_credentials", "account_locked", "network", etc.
+        super().__init__(self.message)
+
+
+class SessionExpiredError(ScraperError):
+    """Raised when a session has expired and cannot be refreshed automatically."""
+
+    pass
+
+
+@dataclass
+class LoginResult:
+    """Detailed result from a login attempt."""
+
+    success: bool
+    message: str = ""
+    captcha_detected: bool = False
+    captcha_type: str | None = None
+    requires_manual_login: bool = False
+    error_type: str | None = None  # "captcha", "invalid_credentials", "network", etc.
+    screenshot_path: str | None = None
+
+
 class DataType(str, Enum):
     """Types of data that can be scraped."""
 
@@ -234,3 +281,223 @@ class BaseScraper(ABC):
             except Exception:
                 continue
         return default
+
+    async def _detect_captcha(self, page: Page) -> tuple[bool, str | None]:
+        """
+        Detect if a CAPTCHA is present on the page.
+
+        Returns:
+            tuple of (captcha_detected: bool, captcha_type: str | None)
+        """
+        # Check for reCAPTCHA
+        recaptcha_selectors = [
+            'iframe[src*="recaptcha"]',
+            'iframe[title*="reCAPTCHA"]',
+            ".g-recaptcha",
+            "#g-recaptcha",
+            '[data-sitekey]',
+            'iframe[src*="google.com/recaptcha"]',
+        ]
+        for selector in recaptcha_selectors:
+            try:
+                element = await page.query_selector(selector)
+                if element:
+                    return True, "recaptcha"
+            except Exception:
+                continue
+
+        # Check for hCaptcha
+        hcaptcha_selectors = [
+            'iframe[src*="hcaptcha"]',
+            ".h-captcha",
+            "#h-captcha",
+            'iframe[title*="hCaptcha"]',
+        ]
+        for selector in hcaptcha_selectors:
+            try:
+                element = await page.query_selector(selector)
+                if element:
+                    return True, "hcaptcha"
+            except Exception:
+                continue
+
+        # Check for Cloudflare Turnstile
+        turnstile_selectors = [
+            'iframe[src*="challenges.cloudflare.com"]',
+            ".cf-turnstile",
+            '[data-turnstile-sitekey]',
+        ]
+        for selector in turnstile_selectors:
+            try:
+                element = await page.query_selector(selector)
+                if element:
+                    return True, "turnstile"
+            except Exception:
+                continue
+
+        # Check page HTML for CAPTCHA keywords
+        try:
+            html = await page.content()
+            html_lower = html.lower()
+            if "captcha" in html_lower or "robot" in html_lower:
+                # Check for "I'm not a robot" text
+                if "not a robot" in html_lower or "i'm not a robot" in html_lower:
+                    return True, "recaptcha"
+        except Exception:
+            pass
+
+        return False, None
+
+    async def _detect_captcha_challenge_active(self, page: Page) -> bool:
+        """
+        Check if a CAPTCHA challenge is currently active/visible.
+        This is more specific than just detecting CAPTCHA presence.
+        """
+        # Check for visible reCAPTCHA challenge iframe
+        try:
+            challenge_frame = await page.query_selector(
+                'iframe[src*="recaptcha"][src*="bframe"]'
+            )
+            if challenge_frame:
+                visible = await challenge_frame.is_visible()
+                if visible:
+                    return True
+        except Exception:
+            pass
+
+        # Check for reCAPTCHA checkbox that needs interaction
+        try:
+            checkbox = await page.query_selector('.recaptcha-checkbox-border')
+            if checkbox:
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    async def _save_debug_screenshot(
+        self,
+        page: Page,
+        filename: str = "debug_screenshot.png",
+    ) -> str | None:
+        """Save a screenshot for debugging purposes."""
+        try:
+            path = f"/tmp/{filename}"
+            await page.screenshot(path=path)
+            print(f"[{self.site_name.upper()}] Debug screenshot saved: {path}")
+            return path
+        except Exception as e:
+            print(f"[{self.site_name.upper()}] Could not save screenshot: {e}")
+            return None
+
+    @property
+    def requires_manual_login(self) -> bool:
+        """
+        Whether this site typically requires manual login due to CAPTCHA.
+        Override in subclasses that commonly encounter CAPTCHA.
+        """
+        return False
+
+    async def login_with_captcha_detection(
+        self,
+        context: BrowserContext,
+        username: str,
+        password: str,
+    ) -> LoginResult:
+        """
+        Attempt login with CAPTCHA detection.
+
+        This wraps the standard login() method and provides detailed
+        information about CAPTCHA blocking.
+
+        Returns:
+            LoginResult with detailed status information
+        """
+        page = await context.new_page()
+        screenshot_path = None
+
+        try:
+            # Navigate to login page
+            self._report_progress("login", 5, "Navigating to login page...")
+            await page.goto(f"{self.site_url}/auth/signin", wait_until="networkidle")
+            await page.wait_for_timeout(2000)
+
+            # Check for CAPTCHA on initial page load
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+
+            if captcha_detected:
+                screenshot_path = await self._save_debug_screenshot(
+                    page, f"{self.site_name}_captcha_detected.png"
+                )
+                self._report_progress(
+                    "login", 100, f"CAPTCHA detected ({captcha_type}) - manual login required"
+                )
+                return LoginResult(
+                    success=False,
+                    message=f"CAPTCHA ({captcha_type}) detected on login page. Manual session refresh required.",
+                    captcha_detected=True,
+                    captcha_type=captcha_type,
+                    requires_manual_login=True,
+                    error_type="captcha",
+                    screenshot_path=screenshot_path,
+                )
+
+            # Close the page and use standard login
+            await page.close()
+
+            # Try standard login
+            success = await self.login(context, username, password)
+
+            if success:
+                return LoginResult(
+                    success=True,
+                    message="Login successful",
+                )
+
+            # Login failed - check if CAPTCHA appeared during login
+            page = await context.new_page()
+            await page.goto(f"{self.site_url}/auth/signin", wait_until="networkidle")
+            await page.wait_for_timeout(1000)
+
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+            screenshot_path = await self._save_debug_screenshot(
+                page, f"{self.site_name}_login_failed.png"
+            )
+
+            if captcha_detected:
+                return LoginResult(
+                    success=False,
+                    message=f"Login blocked by CAPTCHA ({captcha_type}). Manual session refresh required.",
+                    captcha_detected=True,
+                    captcha_type=captcha_type,
+                    requires_manual_login=True,
+                    error_type="captcha",
+                    screenshot_path=screenshot_path,
+                )
+
+            return LoginResult(
+                success=False,
+                message="Login failed. Please check your credentials.",
+                captcha_detected=False,
+                requires_manual_login=False,
+                error_type="invalid_credentials",
+                screenshot_path=screenshot_path,
+            )
+
+        except Exception as e:
+            screenshot_path = await self._save_debug_screenshot(
+                page, f"{self.site_name}_login_error.png"
+            )
+            return LoginResult(
+                success=False,
+                message=f"Login error: {str(e)}",
+                captcha_detected=False,
+                requires_manual_login=False,
+                error_type="network",
+                screenshot_path=screenshot_path,
+            )
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass

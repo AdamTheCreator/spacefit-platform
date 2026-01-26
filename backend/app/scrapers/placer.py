@@ -9,6 +9,10 @@ Supports:
 This scraper uses browser automation to extract data from Placer.ai's web interface,
 replacing the API-based approach which is cost-prohibitive.
 
+Note: Placer.ai uses reCAPTCHA on their login page which cannot be bypassed
+automatically. Users must perform manual login to establish a session, which
+is then reused for subsequent automated operations.
+
 Note: Selectors may need adjustment based on actual Placer.ai page structure.
 """
 
@@ -17,11 +21,19 @@ from typing import Any
 
 from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeout
 
-from app.scrapers.base import BaseScraper, DataType, ScrapeResult
+from app.scrapers.base import BaseScraper, DataType, LoginResult, ScrapeResult
 
 
 class PlacerAIScraper(BaseScraper):
-    """Scraper for Placer.ai foot traffic and customer analytics."""
+    """Scraper for Placer.ai foot traffic and customer analytics.
+
+    IMPORTANT: Placer.ai uses reCAPTCHA which requires manual login.
+    The typical workflow is:
+    1. User performs manual login via debug script or UI
+    2. Session cookies are saved
+    3. Scraper reuses saved session for ~24 hours
+    4. When session expires, manual re-login is required
+    """
 
     @property
     def site_name(self) -> str:
@@ -47,19 +59,39 @@ class PlacerAIScraper(BaseScraper):
     def typical_scrape_seconds(self) -> int:
         return 40
 
+    @property
+    def requires_manual_login(self) -> bool:
+        """Placer.ai always requires manual login due to reCAPTCHA."""
+        return True
+
     async def login(
         self,
         context: BrowserContext,
         username: str,
         password: str,
     ) -> bool:
-        """Perform Placer.ai login."""
+        """Perform Placer.ai login.
+
+        Note: This method may fail due to reCAPTCHA. For better error handling,
+        use login_with_captcha_detection() instead.
+        """
         page = await context.new_page()
 
         try:
             self._report_progress("login", 10, "Navigating to Placer.ai...")
             await page.goto(f"{self.site_url}/auth/signin", wait_until="networkidle")
             await page.wait_for_timeout(2000)  # Wait for JS to render
+
+            # Check for CAPTCHA before attempting login
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+            if captcha_detected:
+                print(f"[PLACER] CAPTCHA detected ({captcha_type}) - cannot proceed with automated login")
+                self._report_progress(
+                    "login", 100,
+                    f"CAPTCHA ({captcha_type}) detected. Please use manual session refresh."
+                )
+                await self._save_debug_screenshot(page, "placer_captcha_on_load.png")
+                return False
 
             # Placer.ai login form selectors (based on actual page inspection)
             email_selectors = [
@@ -105,6 +137,17 @@ class PlacerAIScraper(BaseScraper):
                 self._report_progress("login", 100, "Could not find password field")
                 return False
 
+            # Check for CAPTCHA after filling credentials (sometimes appears here)
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+            if captcha_detected:
+                print(f"[PLACER] CAPTCHA appeared after entering credentials ({captcha_type})")
+                self._report_progress(
+                    "login", 100,
+                    f"CAPTCHA ({captcha_type}) detected. Please use manual session refresh."
+                )
+                await self._save_debug_screenshot(page, "placer_captcha_after_creds.png")
+                return False
+
             self._report_progress("login", 50, "Submitting login...")
 
             # Click submit
@@ -126,6 +169,17 @@ class PlacerAIScraper(BaseScraper):
             current_url = page.url
             print(f"[PLACER] After login, URL: {current_url}")
 
+            # Check for CAPTCHA challenge after submit (common scenario)
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+            if captcha_detected:
+                print(f"[PLACER] CAPTCHA challenge appeared after submit ({captcha_type})")
+                self._report_progress(
+                    "login", 100,
+                    f"CAPTCHA challenge ({captcha_type}) blocked login. Please use manual session refresh."
+                )
+                await self._save_debug_screenshot(page, "placer_captcha_after_submit.png")
+                return False
+
             # Check for successful login
             is_logged_in = await self._check_logged_in_state(page)
 
@@ -134,11 +188,7 @@ class PlacerAIScraper(BaseScraper):
                 return True
 
             # Take screenshot for debugging
-            try:
-                await page.screenshot(path="/tmp/placer_login_debug.png")
-                print("[PLACER] Screenshot saved to /tmp/placer_login_debug.png")
-            except Exception as e:
-                print(f"[PLACER] Could not save screenshot: {e}")
+            await self._save_debug_screenshot(page, "placer_login_debug.png")
 
             # Check for error messages
             error_selectors = [
@@ -172,6 +222,236 @@ class PlacerAIScraper(BaseScraper):
             return False
         finally:
             await page.close()
+
+    async def login_with_captcha_detection(
+        self,
+        context: BrowserContext,
+        username: str,
+        password: str,
+    ) -> LoginResult:
+        """
+        Attempt login with detailed CAPTCHA detection for Placer.ai.
+
+        This is the preferred login method as it provides detailed information
+        about CAPTCHA blocking, which is common for Placer.ai.
+
+        Returns:
+            LoginResult with detailed status about CAPTCHA and login success
+        """
+        page = await context.new_page()
+        screenshot_path = None
+
+        try:
+            self._report_progress("login", 5, "Navigating to Placer.ai login...")
+            await page.goto(f"{self.site_url}/auth/signin", wait_until="networkidle")
+            await page.wait_for_timeout(2000)
+
+            # Check for CAPTCHA on initial page load
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+
+            if captcha_detected:
+                screenshot_path = await self._save_debug_screenshot(
+                    page, "placer_captcha_initial.png"
+                )
+                self._report_progress(
+                    "login", 100,
+                    f"CAPTCHA ({captcha_type}) detected - manual login required"
+                )
+                return LoginResult(
+                    success=False,
+                    message=f"Placer.ai requires solving a {captcha_type} CAPTCHA. Please use manual session refresh to log in.",
+                    captcha_detected=True,
+                    captcha_type=captcha_type,
+                    requires_manual_login=True,
+                    error_type="captcha",
+                    screenshot_path=screenshot_path,
+                )
+
+            # Try to fill credentials
+            self._report_progress("login", 20, "Entering credentials...")
+
+            email_selectors = [
+                '[data-testid="email-input-field"]',
+                'input[name="username"]',
+                'input[placeholder*="company.com"]',
+                'input[type="text"]',
+            ]
+
+            password_selectors = [
+                '[data-testid="login-password-input"]',
+                'input[name="password"]',
+                'input[type="password"]',
+            ]
+
+            # Fill email
+            email_filled = False
+            for selector in email_selectors:
+                if await self._safe_fill(page, selector, username, timeout_ms=3000):
+                    email_filled = True
+                    break
+
+            if not email_filled:
+                screenshot_path = await self._save_debug_screenshot(
+                    page, "placer_no_email_field.png"
+                )
+                return LoginResult(
+                    success=False,
+                    message="Could not find email field on login page",
+                    error_type="page_structure",
+                    screenshot_path=screenshot_path,
+                )
+
+            # Fill password
+            password_filled = False
+            for selector in password_selectors:
+                if await self._safe_fill(page, selector, password, timeout_ms=3000):
+                    password_filled = True
+                    break
+
+            if not password_filled:
+                screenshot_path = await self._save_debug_screenshot(
+                    page, "placer_no_password_field.png"
+                )
+                return LoginResult(
+                    success=False,
+                    message="Could not find password field on login page",
+                    error_type="page_structure",
+                    screenshot_path=screenshot_path,
+                )
+
+            # Check for CAPTCHA after filling credentials
+            await page.wait_for_timeout(500)
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+
+            if captcha_detected:
+                screenshot_path = await self._save_debug_screenshot(
+                    page, "placer_captcha_after_creds.png"
+                )
+                self._report_progress(
+                    "login", 100,
+                    f"CAPTCHA ({captcha_type}) appeared - manual login required"
+                )
+                return LoginResult(
+                    success=False,
+                    message=f"CAPTCHA ({captcha_type}) appeared after entering credentials. Please use manual session refresh.",
+                    captcha_detected=True,
+                    captcha_type=captcha_type,
+                    requires_manual_login=True,
+                    error_type="captcha",
+                    screenshot_path=screenshot_path,
+                )
+
+            self._report_progress("login", 50, "Submitting login...")
+
+            # Click submit
+            submit_selectors = [
+                '[data-testid="login-page-login-button"]',
+                'button[type="submit"]',
+                'button:has-text("Login")',
+            ]
+
+            submit_clicked = False
+            for selector in submit_selectors:
+                if await self._safe_click(page, selector, timeout_ms=3000):
+                    submit_clicked = True
+                    break
+
+            if not submit_clicked:
+                await page.keyboard.press("Enter")
+
+            # Wait for response
+            await page.wait_for_load_state("networkidle", timeout=30000)
+            await page.wait_for_timeout(2000)
+
+            self._report_progress("login", 80, "Verifying login...")
+
+            # Check for CAPTCHA challenge after submit
+            captcha_detected, captcha_type = await self._detect_captcha(page)
+
+            if captcha_detected:
+                screenshot_path = await self._save_debug_screenshot(
+                    page, "placer_captcha_after_submit.png"
+                )
+                return LoginResult(
+                    success=False,
+                    message=f"CAPTCHA challenge ({captcha_type}) blocked login. Please use manual session refresh.",
+                    captcha_detected=True,
+                    captcha_type=captcha_type,
+                    requires_manual_login=True,
+                    error_type="captcha",
+                    screenshot_path=screenshot_path,
+                )
+
+            # Check if logged in
+            is_logged_in = await self._check_logged_in_state(page)
+
+            if is_logged_in:
+                self._report_progress("login", 100, "Login successful!")
+                return LoginResult(
+                    success=True,
+                    message="Login successful",
+                )
+
+            # Login failed - check for error messages
+            screenshot_path = await self._save_debug_screenshot(
+                page, "placer_login_failed.png"
+            )
+
+            error_selectors = [
+                ".error-message",
+                ".alert-error",
+                ".alert-danger",
+                '[role="alert"]',
+                '[class*="error"]',
+            ]
+
+            for selector in error_selectors:
+                error_elements = await page.query_selector_all(selector)
+                for error_el in error_elements:
+                    try:
+                        error_text = (await error_el.inner_text()).strip()
+                        if error_text:
+                            return LoginResult(
+                                success=False,
+                                message=f"Login failed: {error_text}",
+                                error_type="invalid_credentials",
+                                screenshot_path=screenshot_path,
+                            )
+                    except Exception:
+                        continue
+
+            return LoginResult(
+                success=False,
+                message="Login failed - please verify your credentials",
+                error_type="invalid_credentials",
+                screenshot_path=screenshot_path,
+            )
+
+        except PlaywrightTimeout:
+            screenshot_path = await self._save_debug_screenshot(
+                page, "placer_login_timeout.png"
+            )
+            return LoginResult(
+                success=False,
+                message="Login timed out - Placer.ai may be slow or unavailable",
+                error_type="timeout",
+                screenshot_path=screenshot_path,
+            )
+        except Exception as e:
+            screenshot_path = await self._save_debug_screenshot(
+                page, "placer_login_error.png"
+            )
+            return LoginResult(
+                success=False,
+                message=f"Login error: {str(e)}",
+                error_type="network",
+                screenshot_path=screenshot_path,
+            )
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
 
     async def _check_logged_in_state(self, page: Page) -> bool:
         """Check if we're logged in to Placer.ai."""

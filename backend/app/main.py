@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.customers import router as customers_router
 from app.api.credentials import router as credentials_router
+from app.api.browser_auth import router as browser_auth_router
 from app.api.onboarding import router as onboarding_router
 from app.api.deals import router as deals_router, properties_router
 from app.api.documents import router as documents_router
@@ -48,6 +49,7 @@ app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(customers_router, prefix=settings.api_prefix)
 app.include_router(credentials_router, prefix=settings.api_prefix)
+app.include_router(browser_auth_router, prefix=settings.api_prefix)
 app.include_router(onboarding_router, prefix=settings.api_prefix)
 app.include_router(deals_router, prefix=settings.api_prefix)
 app.include_router(properties_router, prefix=settings.api_prefix)

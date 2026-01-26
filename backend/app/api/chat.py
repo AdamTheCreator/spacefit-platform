@@ -115,7 +115,7 @@ async def create_chat_session(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChatSessionResponse:
     """Create a new chat session."""
-    session = ChatSession(user_id=current_user.id)
+    session = ChatSession(user_id=current_user.id, system_prompt_id="MASTER_DEFAULT")
     db.add(session)
     await db.commit()
     await db.refresh(session)
@@ -366,7 +366,13 @@ async def get_session_messages_for_frontend(session_id: str) -> list[dict]:
 
 
 async def get_user_siteusa_credential(user_id: str) -> SiteCredential | None:
-    """Get the user's verified SitesUSA credential if available."""
+    """Get the user's SitesUSA credential if available.
+
+    Returns the credential regardless of verification status — the browser
+    agents handle login / session management themselves.  Gating on
+    ``is_verified`` previously hid the tools entirely from Claude whenever
+    verification hadn't completed (CAPTCHA sites, first-time save, etc.).
+    """
     from app.core.database import async_session_factory
 
     async with async_session_factory() as db:
@@ -374,18 +380,20 @@ async def get_user_siteusa_credential(user_id: str) -> SiteCredential | None:
             select(SiteCredential).where(
                 SiteCredential.user_id == user_id,
                 SiteCredential.site_name == "siteusa",
-                SiteCredential.is_verified == True,
             )
         )
         credential = result.scalar_one_or_none()
         if credential:
-            # Return a copy with decrypted credentials for use by agents
             return credential
         return None
 
 
 async def get_user_placer_credential(user_id: str) -> SiteCredential | None:
-    """Get the user's verified Placer.ai credential if available."""
+    """Get the user's Placer.ai credential if available.
+
+    Returns the credential regardless of verification status — the browser
+    agents handle login / session management themselves.
+    """
     from app.core.database import async_session_factory
 
     async with async_session_factory() as db:
@@ -393,7 +401,6 @@ async def get_user_placer_credential(user_id: str) -> SiteCredential | None:
             select(SiteCredential).where(
                 SiteCredential.user_id == user_id,
                 SiteCredential.site_name == "placer",
-                SiteCredential.is_verified == True,
             )
         )
         credential = result.scalar_one_or_none()
@@ -432,6 +439,9 @@ async def handle_tool_calls(
     user_context: str | None,
     has_placer: bool = False,
     has_siteusa: bool = False,
+    document_context: dict | None = None,
+    system_prompt_id: str | None = None,
+    analysis_type: str | None = None,
 ) -> None:
     """
     Handle tool calls from Claude's native tool use.
@@ -566,6 +576,9 @@ async def handle_tool_calls(
             user_context=user_context,
             has_placer_credentials=has_placer,
             has_siteusa_credentials=has_siteusa,
+            document_context=document_context,
+            system_prompt_id=system_prompt_id,
+            analysis_type=analysis_type,
         )
 
         # Check if Claude wants to use more tools (rare, but possible)
@@ -580,6 +593,9 @@ async def handle_tool_calls(
                 user_context=user_context,
                 has_placer=has_placer,
                 has_siteusa=has_siteusa,
+                document_context=document_context,
+                system_prompt_id=system_prompt_id,
+                analysis_type=analysis_type,
             )
         elif synthesis_response["content"]:
             # Send synthesized response
@@ -665,13 +681,29 @@ async def websocket_endpoint(
     try:
         # Load existing conversation history for Claude (only for existing sessions)
         conversation_history: list[dict[str, str]] = []
+        doc_context: dict | None = None
+        session_prompt_id: str | None = None
+        session_analysis_type: str | None = None
         if actual_session_id:
             print(f"Loading history for session: {actual_session_id}")
             conversation_history = await load_session_history(actual_session_id)
             print(f"Loaded {len(conversation_history)} messages")
+            # Load document context and prompt info for analysis sessions
+            async with async_session_factory() as db:
+                result = await db.execute(
+                    select(ChatSession).where(ChatSession.id == actual_session_id)
+                )
+                chat_sess = result.scalar_one_or_none()
+                if chat_sess:
+                    if chat_sess.document_context:
+                        doc_context = chat_sess.document_context
+                    session_prompt_id = chat_sess.system_prompt_id
+                    session_analysis_type = chat_sess.analysis_type
 
         # Track the current address being analyzed
         current_address: str | None = None
+        if doc_context:
+            current_address = doc_context.get("property_address")
         # Track if this is the first message (for title generation)
         is_first_message = len(conversation_history) == 0
         # For new sessions, don't send session_info yet - wait until first message
@@ -716,11 +748,16 @@ async def websocket_endpoint(
                     except Exception:
                         pass  # Title generation is non-critical
 
-                    chat_session = ChatSession(user_id=user_id, title=title)
+                    chat_session = ChatSession(
+                        user_id=user_id,
+                        title=title,
+                        system_prompt_id="MASTER_DEFAULT",
+                    )
                     db.add(chat_session)
                     await db.commit()
                     await db.refresh(chat_session)
                     actual_session_id = chat_session.id
+                    session_prompt_id = "MASTER_DEFAULT"
 
                 # Send session info to frontend now that session exists
                 await websocket.send_json({
@@ -804,6 +841,9 @@ async def websocket_endpoint(
                     user_context=user_context,
                     has_placer_credentials=has_placer,
                     has_siteusa_credentials=has_siteusa,
+                    document_context=doc_context,
+                    system_prompt_id=session_prompt_id,
+                    analysis_type=session_analysis_type,
                 )
             except Exception as e:
                 error_msg = Message(
@@ -829,6 +869,9 @@ async def websocket_endpoint(
                     user_context=user_context,
                     has_placer=has_placer,
                     has_siteusa=has_siteusa,
+                    document_context=doc_context,
+                    system_prompt_id=session_prompt_id,
+                    analysis_type=session_analysis_type,
                 )
             else:
                 # No tools requested - just send the response
@@ -1039,6 +1082,8 @@ async def websocket_endpoint(
                         conversation_history,
                         pending_tool_results=agent_results,
                         user_context=user_context,
+                        system_prompt_id=session_prompt_id,
+                        analysis_type=session_analysis_type,
                     )
 
                     # Send synthesis
@@ -1126,6 +1171,9 @@ async def websocket_chat_endpoint(
     # Track conversation state per session
     conversation_histories: dict[str, list[dict[str, str]]] = {}
     current_addresses: dict[str, str] = {}
+    document_contexts: dict[str, dict | None] = {}
+    session_prompt_ids: dict[str, str | None] = {}
+    session_analysis_types: dict[str, str | None] = {}
 
     try:
         while True:
@@ -1151,7 +1199,11 @@ async def websocket_chat_endpoint(
                     except Exception:
                         pass
 
-                    chat_session = ChatSession(user_id=user_id, title=title)
+                    chat_session = ChatSession(
+                        user_id=user_id,
+                        title=title,
+                        system_prompt_id="MASTER_DEFAULT",
+                    )
                     db.add(chat_session)
                     await db.commit()
                     await db.refresh(chat_session)
@@ -1165,13 +1217,40 @@ async def websocket_chat_endpoint(
 
                 # Initialize conversation history for new session
                 conversation_histories[session_id] = []
+                document_contexts[session_id] = None
+                session_prompt_ids[session_id] = "MASTER_DEFAULT"
+                session_analysis_types[session_id] = None
 
-            # Load conversation history if not cached
+            # Load conversation history and document context if not cached
             if session_id not in conversation_histories:
                 conversation_histories[session_id] = await load_session_history(session_id)
+                # Load document context and prompt info for analysis sessions
+                async with async_session_factory() as db:
+                    result = await db.execute(
+                        select(ChatSession).where(ChatSession.id == session_id)
+                    )
+                    chat_sess = result.scalar_one_or_none()
+                    if chat_sess:
+                        session_prompt_ids[session_id] = chat_sess.system_prompt_id
+                        session_analysis_types[session_id] = chat_sess.analysis_type
+                        if chat_sess.document_context:
+                            document_contexts[session_id] = chat_sess.document_context
+                            # Pre-set address from document context
+                            addr = chat_sess.document_context.get("property_address")
+                            if addr:
+                                current_addresses[session_id] = addr
+                        else:
+                            document_contexts[session_id] = None
+                    else:
+                        document_contexts[session_id] = None
+                        session_prompt_ids[session_id] = None
+                        session_analysis_types[session_id] = None
 
             conversation_history = conversation_histories[session_id]
             current_address = current_addresses.get(session_id)
+            doc_context = document_contexts.get(session_id)
+            s_prompt_id = session_prompt_ids.get(session_id)
+            s_analysis_type = session_analysis_types.get(session_id)
 
             # Echo user message
             user_message = Message(
@@ -1211,13 +1290,16 @@ async def websocket_chat_endpoint(
             has_placer = await get_user_placer_credential(user_id) is not None
             has_siteusa = await get_user_siteusa_credential(user_id) is not None
 
-            # Get orchestrator response
+            # Get orchestrator response (with document context and prompt ID for analysis sessions)
             try:
                 response = get_orchestrator_response(
                     conversation_history,
                     user_context=user_context,
                     has_placer_credentials=has_placer,
                     has_siteusa_credentials=has_siteusa,
+                    document_context=doc_context,
+                    system_prompt_id=s_prompt_id,
+                    analysis_type=s_analysis_type,
                 )
             except Exception as e:
                 error_msg = Message(
@@ -1243,6 +1325,9 @@ async def websocket_chat_endpoint(
                     user_context=user_context,
                     has_placer=has_placer,
                     has_siteusa=has_siteusa,
+                    document_context=doc_context,
+                    system_prompt_id=s_prompt_id,
+                    analysis_type=s_analysis_type,
                 )
             elif response["content"]:
                 # No tools requested - just send the response
@@ -1266,6 +1351,8 @@ async def websocket_chat_endpoint(
                     user_id=user_id,
                     conversation_history=conversation_history,
                     user_context=user_context,
+                    system_prompt_id=s_prompt_id,
+                    analysis_type=s_analysis_type,
                 )
 
     except WebSocketDisconnect:
@@ -1295,6 +1382,8 @@ async def run_agent_workflow(
     user_id: str,
     conversation_history: list[dict[str, str]],
     user_context: str | None,
+    system_prompt_id: str | None = None,
+    analysis_type: str | None = None,
 ) -> None:
     """Run agent workflow and send updates to WebSocket."""
     from app.services.orchestrator import run_agent_async, get_orchestrator_response
@@ -1458,6 +1547,8 @@ async def run_agent_workflow(
         conversation_history,
         pending_tool_results=agent_results,
         user_context=user_context,
+        system_prompt_id=system_prompt_id,
+        analysis_type=analysis_type,
     )
 
     synthesis_msg = Message(

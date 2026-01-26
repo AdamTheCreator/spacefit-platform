@@ -119,6 +119,28 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 
+async def get_current_user_ws(token: str, db: AsyncSession) -> User | None:
+    """
+    Get current user from a token for WebSocket connections.
+
+    Unlike the HTTP dependency, this takes the token directly since
+    WebSocket connections handle auth differently.
+    """
+    payload = verify_token(token)
+
+    if payload is None or payload.get("type") != "access":
+        return None
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        return None
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    return user if user and user.is_active else None
+
+
 async def get_user_subscription(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
