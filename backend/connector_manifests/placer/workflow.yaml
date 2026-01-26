@@ -1,0 +1,72 @@
+name: placer_visitor_traffic
+description: >
+  Browser workflow to extract visitor traffic data from Placer.ai.
+  Loads a saved session, navigates to the property search, extracts
+  traffic data, and saves the session state.
+
+variables:
+  base_url: "https://analytics.placer.ai"
+
+steps:
+  # 1. Load persisted session (cookies from prior manual login)
+  - step_type: state_load
+    description: Load saved Placer.ai browser session
+
+  # 2. Navigate to Placer.ai
+  - step_type: open
+    url: "{{base_url}}"
+    description: Open Placer.ai homepage
+    timeout_ms: 15000
+
+  # 3. Wait for page to be ready
+  - step_type: wait
+    wait_for: networkidle
+    description: Wait for page load
+    timeout_ms: 10000
+
+  # 4. Type the property address into the search bar
+  - step_type: type
+    selector: "input[placeholder*='Search'], input[type='search'], #search-input"
+    value: "{{address}}"
+    description: Enter property address in search
+
+  # 5. Wait for search results
+  - step_type: wait
+    wait_for: "selector:.search-results, .search-dropdown, [data-testid='search-results']"
+    description: Wait for search suggestions
+    timeout_ms: 10000
+
+  # 6. Click the first search result
+  - step_type: click
+    selector: ".search-results li:first-child, .search-dropdown a:first-child, [data-testid='search-result']:first-child"
+    description: Select first search result
+    timeout_ms: 5000
+
+  # 7. Wait for property page to load
+  - step_type: wait
+    wait_for: networkidle
+    description: Wait for property page
+    timeout_ms: 15000
+
+  # 8. Extract property name
+  - step_type: extract
+    extract_type: text
+    extract_selector: "h1, .property-name, [data-testid='property-title']"
+    output_key: property_name
+    description: Extract property name
+
+  # 9. Extract visitor traffic data
+  - step_type: extract
+    extract_type: structured
+    extract_selector: ".metric-value, .visits-count, [data-testid='metric']"
+    output_key: traffic_metrics
+    description: Extract traffic metrics
+
+  # 10. Snapshot the page for provenance
+  - step_type: snapshot
+    description: Capture page state for audit trail
+    save_artifact: true
+
+  # 11. Save session for reuse
+  - step_type: state_save
+    description: Persist browser session

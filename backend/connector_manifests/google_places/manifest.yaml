@@ -1,0 +1,80 @@
+connector_id: google_places
+name: Google Places
+version: "1.0.0"
+description: >
+  Retrieves place details, nearby search results, and business information
+  from the Google Places API.  Pure API mode — no browser needed.
+
+auth_type: api_key
+auth_config:
+  header_name: ""  # Key is passed as a query parameter, not a header
+  param_name: key
+
+execution_modes:
+  - api
+default_mode: api
+
+allowed_domains:
+  - maps.googleapis.com
+  - places.googleapis.com
+
+capabilities:
+  - place_details
+  - nearby_search
+  - business_info
+  - geocoding
+
+rate_limit:
+  requests_per_minute: 60
+  burst: 10
+  cooldown_seconds: 1
+
+runtime_limits:
+  max_runtime_seconds: 30
+  max_navigation_steps: 1
+  max_extracted_bytes: 5000000  # 5 MB
+
+required_inputs:
+  - key: query
+    label: Search query or place name
+    type: string
+    required: true
+    description: The place name, address, or search query.
+
+required_secrets:
+  - key: api_key
+    description: Google Places API key
+    required: true
+
+output_schema:
+  ref: ""
+  inline:
+    type: object
+    properties:
+      place_id:
+        type: string
+      name:
+        type: string
+      formatted_address:
+        type: string
+      geometry:
+        type: object
+      types:
+        type: array
+        items:
+          type: string
+      rating:
+        type: number
+      business_status:
+        type: string
+
+workflow_file: null
+
+module: app.connectors.examples.google_places.connector.GooglePlacesConnector
+
+maintainer: platform-team
+tags:
+  - google
+  - places
+  - geocoding
+  - api-only
