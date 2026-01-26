@@ -4,6 +4,7 @@
 
 export type DocumentType =
   | 'leasing_flyer'
+  | 'site_plan'
   | 'void_analysis'
   | 'investment_memo'
   | 'loan_document'
@@ -205,3 +206,13 @@ export interface ExtractedInvestmentData {
 
 // Union type for extracted data based on document type
 export type ExtractedData = ExtractedFlyerData | ExtractedVoidData | ExtractedInvestmentData | Record<string, unknown>;
+
+export interface StartAnalysisResponse {
+  session_id: string;
+  property_address: string | null;
+  property_name: string | null;
+  tenant_count: number;
+  available_space_count: number;
+  document_type: DocumentType;
+  message: string;
+}

@@ -7,13 +7,13 @@ import {
   useDeleteDocument,
   useDocument,
   useDocumentFile,
-  usePropertyAnalysis,
-  type PropertyAnalysisResult,
+  useStartAnalysis,
 } from '../hooks/useDocuments';
 import type { ParsedDocument, DocumentType, ExtractedFlyerData, ExtractedVoidData } from '../types/document';
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   leasing_flyer: 'Leasing Flyer',
+  site_plan: 'Site Plan',
   void_analysis: 'Void Analysis',
   investment_memo: 'Investment Memo',
   loan_document: 'Loan Document',
@@ -261,17 +261,15 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
 
 interface DocumentDetailPanelProps {
   documentId: string;
-  onStartAnalysis: (document: ParsedDocument) => void;
 }
 
-function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: DocumentDetailPanelProps) {
+function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
+  const navigate = useNavigate();
   const { data: document, isLoading } = useDocument(documentId);
   const { data: fileUrl, isLoading: isFileLoading } = useDocumentFile(documentId);
   const [showPreview, setShowPreview] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<PropertyAnalysisResult | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
 
-  const analysisMutation = usePropertyAnalysis();
+  const startAnalysisMutation = useStartAnalysis();
 
   const handleViewDocument = useCallback(() => {
     if (fileUrl) {
@@ -292,21 +290,13 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 
   const handleRunAnalysis = useCallback(async () => {
     if (!documentId) return;
-
     try {
-      const result = await analysisMutation.mutateAsync({
-        documentId,
-        includeDemographics: true,
-        includeCompetitors: true,
-        includeVoidAnalysis: true,
-        radiusMiles: 3.0,
-      });
-      setAnalysisResult(result);
-      setShowAnalysis(true);
+      const result = await startAnalysisMutation.mutateAsync(documentId);
+      navigate(`/chat/${result.session_id}`);
     } catch (error) {
-      console.error('Analysis failed:', error);
+      console.error('Failed to start analysis:', error);
     }
-  }, [documentId, analysisMutation]);
+  }, [documentId, startAnalysisMutation, navigate]);
 
   if (isLoading) {
     return (
@@ -532,7 +522,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
   }, [document?.extracted_data]);
 
   const canStartAnalysis = document.status === 'completed' &&
-    document.document_type === 'leasing_flyer' &&
+    (document.document_type === 'leasing_flyer' || document.document_type === 'site_plan') &&
     document.extracted_data;
 
   return (
@@ -556,17 +546,17 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
             </div>
           </div>
 
-          {/* Run Analysis Button */}
+          {/* Start Analysis Button */}
           {canStartAnalysis && (
             <button
               onClick={handleRunAnalysis}
-              disabled={analysisMutation.isPending}
+              disabled={startAnalysisMutation.isPending}
               className="btn-industrial-primary flex items-center gap-2 disabled:opacity-50"
             >
-              {analysisMutation.isPending ? (
+              {startAnalysisMutation.isPending ? (
                 <>
                   <div className="w-4 h-4 rounded-full border-2 border-[var(--color-neutral-900)] border-t-transparent animate-spin" />
-                  Analyzing...
+                  Starting...
                 </>
               ) : (
                 <>
@@ -574,7 +564,7 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
-                  Run Void Analysis
+                  Start Analysis
                 </>
               )}
             </button>
@@ -657,289 +647,6 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
         </div>
       )}
 
-      {/* Analysis Results */}
-      {showAnalysis && analysisResult && (
-        <div className="mb-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-mono text-sm font-bold tracking-tight text-industrial flex items-center gap-2">
-              <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              Property Analysis Results
-            </h4>
-            <button
-              onClick={() => setShowAnalysis(false)}
-              className="text-industrial-muted hover:text-industrial transition-colors"
-              aria-label="Close analysis results"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Location Info */}
-          {analysisResult.property_address && (
-            <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="w-4 h-4 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className="label-technical">Geocoded Location</span>
-              </div>
-              <p className="font-mono text-sm text-industrial">{analysisResult.property_address}</p>
-              {analysisResult.latitude && analysisResult.longitude && (
-                <p className="font-mono text-[10px] text-industrial-muted mt-1">
-                  {analysisResult.latitude.toFixed(6)}, {analysisResult.longitude.toFixed(6)}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Demographics */}
-          {analysisResult.demographics && (
-            <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <span className="label-technical">Trade Area Demographics</span>
-              </div>
-              {(() => {
-                const demo = analysisResult.demographics as Record<string, number | null>;
-                return (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {demo.population != null && (
-                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
-                        <p className="font-mono text-lg font-bold text-industrial">
-                          {demo.population.toLocaleString()}
-                        </p>
-                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Population</p>
-                      </div>
-                    )}
-                    {demo.households != null && (
-                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
-                        <p className="font-mono text-lg font-bold text-industrial">
-                          {demo.households.toLocaleString()}
-                        </p>
-                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Households</p>
-                      </div>
-                    )}
-                    {demo.median_income != null && (
-                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
-                        <p className="font-mono text-lg font-bold text-[var(--color-success)]">
-                          ${demo.median_income.toLocaleString()}
-                        </p>
-                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Median Income</p>
-                      </div>
-                    )}
-                    {demo.median_age != null && (
-                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
-                        <p className="font-mono text-lg font-bold text-industrial">
-                          {demo.median_age.toFixed(1)}
-                        </p>
-                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Median Age</p>
-                      </div>
-                    )}
-                    {demo.bachelors_plus_pct != null && (
-                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
-                        <p className="font-mono text-lg font-bold text-industrial">
-                          {demo.bachelors_plus_pct.toFixed(1)}%
-                        </p>
-                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">College Educated</p>
-                      </div>
-                    )}
-                    {demo.owner_occupied_pct != null && (
-                      <div className="bg-[var(--bg-secondary)] border border-industrial-subtle p-3">
-                        <p className="font-mono text-lg font-bold text-industrial">
-                          {demo.owner_occupied_pct.toFixed(1)}%
-                        </p>
-                        <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Owner Occupied</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* Competitors */}
-          {analysisResult.competitors && analysisResult.competitors.length > 0 && (
-            <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[var(--color-warning)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  <span className="label-technical">Nearby Competitors</span>
-                </div>
-                <span className="font-mono text-[10px] text-industrial-muted">{analysisResult.competitors.length} found</span>
-              </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-industrial">
-                {analysisResult.competitors.slice(0, 10).map((competitor) => (
-                  <div key={competitor.name} className="flex items-center justify-between p-2 bg-[var(--bg-secondary)] border border-industrial-subtle">
-                    <div>
-                      <p className="font-mono text-xs text-industrial">{competitor.name}</p>
-                      <p className="font-mono text-[10px] text-industrial-muted">{competitor.category}</p>
-                    </div>
-                    {competitor.rating && (
-                      <div className="flex items-center gap-1">
-                        <svg className="w-3 h-3 text-[var(--color-warning)]" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                        <span className="font-mono text-[10px] text-industrial-secondary">{competitor.rating}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {analysisResult.competitors.length > 10 && (
-                  <p className="font-mono text-[10px] text-industrial-muted text-center pt-2">
-                    +{analysisResult.competitors.length - 10} more competitors
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Void Analysis */}
-          {analysisResult.void_analysis && (
-            <div className="bg-[var(--accent)]/5 border border-[var(--accent)]/30 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-                <span className="label-technical text-[var(--accent)]">Void Analysis Results</span>
-              </div>
-
-              {/* Property Summary */}
-              {analysisResult.void_analysis.property_summary && (
-                <p className="font-mono text-xs text-industrial-secondary mb-4 italic">
-                  {analysisResult.void_analysis.property_summary}
-                </p>
-              )}
-
-              {/* Summary Stats */}
-              {analysisResult.void_analysis.summary && (
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3 text-center">
-                    <p className="font-mono text-2xl font-bold text-[var(--color-error)]">
-                      {analysisResult.void_analysis.summary.total_voids || 0}
-                    </p>
-                    <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Voids Found</p>
-                  </div>
-                  <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3 text-center">
-                    <p className="font-mono text-2xl font-bold text-[var(--color-warning)]">
-                      {analysisResult.void_analysis.summary.high_priority?.length || 0}
-                    </p>
-                    <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">High Priority</p>
-                  </div>
-                  <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3 text-center">
-                    <p className="font-mono text-2xl font-bold text-[var(--color-success)]">
-                      {analysisResult.void_analysis.summary.well_served?.length || 0}
-                    </p>
-                    <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Well Served</p>
-                  </div>
-                </div>
-              )}
-
-              {/* High Priority Voids */}
-              {analysisResult.void_analysis.summary?.high_priority &&
-               analysisResult.void_analysis.summary.high_priority.length > 0 && (
-                <div className="mb-4">
-                  <h5 className="label-technical text-[var(--color-error)] mb-2">High Priority Opportunities</h5>
-                  <div className="space-y-1">
-                    {analysisResult.void_analysis.summary.high_priority.map((item) => (
-                      <div key={item} className="flex items-center gap-2 p-2 bg-[var(--color-error)]/10 border border-[var(--color-error)]/20">
-                        <span className="w-2 h-2 bg-[var(--color-error)]" />
-                        <span className="font-mono text-xs text-industrial">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Categories with Details */}
-              {analysisResult.void_analysis.categories && analysisResult.void_analysis.categories.length > 0 && (
-                <div>
-                  <h5 className="label-technical mb-2">Category Breakdown</h5>
-                  <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-industrial">
-                    {analysisResult.void_analysis.categories
-                      .filter(cat => cat.is_void)
-                      .slice(0, 8)
-                      .map((cat) => (
-                      <div key={cat.category_name} className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-mono text-sm font-medium text-industrial">{cat.category_name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide border ${
-                              cat.priority === 'high'
-                                ? 'bg-[var(--color-error)]/10 text-[var(--color-error)] border-[var(--color-error)]/30'
-                                : cat.priority === 'medium'
-                                ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-[var(--color-warning)]/30'
-                                : 'bg-[var(--bg-secondary)] text-industrial-muted border-industrial-subtle'
-                            }`}>
-                              {cat.priority}
-                            </span>
-                            <span className="font-mono text-[10px] text-[var(--accent)]">
-                              {Math.round(cat.match_score * 100)}% match
-                            </span>
-                          </div>
-                        </div>
-                        {cat.rationale && (
-                          <p className="font-mono text-[10px] text-industrial-muted mt-1">{cat.rationale}</p>
-                        )}
-                        {cat.suggested_tenants && cat.suggested_tenants.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {cat.suggested_tenants.slice(0, 4).map((tenant, j) => (
-                              <span key={j} className="px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 font-mono text-[10px]">
-                                {tenant}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Key Recommendation */}
-              {analysisResult.void_analysis.summary?.key_recommendation && (
-                <div className="mt-4 p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/30">
-                  <p className="label-technical text-[var(--accent)] mb-1">Key Recommendation</p>
-                  <p className="font-mono text-xs text-industrial">{analysisResult.void_analysis.summary.key_recommendation}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Analysis Errors */}
-          {analysisResult.errors && analysisResult.errors.length > 0 && (
-            <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="w-4 h-4 text-[var(--color-warning)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span className="label-technical text-[var(--color-warning)]">Partial Results</span>
-              </div>
-              <ul className="space-y-1">
-                {analysisResult.errors.map((error, i) => (
-                  <li key={i} className="font-mono text-[10px] text-[var(--color-warning)]">{error}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Error message */}
       {document.error_message && (
         <div className="mb-4 p-4 rounded-xl bg-[var(--bg-error)] border border-[var(--color-error)]/20">
@@ -1010,51 +717,10 @@ function DocumentDetailPanel({ documentId, onStartAnalysis: _onStartAnalysis }: 
 }
 
 export function DocumentsPage() {
-  const navigate = useNavigate();
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const { data, isLoading } = useDocuments();
   const uploadMutation = useUploadDocument();
   const deleteMutation = useDeleteDocument();
-  const handleStartAnalysis = useCallback(
-    (document: ParsedDocument) => {
-      // Extract property address from document data
-      const extractedData = document.extracted_data as ExtractedFlyerData | null;
-      const propertyInfo = extractedData?.property_info;
-
-      let propertyAddress = '';
-      if (propertyInfo) {
-        const parts = [];
-        if (propertyInfo.name) parts.push(propertyInfo.name);
-        if (propertyInfo.address) parts.push(propertyInfo.address);
-        if (propertyInfo.city) parts.push(propertyInfo.city);
-        if (propertyInfo.state) parts.push(propertyInfo.state);
-        propertyAddress = parts.filter(Boolean).join(', ');
-      }
-
-      // Build context about the property
-      const availableSpaces = extractedData?.available_spaces || [];
-      const existingTenants = extractedData?.existing_tenants || [];
-
-      // Create initial message with document context
-      const contextMessage = `I've uploaded a leasing flyer for ${propertyAddress || 'a property'}.
-
-Here's what I found:
-${availableSpaces.length > 0 ? `- ${availableSpaces.length} available space(s) totaling ${availableSpaces.reduce((sum, s) => sum + (s.square_footage || 0), 0).toLocaleString()} SF` : ''}
-${existingTenants.length > 0 ? `- ${existingTenants.length} existing tenant(s) including ${existingTenants.slice(0, 3).map(t => t.name).join(', ')}${existingTenants.length > 3 ? '...' : ''}` : ''}
-
-Please run a void analysis on this property to identify potential tenant opportunities. I want to find tenants we can reach out to about the available space.`;
-
-      // Navigate to chat with initial message in state
-      navigate('/chat', {
-        state: {
-          initialMessage: contextMessage,
-          documentId: document.id,
-        },
-      });
-    },
-    [navigate]
-  );
-
   const handleUpload = useCallback(
     async (files: File[]) => {
       for (const file of files) {
@@ -1130,7 +796,6 @@ Please run a void analysis on this property to identify potential tenant opportu
           {selectedDocumentId ? (
             <DocumentDetailPanel
               documentId={selectedDocumentId}
-              onStartAnalysis={handleStartAnalysis}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">

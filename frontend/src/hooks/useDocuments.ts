@@ -6,6 +6,7 @@ import type {
   DocumentUploadResponse,
   DocumentType,
   DocumentStatus,
+  StartAnalysisResponse,
 } from '../types/document';
 
 interface DocumentsQueryParams {
@@ -190,6 +191,18 @@ export interface PropertyAnalysisResult {
   } | null;
   investment_memo: Record<string, unknown> | null;
   errors: string[] | null;
+}
+
+// Start analysis session from document (fast endpoint)
+export function useStartAnalysis() {
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      const { data } = await api.post<StartAnalysisResponse>(
+        `/documents/${documentId}/start-analysis`
+      );
+      return data;
+    },
+  });
 }
 
 // Run property analysis mutation

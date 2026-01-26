@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from './components/Auth';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy load page components for code splitting
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -64,7 +65,7 @@ function App() {
             <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/pipeline/:dealId" element={<PipelinePage />} />
-            <Route path="/documents" element={<DocumentsPage />} />
+            <Route path="/documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
             <Route path="/outreach" element={<OutreachPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/customers" element={<CustomersPage />} />
