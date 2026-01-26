@@ -245,18 +245,34 @@ async def update_preferences(
     )
 
 
-def build_personalized_context(prefs: UserPreferences) -> str:
+def build_personalized_context(
+    prefs: UserPreferences,
+    include_location_context: bool = False,
+    cross_conversation_enabled: bool = False,
+) -> str:
     """
     Build a personalized context string for the system prompt.
 
     This is called by the orchestrator to inject user-specific context.
+
+    IMPORTANT: By default, location-specific context (markets field) is NOT included
+    to prevent cross-chat leakage. Each conversation should discover location from
+    user messages, not from stored preferences.
+
+    Args:
+        prefs: User preferences object
+        include_location_context: If True, include markets field (default False for isolation)
+        cross_conversation_enabled: Feature flag for cross-conversation context
+
+    Returns:
+        Context string to append to system prompt
     """
     if not prefs:
         return ""
 
     lines = []
 
-    # Role context
+    # Role context - safe to include (doesn't leak conversation-specific data)
     role_descriptions = {
         "broker": "a commercial real estate broker representing tenants and landlords",
         "landlord": "a property owner managing commercial real estate assets",
@@ -269,13 +285,13 @@ def build_personalized_context(prefs: UserPreferences) -> str:
         role_desc = role_descriptions.get(prefs.role, prefs.role)
         lines.append(f"You are assisting {role_desc}.")
 
-    # Property focus
+    # Property focus - safe to include (general preference)
     property_types = _parse_json_field(prefs.property_types)
     if property_types:
         formatted = ", ".join(t.replace("_", " ").title() for t in property_types)
         lines.append(f"They focus on {formatted} properties.")
 
-    # Tenant focus
+    # Tenant focus - safe to include (general preference)
     tenant_categories = _parse_json_field(prefs.tenant_categories)
     if tenant_categories:
         category_labels = {
@@ -298,12 +314,15 @@ def build_personalized_context(prefs: UserPreferences) -> str:
         formatted = ", ".join(category_labels.get(c, c.title()) for c in tenant_categories)
         lines.append(f"Their primary tenant focus areas: {formatted}.")
 
-    # Geographic markets
-    markets = _parse_json_field(prefs.markets)
-    if markets:
-        lines.append(f"They operate in: {', '.join(markets)}.")
+    # Geographic markets - ONLY include if explicitly enabled
+    # This is the primary source of cross-chat leakage
+    if include_location_context and cross_conversation_enabled:
+        markets = _parse_json_field(prefs.markets)
+        if markets:
+            lines.append(f"[User-level preference] They typically operate in: {', '.join(markets)}.")
+            lines.append("Note: This is general context. Always confirm the specific location for this conversation.")
 
-    # Deal size
+    # Deal size - safe to include (general preference)
     if prefs.deal_size_min or prefs.deal_size_max:
         if prefs.deal_size_min and prefs.deal_size_max:
             lines.append(f"Typical deal size: {prefs.deal_size_min:,} - {prefs.deal_size_max:,} SF.")
@@ -312,12 +331,12 @@ def build_personalized_context(prefs: UserPreferences) -> str:
         elif prefs.deal_size_max:
             lines.append(f"Maximum deal size: {prefs.deal_size_max:,} SF.")
 
-    # Key tenants
+    # Key tenants - safe to include (general preference)
     key_tenants = _parse_json_field(prefs.key_tenants)
     if key_tenants:
         lines.append(f"Key tenant relationships: {', '.join(key_tenants)}.")
 
-    # Analysis priorities
+    # Analysis priorities - safe to include (general preference)
     priorities = _parse_json_field(prefs.analysis_priorities)
     if priorities:
         priority_labels = {
@@ -331,7 +350,7 @@ def build_personalized_context(prefs: UserPreferences) -> str:
         formatted = ", ".join(priority_labels.get(p, p) for p in priorities)
         lines.append(f"Prioritize: {formatted}.")
 
-    # Custom notes
+    # Custom notes - safe to include if not location-specific
     if prefs.custom_notes:
         lines.append(f"Additional context: {prefs.custom_notes}")
 
@@ -339,3 +358,18 @@ def build_personalized_context(prefs: UserPreferences) -> str:
         return ""
 
     return "\n\n**User Context:**\n" + "\n".join(lines)
+
+
+def build_conversation_scoped_context(prefs: UserPreferences) -> str:
+    """
+    Build context that is safe for conversation scope (no cross-chat leakage risk).
+
+    This includes role, property types, tenant focus, deal size, and analysis priorities
+    but explicitly EXCLUDES geographic markets to prevent one conversation's location
+    from influencing another.
+    """
+    return build_personalized_context(
+        prefs,
+        include_location_context=False,
+        cross_conversation_enabled=False,
+    )

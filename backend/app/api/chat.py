@@ -21,6 +21,7 @@ from app.models.chat import (
     WorkflowStepStatus,
 )
 from app.services.orchestrator import execute_tool
+from app.services.analytics import get_analytics, MetricType, MetricEvent
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -627,13 +628,18 @@ async def websocket_endpoint(
         user_id = user.id  # Store user_id for later session creation
 
         # Fetch user preferences for personalized AI context
+        # IMPORTANT: Use conversation_scoped_context to prevent cross-chat leakage
+        # This excludes location-specific data (markets) by default
         user_context: str | None = None
         result = await db.execute(
             select(UserPreferences).where(UserPreferences.user_id == user_id)
         )
         user_prefs = result.scalar_one_or_none()
         if user_prefs:
-            user_context = build_personalized_context(user_prefs)
+            # Use build_conversation_scoped_context instead of build_personalized_context
+            # to prevent cross-chat city leakage
+            from app.api.preferences import build_conversation_scoped_context
+            user_context = build_conversation_scoped_context(user_prefs)
 
         if not is_new_session:
             # Validate existing session
@@ -1102,13 +1108,15 @@ async def websocket_chat_endpoint(
         user_id = user.id
 
         # Fetch user preferences
+        # IMPORTANT: Use conversation_scoped_context to prevent cross-chat leakage
         user_context: str | None = None
         result = await db.execute(
             select(UserPreferences).where(UserPreferences.user_id == user_id)
         )
         user_prefs = result.scalar_one_or_none()
         if user_prefs:
-            user_context = build_personalized_context(user_prefs)
+            from app.api.preferences import build_conversation_scoped_context
+            user_context = build_conversation_scoped_context(user_prefs)
 
     await websocket.accept()
     connection_key = f"chat:{user_id}"

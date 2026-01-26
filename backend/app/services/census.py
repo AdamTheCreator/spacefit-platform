@@ -647,10 +647,13 @@ async def analyze_demographics(location: str) -> str:
     Takes a location (address, town+ZIP, or just ZIP code), geocodes it,
     fetches Census data, and returns a formatted report.
 
+    Now uses the Location Resolver for better handling of city-only inputs
+    like "Reno, NV" that don't include a street address or ZIP code.
+
     Supports:
     - Full street addresses: "123 Main St, Weston, CT 06883"
     - Town + ZIP: "Weston, CT 06883"
-    - Town + State: "Weston, CT"
+    - Town + State: "Weston, CT" or "Reno, NV"
     - Just ZIP code: "06883"
 
     Args:
@@ -659,7 +662,26 @@ async def analyze_demographics(location: str) -> str:
     Returns:
         Formatted demographics report string
     """
-    # Step 1: Try to geocode as a street address first
+    from app.services.location_resolver import resolve_location, ResolutionConfidence
+    from app.services.analytics import get_analytics, record_tool_start, record_tool_complete
+
+    start_time = record_tool_start("demographics_analysis")
+
+    # Step 1: Use the Location Resolver for unified location handling
+    print(f"[CENSUS] Resolving location: {location}")
+    resolved = await resolve_location(location)
+
+    # Track the resolution for analytics
+    get_analytics().record_location_resolution(
+        location_input=location,
+        success=resolved.confidence != ResolutionConfidence.LOW,
+        method=resolved.method.value if resolved.method else None,
+        confidence=resolved.confidence.value if resolved.confidence else None,
+    )
+
+    print(f"[CENSUS] Resolved to: {resolved.display_name} (confidence={resolved.confidence.value}, method={resolved.method.value})")
+
+    # Step 2: Try full address geocoding if we have street-level detail
     geography = await geocode_address(location)
 
     if geography:
@@ -667,74 +689,218 @@ async def analyze_demographics(location: str) -> str:
         subdivision_data = await get_subdivision_demographics(geography)
         tract_data = await get_tract_demographics(geography)
         county_data = await get_county_demographics(geography)
+        record_tool_complete("demographics_analysis", start_time, success=True)
         return format_demographics_report(location, tract_data, county_data, subdivision_data)
 
-    # Step 2: Address geocoding failed - try ZIP code lookup
-    zip_code = _extract_zip_code(location)
+    # Step 3: Use resolved location data
+    # Try place-level demographics if we have place FIPS
+    if resolved.place_fips and resolved.state_fips:
+        print(f"[CENSUS] Attempting place-level query with place_fips={resolved.place_fips}")
+        place_data = await get_place_demographics(resolved.state_fips, resolved.place_fips)
+        if place_data:
+            record_tool_complete("demographics_analysis", start_time, success=True)
+            return _format_place_demographics_report(resolved.display_name, place_data, resolved)
 
-    # If no ZIP code in the string, try to look it up via Google Places
-    if not zip_code:
-        print(f"[CENSUS] No ZIP in location, attempting lookup for: {location}")
+    # Step 4: Try ZIP code from resolved location
+    zip_code = resolved.primary_zip or _extract_zip_code(location)
+
+    if not zip_code and not resolved.has_zip():
+        # No ZIP found by resolver, try legacy lookup
+        print(f"[CENSUS] No ZIP in resolved location, attempting legacy lookup for: {location}")
         zip_code = await _lookup_zip_for_location(location)
 
     if zip_code:
-        print(f"[CENSUS] Address geocoding failed, trying ZIP code: {zip_code}")
+        print(f"[CENSUS] Using ZIP code: {zip_code}")
         zcta_data = await get_zcta_demographics(zip_code)
         if zcta_data:
-            # Format a report using ZCTA data
-            lines = [f"**Demographics for {location}**\n"]
-            lines.append(f"*ZIP Code Area: {zcta_data.geography_name}*\n")
+            record_tool_complete("demographics_analysis", start_time, success=True)
+            return _format_zcta_report(location, zcta_data, resolved)
 
-            lines.append("**Population & Age:**")
-            lines.append(f"- Total Population: {zcta_data.total_population:,}")
-            if zcta_data.median_age:
-                lines.append(f"- Median Age: {zcta_data.median_age:.1f} years")
-
-            total_pop = zcta_data.total_population or 1
-            lines.append(f"- Under 18: {zcta_data.population_under_18:,} ({zcta_data.population_under_18/total_pop*100:.0f}%)")
-            lines.append(f"- 18-34: {zcta_data.population_18_34:,} ({zcta_data.population_18_34/total_pop*100:.0f}%)")
-            lines.append(f"- 35-54: {zcta_data.population_35_54:,} ({zcta_data.population_35_54/total_pop*100:.0f}%)")
-            lines.append(f"- 55+: {zcta_data.population_55_plus:,} ({zcta_data.population_55_plus/total_pop*100:.0f}%)")
-
-            lines.append("\n**Income & Economics:**")
-            if zcta_data.median_household_income:
-                lines.append(f"- Median Household Income: ${zcta_data.median_household_income:,}")
-            if zcta_data.unemployment_rate is not None:
-                lines.append(f"- Unemployment Rate: {zcta_data.unemployment_rate:.1f}%")
-            lines.append(f"- Labor Force: {zcta_data.labor_force:,}")
-
-            lines.append("\n**Education:**")
-            if zcta_data.bachelors_degree_or_higher_pct:
-                lines.append(f"- Bachelor's Degree or Higher: {zcta_data.bachelors_degree_or_higher_pct:.1f}%")
-
-            lines.append("\n**Housing:**")
-            lines.append(f"- Total Housing Units: {zcta_data.total_housing_units:,}")
-            if zcta_data.owner_occupied_pct:
-                lines.append(f"- Owner Occupied: {zcta_data.owner_occupied_pct:.1f}%")
-            if zcta_data.renter_occupied_pct:
-                lines.append(f"- Renter Occupied: {zcta_data.renter_occupied_pct:.1f}%")
-            if zcta_data.median_home_value:
-                lines.append(f"- Median Home Value: ${zcta_data.median_home_value:,}")
-
-            lines.append("\n**Households:**")
-            lines.append(f"- Total Households: {zcta_data.total_households:,}")
-            if zcta_data.avg_household_size:
-                lines.append(f"- Average Household Size: {zcta_data.avg_household_size:.2f}")
-            if zcta_data.family_households_pct:
-                lines.append(f"- Family Households: {zcta_data.family_households_pct:.1f}%")
-
+    # Step 5: Try county-level fallback if we have county info
+    if resolved.state_fips and resolved.county_fips:
+        print(f"[CENSUS] Attempting county-level fallback")
+        # Create a minimal geography object for county lookup
+        county_geo = CensusGeography(
+            address=resolved.display_name,
+            latitude=resolved.latitude or 0,
+            longitude=resolved.longitude or 0,
+            state_fips=resolved.state_fips,
+            county_fips=resolved.county_fips,
+            tract="",
+        )
+        county_data = await get_county_demographics(county_geo)
+        if county_data:
+            record_tool_complete("demographics_analysis", start_time, success=True, metadata={"fallback": "county"})
+            lines = [f"**Demographics for {resolved.display_name}**\n"]
+            lines.append(f"*County-level data: {county_data.geography_name}*")
+            lines.append("*(City-specific data unavailable, showing county-wide statistics)*\n")
+            lines.append(_format_demographic_data_section(county_data))
             lines.append("\n*Source: U.S. Census Bureau, American Community Survey 5-Year Estimates*")
             return "\n".join(lines)
 
-    # Step 3: Nothing worked
+    # Step 6: Nothing worked - provide helpful error
+    record_tool_complete("demographics_analysis", start_time, success=False)
     return f"""Unable to find demographics for: {location}
 
-**Tips for better results:**
-- Include a ZIP code: "Weston, CT 06883"
-- Or use a full address: "123 Main St, Weston, CT 06883"
-- Just the ZIP code also works: "06883"
+**What I tried:**
+- Location resolved to: {resolved.display_name}
+- Resolution method: {resolved.method.value}
+- Confidence: {resolved.confidence.value}
 
-The Census API requires either a valid street address or a ZIP code to look up demographics."""
+**Tips for better results:**
+- Include a ZIP code: "Reno, NV 89501"
+- Or use a full address: "100 N Virginia St, Reno, NV 89501"
+- Just the ZIP code also works: "89501"
+
+If you're looking for a specific city, try adding the ZIP code of downtown or a major area."""
+
+
+async def get_place_demographics(state_fips: str, place_fips: str) -> DemographicData | None:
+    """
+    Fetch ACS demographic data for a Census Place (incorporated city/town).
+
+    This is the preferred method for city-level demographics like "Reno, NV"
+    as it provides data specifically for the city boundaries.
+    """
+    variables = ",".join(ACS_VARIABLES.keys())
+    url = f"{CENSUS_ACS_URL}?get=NAME,{variables}&for=place:{place_fips}&in=state:{state_fips}"
+    if settings.census_api_key:
+        url += f"&key={settings.census_api_key}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+
+            if len(data) < 2:
+                return None
+
+            headers = data[0]
+            values = data[1]
+
+            raw_data = {}
+            for i, header in enumerate(headers):
+                if header in ACS_VARIABLES:
+                    raw_data[ACS_VARIABLES[header]] = values[i]
+                elif header == "NAME":
+                    raw_data["geography_name"] = values[i]
+
+            total_pop = _safe_int(raw_data.get("total_population"))
+            under_18, age_18_34, age_35_54, age_55_plus = _calculate_age_groups(raw_data, total_pop)
+
+            edu_total = _safe_int(raw_data.get("edu_total_25_plus"))
+            edu_bachelors_plus = (
+                _safe_int(raw_data.get("edu_bachelors")) +
+                _safe_int(raw_data.get("edu_masters")) +
+                _safe_int(raw_data.get("edu_professional")) +
+                _safe_int(raw_data.get("edu_doctorate"))
+            )
+            bachelors_pct = (edu_bachelors_plus / edu_total * 100) if edu_total > 0 else None
+
+            labor_force = _safe_int(raw_data.get("labor_force"))
+            unemployed = _safe_int(raw_data.get("unemployed"))
+            unemployment_rate = (unemployed / labor_force * 100) if labor_force > 0 else None
+
+            tenure_total = _safe_int(raw_data.get("tenure_total"))
+            owner_occupied = _safe_int(raw_data.get("owner_occupied"))
+            renter_occupied = _safe_int(raw_data.get("renter_occupied"))
+            owner_pct = (owner_occupied / tenure_total * 100) if tenure_total > 0 else None
+            renter_pct = (renter_occupied / tenure_total * 100) if tenure_total > 0 else None
+
+            total_households = _safe_int(raw_data.get("total_households"))
+            family_households = _safe_int(raw_data.get("family_households"))
+            family_pct = (family_households / total_households * 100) if total_households > 0 else None
+
+            return DemographicData(
+                geography_name=raw_data.get("geography_name", "Unknown"),
+                total_population=_safe_int(raw_data.get("total_population")),
+                median_household_income=_safe_int(raw_data.get("median_household_income")) or None,
+                median_age=_safe_float(raw_data.get("median_age")),
+                population_under_18=under_18,
+                population_18_34=age_18_34,
+                population_35_54=age_35_54,
+                population_55_plus=age_55_plus,
+                bachelors_degree_or_higher_pct=round(bachelors_pct, 1) if bachelors_pct else None,
+                labor_force=labor_force,
+                employed=_safe_int(raw_data.get("employed")),
+                unemployment_rate=round(unemployment_rate, 1) if unemployment_rate else None,
+                total_housing_units=_safe_int(raw_data.get("total_housing_units")),
+                owner_occupied_pct=round(owner_pct, 1) if owner_pct else None,
+                renter_occupied_pct=round(renter_pct, 1) if renter_pct else None,
+                median_home_value=_safe_int(raw_data.get("median_home_value")) or None,
+                total_households=total_households,
+                avg_household_size=_safe_float(raw_data.get("avg_household_size")),
+                family_households_pct=round(family_pct, 1) if family_pct else None,
+            )
+        except Exception as e:
+            print(f"Census API error (place): {e}")
+            return None
+
+
+def _format_demographic_data_section(data: DemographicData) -> str:
+    """Format demographic data into report sections."""
+    lines = []
+    total_pop = data.total_population or 1
+
+    lines.append("**Population & Age:**")
+    lines.append(f"- Total Population: {data.total_population:,}")
+    if data.median_age:
+        lines.append(f"- Median Age: {data.median_age:.1f} years")
+    lines.append(f"- Under 18: {data.population_under_18:,} ({data.population_under_18/total_pop*100:.0f}%)")
+    lines.append(f"- 18-34: {data.population_18_34:,} ({data.population_18_34/total_pop*100:.0f}%)")
+    lines.append(f"- 35-54: {data.population_35_54:,} ({data.population_35_54/total_pop*100:.0f}%)")
+    lines.append(f"- 55+: {data.population_55_plus:,} ({data.population_55_plus/total_pop*100:.0f}%)")
+
+    lines.append("\n**Income & Economics:**")
+    if data.median_household_income:
+        lines.append(f"- Median Household Income: ${data.median_household_income:,}")
+    if data.unemployment_rate is not None:
+        lines.append(f"- Unemployment Rate: {data.unemployment_rate:.1f}%")
+    lines.append(f"- Labor Force: {data.labor_force:,}")
+
+    lines.append("\n**Education:**")
+    if data.bachelors_degree_or_higher_pct:
+        lines.append(f"- Bachelor's Degree or Higher: {data.bachelors_degree_or_higher_pct:.1f}%")
+
+    lines.append("\n**Housing:**")
+    lines.append(f"- Total Housing Units: {data.total_housing_units:,}")
+    if data.owner_occupied_pct:
+        lines.append(f"- Owner Occupied: {data.owner_occupied_pct:.1f}%")
+    if data.renter_occupied_pct:
+        lines.append(f"- Renter Occupied: {data.renter_occupied_pct:.1f}%")
+    if data.median_home_value:
+        lines.append(f"- Median Home Value: ${data.median_home_value:,}")
+
+    lines.append("\n**Households:**")
+    lines.append(f"- Total Households: {data.total_households:,}")
+    if data.avg_household_size:
+        lines.append(f"- Average Household Size: {data.avg_household_size:.2f}")
+    if data.family_households_pct:
+        lines.append(f"- Family Households: {data.family_households_pct:.1f}%")
+
+    return "\n".join(lines)
+
+
+def _format_place_demographics_report(display_name: str, data: DemographicData, resolved) -> str:
+    """Format a demographics report for place-level data."""
+    lines = [f"**Demographics for {display_name}**\n"]
+    lines.append(f"*City: {data.geography_name}*\n")
+    lines.append(_format_demographic_data_section(data))
+    lines.append("\n*Source: U.S. Census Bureau, American Community Survey 5-Year Estimates*")
+    return "\n".join(lines)
+
+
+def _format_zcta_report(location: str, data: DemographicData, resolved) -> str:
+    """Format a demographics report for ZCTA (ZIP code) data."""
+    lines = [f"**Demographics for {location}**\n"]
+    lines.append(f"*ZIP Code Area: {data.geography_name}*")
+    if resolved and resolved.used_zip_approximation:
+        lines.append("*(Using representative ZIP code for city-level approximation)*")
+    lines.append("")
+    lines.append(_format_demographic_data_section(data))
+    lines.append("\n*Source: U.S. Census Bureau, American Community Survey 5-Year Estimates*")
+    return "\n".join(lines)
 
 
 async def get_zcta_demographics(zip_code: str) -> DemographicData | None:
