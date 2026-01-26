@@ -769,6 +769,13 @@ textarea.input-industrial {
   100% { transform: translateX(200%); }
 }
 
+/* Indeterminate progress bar */
+@keyframes indeterminate {
+  0% { left: -40%; }
+  50% { left: 60%; }
+  100% { left: -40%; }
+}
+
 /* Scan line */
 @keyframes scan-line {
   0% { transform: translateX(-100%); }

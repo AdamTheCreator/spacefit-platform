@@ -3,12 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import {
   useDocuments,
-  useUploadDocument,
   useDeleteDocument,
+  useReprocessDocument,
   useDocument,
   useDocumentFile,
   useStartAnalysis,
+  useUploadWithProgress,
+  useUploadStatusSync,
 } from '../hooks/useDocuments';
+import { useUploadStore } from '../stores/uploadStore';
+import type { UploadItem, UploadStatus } from '../stores/uploadStore';
+import { StartAnalysisModal } from '../components/Documents/StartAnalysisModal';
+import type { AnalysisOptions } from '../components/Documents/StartAnalysisModal';
+import { Button } from '../components/ui/Button';
 import type { ParsedDocument, DocumentType, ExtractedFlyerData, ExtractedVoidData } from '../types/document';
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
@@ -138,10 +145,9 @@ function DocumentCard({ document, onSelect, onDelete, isSelected }: DocumentCard
 
 interface UploadDropzoneProps {
   onUpload: (files: File[]) => void;
-  isUploading: boolean;
 }
 
-function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
+function UploadDropzone({ onUpload }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
@@ -188,11 +194,8 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files ? Array.from(e.target.files) : [];
-      onUpload(files);
-      // Reset input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (files.length > 0) onUpload(files);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     },
     [onUpload]
   );
@@ -205,7 +208,7 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => fileInputRef.current?.click()}
-      className={`relative p-8 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+      className={`relative p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
         isDragging
           ? 'border-[var(--accent)] bg-[var(--accent)]/10 scale-[1.02]'
           : 'border-[var(--border-default)] hover:border-[var(--accent)] bg-[var(--bg-tertiary)]'
@@ -219,42 +222,188 @@ function UploadDropzone({ onUpload, isUploading }: UploadDropzoneProps) {
         onChange={handleFileSelect}
         className="hidden"
       />
-
       <div className="flex flex-col items-center text-center">
-        {isUploading ? (
-          <>
-            <div className="relative w-12 h-12 mb-4">
-              <div className="w-12 h-12 rounded-full border-2 border-[var(--border-default)]" />
+        <div className="w-12 h-12 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center justify-center mb-3">
+          <svg
+            className="w-6 h-6 text-industrial-muted"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+            />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-industrial mb-0.5">
+          Drop files here or click to upload
+        </p>
+        <p className="text-xs text-industrial-muted">
+          PDF, PNG, JPG (max 50 MB)
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Upload Queue — renders below the drop zone
+// ---------------------------------------------------------------------------
+
+const UPLOAD_STATUS_CONFIG: Record<UploadStatus, { color: string; bgColor: string; borderColor: string }> = {
+  uploading: {
+    color: 'text-[var(--accent)]',
+    bgColor: 'bg-[var(--accent)]',
+    borderColor: 'border-[var(--accent)]/30',
+  },
+  processing: {
+    color: 'text-[var(--accent)]',
+    bgColor: 'bg-[var(--accent)]',
+    borderColor: 'border-[var(--accent)]/30',
+  },
+  completed: {
+    color: 'text-[var(--color-success)]',
+    bgColor: 'bg-[var(--color-success)]',
+    borderColor: 'border-[var(--color-success)]/30',
+  },
+  failed: {
+    color: 'text-[var(--color-error)]',
+    bgColor: 'bg-[var(--color-error)]',
+    borderColor: 'border-[var(--color-error)]/30',
+  },
+};
+
+function UploadQueueItem({
+  item,
+  onRetry,
+  onDismiss,
+}: {
+  item: UploadItem;
+  onRetry: (clientId: string) => void;
+  onDismiss: (clientId: string) => void;
+}) {
+  const cfg = UPLOAD_STATUS_CONFIG[item.status];
+
+  return (
+    <div className={`p-3 rounded-lg border bg-[var(--bg-elevated)] ${cfg.borderColor} transition-all`}>
+      {/* Top row: filename + actions */}
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Status icon */}
+          {item.status === 'uploading' && (
+            <svg className={`w-4 h-4 flex-shrink-0 ${cfg.color} animate-spin`} fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          )}
+          {item.status === 'processing' && (
+            <div className="relative w-4 h-4 flex-shrink-0">
+              <div className="w-4 h-4 rounded-full border-2 border-[var(--border-default)]" />
               <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
             </div>
-            <p className="text-sm font-medium text-industrial">Uploading...</p>
-          </>
-        ) : (
-          <>
-            <div className="w-14 h-14 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center justify-center mb-4">
-              <svg
-                className="w-7 h-7 text-industrial-muted"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
+          )}
+          {item.status === 'completed' && (
+            <svg className={`w-4 h-4 flex-shrink-0 ${cfg.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {item.status === 'failed' && (
+            <svg className={`w-4 h-4 flex-shrink-0 ${cfg.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
+
+          <span className="text-xs font-medium text-industrial truncate">{item.fileName}</span>
+          <span className="text-[10px] text-industrial-muted flex-shrink-0">{formatFileSize(item.fileSize)}</span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {item.status === 'failed' && (
+            <button
+              onClick={() => onRetry(item.clientId)}
+              className="px-2 py-0.5 rounded text-[10px] font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
+            >
+              Retry
+            </button>
+          )}
+          {(item.status === 'completed' || item.status === 'failed') && (
+            <button
+              onClick={() => onDismiss(item.clientId)}
+              className="p-0.5 rounded text-industrial-muted hover:text-industrial transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {(item.status === 'uploading' || item.status === 'processing') && (
+        <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+          {item.status === 'uploading' ? (
+            // Determinate bar
+            <div
+              className={`h-full rounded-full ${cfg.bgColor} transition-[width] duration-200 ease-out`}
+              style={{ width: `${item.uploadProgress}%` }}
+            />
+          ) : (
+            // Indeterminate bar — processing
+            <div className="h-full w-full relative">
+              <div
+                className={`absolute inset-y-0 ${cfg.bgColor} rounded-full animate-[indeterminate_1.5s_ease-in-out_infinite]`}
+                style={{ width: '40%' }}
+              />
             </div>
-            <p className="text-sm font-medium text-industrial mb-1">
-              Drop files here or click to upload
-            </p>
-            <p className="text-xs text-industrial-muted">
-              Supports PDF, PNG, JPG (max 50MB)
-            </p>
-          </>
+          )}
+        </div>
+      )}
+
+      {/* Status text */}
+      <p className={`text-[10px] mt-1 ${item.status === 'failed' ? 'text-[var(--color-error)]' : 'text-industrial-muted'}`}>
+        {item.status === 'failed' && item.errorMessage ? item.errorMessage : item.statusText}
+      </p>
+    </div>
+  );
+}
+
+function UploadQueue({ onRetry }: { onRetry: (clientId: string) => void }) {
+  const items = useUploadStore((s) => s.items);
+  const removeItem = useUploadStore((s) => s.removeItem);
+  const clearFinished = useUploadStore((s) => s.clearFinished);
+
+  if (items.length === 0) return null;
+
+  const hasFinished = items.some((i) => i.status === 'completed' || i.status === 'failed');
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[11px] font-medium text-industrial-muted uppercase tracking-wide">
+          Upload Queue
+        </span>
+        {hasFinished && (
+          <button
+            onClick={clearFinished}
+            className="text-[10px] text-industrial-muted hover:text-industrial transition-colors"
+          >
+            Clear finished
+          </button>
         )}
       </div>
+      {items.map((item) => (
+        <UploadQueueItem
+          key={item.clientId}
+          item={item}
+          onRetry={onRetry}
+          onDismiss={removeItem}
+        />
+      ))}
     </div>
   );
 }
@@ -270,6 +419,8 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
 
   const startAnalysisMutation = useStartAnalysis();
+  const reprocessMutation = useReprocessDocument();
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
 
   const handleViewDocument = useCallback(() => {
     if (fileUrl) {
@@ -288,11 +439,27 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
     }
   }, [fileUrl, document]);
 
-  const handleRunAnalysis = useCallback(async () => {
+  const handleOpenAnalysisModal = useCallback(() => {
+    setShowAnalysisModal(true);
+  }, []);
+
+  const handleConfirmAnalysis = useCallback(async (options: AnalysisOptions) => {
     if (!documentId) return;
     try {
-      const result = await startAnalysisMutation.mutateAsync(documentId);
-      navigate(`/chat/${result.session_id}`);
+      const result = await startAnalysisMutation.mutateAsync({
+        documentId,
+        analysisType: options.analysisType,
+        tradeAreaMiles: options.tradeAreaMiles,
+        notes: options.notes || undefined,
+      });
+      setShowAnalysisModal(false);
+      // Navigate to chat with auto-kickoff flag
+      navigate(`/chat/${result.session_id}`, {
+        state: {
+          initialMessage: 'Begin the analysis for this property.',
+          documentId,
+        },
+      });
     } catch (error) {
       console.error('Failed to start analysis:', error);
     }
@@ -548,26 +715,18 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
 
           {/* Start Analysis Button */}
           {canStartAnalysis && (
-            <button
-              onClick={handleRunAnalysis}
-              disabled={startAnalysisMutation.isPending}
-              className="btn-industrial-primary flex items-center gap-2 disabled:opacity-50"
+            <Button
+              variant="primary"
+              onClick={handleOpenAnalysisModal}
+              iconLeft={
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              }
             >
-              {startAnalysisMutation.isPending ? (
-                <>
-                  <div className="w-4 h-4 rounded-full border-2 border-[var(--color-neutral-900)] border-t-transparent animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                  Start Analysis
-                </>
-              )}
-            </button>
+              Start Analysis
+            </Button>
           )}
         </div>
 
@@ -580,41 +739,47 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
 
         {/* View Document Buttons */}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
+          <Button
+            variant="secondary"
             onClick={handleViewDocument}
             disabled={isFileLoading || !fileUrl}
-            className="btn-industrial flex items-center gap-2 disabled:opacity-50"
+            iconLeft={
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            }
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
             {isFileLoading ? 'Loading...' : 'View in New Tab'}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
             onClick={handleDownload}
             disabled={isFileLoading || !fileUrl}
-            className="btn-industrial flex items-center gap-2 disabled:opacity-50"
+            iconLeft={
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            }
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
             Download
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => setShowPreview(!showPreview)}
             disabled={isFileLoading || !fileUrl}
-            className="btn-industrial-primary flex items-center gap-2 disabled:opacity-50"
+            iconLeft={
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d={showPreview ? "M19 9l-7 7-7-7" : "M9 5l7 7-7 7"} />
+              </svg>
+            }
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d={showPreview ? "M19 9l-7 7-7-7" : "M9 5l7 7-7 7"} />
-            </svg>
             {showPreview ? 'Hide Preview' : 'Show Preview'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -636,21 +801,37 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
           ) : (
             <div className="p-8 text-center text-sm text-industrial-muted">
               Preview not available for this file type.
-              <button
-                onClick={handleViewDocument}
-                className="btn-industrial-primary block mx-auto mt-4"
-              >
-                Open in New Tab
-              </button>
+              <div className="mt-4">
+                <Button variant="secondary" onClick={handleViewDocument}>
+                  Open in New Tab
+                </Button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Error message */}
-      {document.error_message && (
+      {/* Error message + retry */}
+      {document.status === 'failed' && (
         <div className="mb-4 p-4 rounded-xl bg-[var(--bg-error)] border border-[var(--color-error)]/20">
-          <p className="text-sm text-[var(--color-error)]">{document.error_message}</p>
+          <p className="text-sm text-[var(--color-error)]">
+            {document.error_message || 'Document processing failed.'}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-3"
+            onClick={() => reprocessMutation.mutate(document.id)}
+            loading={reprocessMutation.isPending}
+            iconLeft={
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            }
+          >
+            {reprocessMutation.isPending ? 'Reprocessing…' : 'Retry Processing'}
+          </Button>
         </div>
       )}
 
@@ -712,6 +893,19 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
           </div>
         </div>
       )}
+
+      {/* Start Analysis Modal */}
+      <StartAnalysisModal
+        isOpen={showAnalysisModal}
+        onClose={() => setShowAnalysisModal(false)}
+        onConfirm={handleConfirmAnalysis}
+        isLoading={startAnalysisMutation.isPending}
+        propertyName={(document.extracted_data as ExtractedFlyerData | null)?.property_info?.name}
+        propertyAddress={propertyAddress}
+        tenantCount={(document.extracted_data as ExtractedFlyerData | null)?.existing_tenants?.length}
+        availableSpaceCount={(document.extracted_data as ExtractedFlyerData | null)?.available_spaces?.length}
+        documentType={document.document_type}
+      />
     </div>
   );
 }
@@ -719,19 +913,38 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
 export function DocumentsPage() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const { data, isLoading } = useDocuments();
-  const uploadMutation = useUploadDocument();
   const deleteMutation = useDeleteDocument();
+  const { uploadFile } = useUploadWithProgress();
+  const resetForRetry = useUploadStore((s) => s.resetForRetry);
+
+  // Sync document processing status → upload store
+  useUploadStatusSync(data);
+
+  // Handle file selection from DropZone
   const handleUpload = useCallback(
-    async (files: File[]) => {
+    (files: File[]) => {
       for (const file of files) {
-        try {
-          await uploadMutation.mutateAsync({ file });
-        } catch (error) {
-          console.error('Upload failed:', error);
-        }
+        // Fire-and-forget — the upload store tracks progress
+        uploadFile(file).catch(() => {
+          // Errors already tracked in the store via markFailed
+        });
       }
     },
-    [uploadMutation]
+    [uploadFile],
+  );
+
+  // Retry a failed upload
+  const handleRetry = useCallback(
+    (clientId: string) => {
+      const item = useUploadStore.getState().items.find((i) => i.clientId === clientId);
+      if (!item) return;
+      resetForRetry(clientId);
+      // Re-upload the original file
+      // Remove the old entry and create a fresh one
+      useUploadStore.getState().removeItem(clientId);
+      uploadFile(item.file).catch(() => {});
+    },
+    [uploadFile, resetForRetry],
   );
 
   const handleDelete = useCallback(
@@ -743,7 +956,7 @@ export function DocumentsPage() {
         }
       }
     },
-    [deleteMutation, selectedDocumentId]
+    [deleteMutation, selectedDocumentId],
   );
 
   return (
@@ -758,14 +971,14 @@ export function DocumentsPage() {
             </p>
           </div>
 
-          <div className="p-4">
-            <UploadDropzone
-              onUpload={handleUpload}
-              isUploading={uploadMutation.isPending}
-            />
+          {/* Drop zone + upload queue */}
+          <div className="p-4 pb-2">
+            <UploadDropzone onUpload={handleUpload} />
+            <UploadQueue onRetry={handleRetry} />
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-industrial">
+          {/* Document list */}
+          <div className="flex-1 overflow-y-auto p-4 pt-2 space-y-3 scrollbar-industrial">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="relative w-6 h-6">
@@ -794,9 +1007,7 @@ export function DocumentsPage() {
         {/* Right Panel - Document Details */}
         <div className="flex-1 bg-[var(--bg-elevated)]">
           {selectedDocumentId ? (
-            <DocumentDetailPanel
-              documentId={selectedDocumentId}
-            />
+            <DocumentDetailPanel documentId={selectedDocumentId} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-2xl flex items-center justify-center mb-4">

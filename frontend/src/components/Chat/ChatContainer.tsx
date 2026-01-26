@@ -13,6 +13,7 @@ interface ChatContainerProps {
 interface LocationState {
   initialMessage?: string;
   documentId?: string;
+  analysisType?: string;
 }
 
 export function ChatContainer({ initialSessionId }: ChatContainerProps) {
@@ -32,6 +33,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSentRef = useRef(false);
+  const isAnalysisKickoff = !!locationState?.documentId;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,7 +87,36 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 scrollbar-thin">
-        {messages.length === 0 && !isLoading ? (
+        {messages.length === 0 && !isLoading && isAnalysisKickoff ? (
+          /* Analysis kickoff loading state */
+          <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto animate-fade-in">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-[var(--accent-subtle)] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-[var(--accent)] flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[var(--color-neutral-900)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full border-2 border-[var(--color-neutral-900)] border-t-transparent animate-spin" />
+              </div>
+            </div>
+            <h3 className="text-base font-semibold text-industrial mb-2">
+              {!isConnected ? 'Connecting...' : 'Starting Analysis'}
+            </h3>
+            <p className="text-sm text-industrial-muted">
+              {!isConnected
+                ? 'Establishing connection to the AI engine...'
+                : 'Initializing void analysis with your document data...'}
+            </p>
+            <div className="flex gap-1 mt-4">
+              <span className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-pulse" />
+              <span className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-pulse [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-pulse [animation-delay:300ms]" />
+            </div>
+          </div>
+        ) : messages.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center h-full text-center max-w-xl mx-auto animate-fade-in">
             {/* Welcome graphic - softer, friendlier */}
             <div className="relative mb-8">

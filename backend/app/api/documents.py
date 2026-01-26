@@ -428,11 +428,19 @@ async def reprocess_document(
 # ============================================================================
 
 
+class StartAnalysisRequest(BaseModel):
+    """Optional request body for starting an analysis session."""
+    analysis_type: str = "void_analysis"
+    trade_area_miles: float = 3.0
+    notes: str | None = None
+
+
 @router.post("/{document_id}/start-analysis", response_model=StartAnalysisResponse)
 async def start_analysis_from_document(
     document_id: str,
     db: DBSession,
     current_user: CurrentUser,
+    body: StartAnalysisRequest | None = None,
 ) -> StartAnalysisResponse:
     """
     Start a void analysis session from a parsed document.
@@ -446,7 +454,11 @@ async def start_analysis_from_document(
     The created session will have document_context populated with all
     extracted data, allowing immediate void analysis without re-entering
     property information.
+
+    Accepts optional body with analysis_type, trade_area_miles, notes.
     """
+    request_body = body or StartAnalysisRequest()
+
     # Fetch document with ownership check
     result = await db.execute(
         select(ParsedDocument).where(
@@ -492,6 +504,9 @@ async def start_analysis_from_document(
         document_id=document_id,
         user_id=current_user.id,
         db=db,
+        analysis_type=request_body.analysis_type,
+        trade_area_miles=request_body.trade_area_miles,
+        notes=request_body.notes,
     )
 
     if not session:

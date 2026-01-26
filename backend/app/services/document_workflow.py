@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import ChatSession
 from app.db.models.document import ParsedDocument, DocumentType
+from app.services.prompt_registry import VOID_ANALYSIS_PROMPT_ID, DEFAULT_PROMPT_ID
 
 
 @dataclass
@@ -127,6 +128,9 @@ async def create_analysis_session_from_document(
     document: ParsedDocument,
     user_id: str,
     db: AsyncSession,
+    analysis_type: str = "void_analysis",
+    trade_area_miles: float = 3.0,
+    notes: str | None = None,
 ) -> ChatSession:
     """
     Create a chat session pre-seeded with document context.
@@ -146,14 +150,25 @@ async def create_analysis_session_from_document(
         "property_info": context.property_info,
         "document_type": context.document_type,
         "source_document_id": document.id,
+        "analysis_type": analysis_type,
+        "trade_area_miles": trade_area_miles,
+        "notes": notes,
     }
 
-    # Create session with document link
+    # Map analysis_type to prompt ID
+    prompt_id_map = {
+        "void_analysis": VOID_ANALYSIS_PROMPT_ID,
+    }
+    system_prompt_id = prompt_id_map.get(analysis_type, DEFAULT_PROMPT_ID)
+
+    # Create session with document link and explicit prompt selection
     session = ChatSession(
         user_id=user_id,
         title=generate_session_title(context),
         source_document_id=document.id,
         document_context=document_context,
+        analysis_type=analysis_type,
+        system_prompt_id=system_prompt_id,
     )
     db.add(session)
     await db.flush()
@@ -171,6 +186,9 @@ async def get_or_create_analysis_session(
     document_id: str,
     user_id: str,
     db: AsyncSession,
+    analysis_type: str = "void_analysis",
+    trade_area_miles: float = 3.0,
+    notes: str | None = None,
 ) -> ChatSession | None:
     """
     Get existing analysis session for a document, or create a new one.
@@ -199,4 +217,9 @@ async def get_or_create_analysis_session(
             return existing_session
 
     # Create new session
-    return await create_analysis_session_from_document(document, user_id, db)
+    return await create_analysis_session_from_document(
+        document, user_id, db,
+        analysis_type=analysis_type,
+        trade_area_miles=trade_area_miles,
+        notes=notes,
+    )

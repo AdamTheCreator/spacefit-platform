@@ -60,9 +60,9 @@ function App() {
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/" element={<ChatPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/chat/:sessionId" element={<ChatPage />} />
+            <Route path="/" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
+            <Route path="/chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
+            <Route path="/chat/:sessionId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/pipeline/:dealId" element={<PipelinePage />} />
             <Route path="/documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
