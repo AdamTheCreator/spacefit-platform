@@ -43,6 +43,15 @@ class SiteCredential(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     total_uses: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Connector health state machine
+    connector_status: Mapped[str] = mapped_column(
+        String(20), default="stale"
+    )  # connected, stale, needs_reauth, degraded, error, disabled
+    health_meta: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON blob
+    last_probe_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    disabled_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     user: Mapped["User"] = relationship(back_populates="site_credentials")
     agent_connections: Mapped[list["AgentConnection"]] = relationship(back_populates="credential")
 

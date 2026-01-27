@@ -25,6 +25,7 @@ from app.services.browser.interactive_login import (
     get_site_login_config,
     start_interactive_login,
 )
+from app.services.connector_health import update_connector_on_success
 
 
 router = APIRouter(prefix="/browser-auth", tags=["browser-auth"])
@@ -309,6 +310,8 @@ async def browser_login_websocket(
                     credential.session_error_message = None
                     credential.last_verified_at = datetime.utcnow()
                     await db.commit()
+                    # Update connector health state
+                    await update_connector_on_success(credential, db)
                 else:
                     print(
                         f"[BROWSER-AUTH] WARNING: Browser login succeeded for "

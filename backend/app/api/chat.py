@@ -503,6 +503,9 @@ async def handle_tool_calls(
             {"step_id": step.id, "status": WorkflowStepStatus.RUNNING.value},
         )
 
+    # Connector statuses that should block execution
+    _BLOCKED_STATUSES = {"needs_reauth", "error", "disabled"}
+
     # Execute tools in parallel
     async def execute_single_tool(tool_call: dict) -> dict:
         tool_name = tool_call["name"]
@@ -511,6 +514,20 @@ async def handle_tool_calls(
 
         # Get credential if needed
         credential = await get_best_credential_for_agent(user_id, tool_name)
+
+        # Preflight: check connector health before expensive browser scrape
+        if credential and getattr(credential, "connector_status", None) in _BLOCKED_STATUSES:
+            site_label = credential.site_name.replace("_", " ").title()
+            return {
+                "tool_call_id": tool_call["id"],
+                "tool_name": tool_name,
+                "result": (
+                    f"**{site_label} Connection Issue**\n\n"
+                    f"The {site_label} connector needs attention before I can retrieve data. "
+                    "Please open **Connections** from the sidebar and reconnect."
+                ),
+                "success": False,
+            }
 
         try:
             result = await execute_tool(tool_name, tool_input, user_id, credential)

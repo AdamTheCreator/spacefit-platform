@@ -48,3 +48,30 @@ export interface VerifyResult {
   success: boolean;
   message: string;
 }
+
+// Connector health types
+export type ConnectorStatus =
+  | 'connected'
+  | 'stale'
+  | 'needs_reauth'
+  | 'degraded'
+  | 'error'
+  | 'disabled';
+
+export interface ConnectorStatusItem {
+  credential_id: string;
+  site_name: string;
+  site_display_name: string;
+  connector_status: ConnectorStatus;
+  last_probe_at: string | null;
+  last_used_at: string | null;
+  session_error_message: string | null;
+  requires_manual_login: boolean;
+}
+
+export interface ConnectorProbeResult {
+  credential_id: string;
+  connector_status: ConnectorStatus;
+  probe_duration_ms: number;
+  message: string;
+}

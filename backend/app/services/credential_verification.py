@@ -20,6 +20,7 @@ from app.core.security import decrypt_credential
 from app.services.browser.manager import BrowserManager
 from app.scrapers import get_scraper, list_available_scrapers
 from app.scrapers.base import ProgressUpdate, LoginResult
+from app.services.connector_health import update_connector_on_success
 
 
 @dataclass
@@ -182,6 +183,8 @@ async def validate_existing_session(
             credential.session_last_checked = datetime.utcnow()
             credential.session_error_message = None
             await db.commit()
+            # Update connector health state
+            await update_connector_on_success(credential, db)
 
             return VerificationResult(
                 success=True,
@@ -238,6 +241,8 @@ async def validate_existing_session(
                 credential.is_verified = True
                 credential.last_verified_at = datetime.utcnow()
                 await db.commit()
+                # Update connector health state
+                await update_connector_on_success(credential, db)
 
                 return VerificationResult(
                     success=True,

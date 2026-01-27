@@ -23,9 +23,12 @@ import type {
   CredentialCreate,
   VerifyResult,
   SessionStatus,
+  ConnectorStatus,
+  ConnectorStatusItem,
 } from '../types/credentials';
 import { CredentialModal } from '../components/Connections/CredentialModal';
 import { BrowserLoginModal } from '../components/Connections/BrowserLoginModal';
+import { useConnectorStatus, useProbeConnector, connectorKeys } from '../hooks/useConnectorHealth';
 
 // Map site IDs to Lucide icons
 const SITE_ICONS: Record<string, React.ReactNode> = {
@@ -75,7 +78,8 @@ const DEFAULT_SITES: SiteConfig[] = [
 function getStatusBadge(
   credential: Credential | undefined,
   isVerifying: boolean,
-  requiresManualLogin?: boolean
+  requiresManualLogin?: boolean,
+  connectorHealth?: ConnectorStatusItem,
 ): { icon: React.ReactNode; text: string; className: string; needsManualRefresh?: boolean } {
   if (!credential) {
     return {
@@ -88,11 +92,57 @@ function getStatusBadge(
   if (isVerifying) {
     return {
       icon: <Loader2 size={14} className="animate-spin" />,
-      text: 'Verifying...',
+      text: 'Checking...',
       className: 'text-[var(--accent)]',
     };
   }
 
+  // Prefer connector health status when available
+  const healthStatus = connectorHealth?.connector_status as ConnectorStatus | undefined;
+  if (healthStatus) {
+    switch (healthStatus) {
+      case 'connected':
+        return {
+          icon: <CheckCircle size={14} />,
+          text: 'Connected',
+          className: 'text-[var(--color-success)]',
+        };
+      case 'stale':
+        return {
+          icon: <Clock size={14} />,
+          text: 'Checking...',
+          className: 'text-industrial-muted',
+        };
+      case 'needs_reauth':
+        return {
+          icon: <AlertTriangle size={14} />,
+          text: 'Needs re-authentication',
+          className: 'text-amber-500',
+          needsManualRefresh: requiresManualLogin,
+        };
+      case 'degraded':
+        return {
+          icon: <AlertTriangle size={14} />,
+          text: 'Intermittent issues',
+          className: 'text-yellow-500',
+        };
+      case 'error':
+        return {
+          icon: <XCircle size={14} />,
+          text: connectorHealth.session_error_message || 'Connection error',
+          className: 'text-[var(--color-error)]',
+          needsManualRefresh: requiresManualLogin,
+        };
+      case 'disabled':
+        return {
+          icon: <XCircle size={14} />,
+          text: 'Disabled',
+          className: 'text-industrial-muted',
+        };
+    }
+  }
+
+  // Fallback to legacy session_status
   const status = credential.session_status as SessionStatus;
 
   switch (status) {
@@ -143,21 +193,27 @@ function getStatusBadge(
 interface ConnectionCardProps {
   site: SiteConfig;
   credential?: Credential;
+  connectorHealth?: ConnectorStatusItem;
   onConnect: () => void;
   onVerify: () => void;
   onBrowserLogin: () => void;
+  onProbe: () => void;
   isVerifying: boolean;
+  isProbing: boolean;
 }
 
 function ConnectionCard({
   site,
   credential,
+  connectorHealth,
   onConnect,
   onVerify,
   onBrowserLogin,
+  onProbe,
   isVerifying,
+  isProbing,
 }: ConnectionCardProps) {
-  const statusBadge = getStatusBadge(credential, isVerifying, site.requires_manual_login);
+  const statusBadge = getStatusBadge(credential, isVerifying || isProbing, site.requires_manual_login, connectorHealth);
 
   return (
     <div className="card-industrial">
@@ -210,15 +266,30 @@ function ConnectionCard({
               </button>
             )}
 
-            {/* Regular verify button for non-manual sites */}
-            {credential && !site.requires_manual_login && !site.coming_soon && (
+            {/* Reconnect button for non-CAPTCHA sites that need re-auth */}
+            {credential && !site.requires_manual_login && !site.coming_soon &&
+              connectorHealth?.connector_status &&
+              ['needs_reauth', 'error', 'stale'].includes(connectorHealth.connector_status) && (
               <button
                 onClick={onVerify}
                 disabled={isVerifying}
-                className="p-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] text-industrial border border-industrial-subtle transition-colors disabled:opacity-50"
-                title="Re-verify connection"
+                className="btn-industrial bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
+                title="Re-verify credentials and refresh session"
               >
-                <RefreshCw size={16} className={isVerifying ? 'animate-spin' : ''} />
+                {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Reconnect
+              </button>
+            )}
+
+            {/* Check Health button */}
+            {credential && !site.coming_soon && (
+              <button
+                onClick={onProbe}
+                disabled={isProbing || isVerifying}
+                className="p-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] text-industrial border border-industrial-subtle transition-colors disabled:opacity-50"
+                title="Check connection health"
+              >
+                <RefreshCw size={16} className={isProbing ? 'animate-spin' : ''} />
               </button>
             )}
 
@@ -276,6 +347,10 @@ export function ConnectionsPage() {
   const [browserLoginOpen, setBrowserLoginOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteConfig | null>(null);
   const [existingCredential, setExistingCredential] = useState<Credential | null>(null);
+
+  // Connector health
+  const { data: healthStatuses } = useConnectorStatus();
+  const probeMutation = useProbeConnector();
 
   // Fetch available sites from API
   const { data: sites = DEFAULT_SITES } = useQuery({
@@ -364,7 +439,12 @@ export function ConnectionsPage() {
 
   const handleBrowserLoginSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['credentials'] });
+    queryClient.invalidateQueries({ queryKey: connectorKeys.status() });
     setBrowserLoginOpen(false);
+  };
+
+  const getHealthForSite = (siteId: string): ConnectorStatusItem | undefined => {
+    return healthStatuses?.find((h) => h.site_name === siteId);
   };
 
   const handleSave = async (username: string, password: string) => {
@@ -401,15 +481,19 @@ export function ConnectionsPage() {
         <div className="space-y-4">
           {sites.map((site) => {
             const credential = getCredentialForSite(site.id);
+            const health = getHealthForSite(site.id);
             return (
               <ConnectionCard
                 key={site.id}
                 site={site}
                 credential={credential}
+                connectorHealth={health}
                 onConnect={() => handleConnect(site)}
                 onVerify={() => credential && verifyMutation.mutate(credential.id)}
                 onBrowserLogin={() => handleBrowserLogin(site)}
+                onProbe={() => credential && probeMutation.mutate(credential.id)}
                 isVerifying={verifyingId === credential?.id}
+                isProbing={probeMutation.isPending && probeMutation.variables === credential?.id}
               />
             );
           })}

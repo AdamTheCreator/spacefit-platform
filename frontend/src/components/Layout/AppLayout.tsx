@@ -20,6 +20,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useChatSessions } from '../../hooks/useChatSessions';
 import { usePreferences } from '../../hooks/usePreferences';
+import { ConnectorHealthBanner } from '../ConnectorHealthBanner';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -348,6 +349,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             )}
           </div>
         </header>
+
+        {/* Connector health warning banner */}
+        <ConnectorHealthBanner />
 
         {/* Page Content */}
         <main id="main-content" className="flex-1 overflow-hidden bg-[var(--bg-primary)]">{children}</main>

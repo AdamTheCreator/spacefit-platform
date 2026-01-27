@@ -44,6 +44,28 @@ class SiteCredentialResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConnectorStatusResponse(BaseModel):
+    """Health status for a single connector (returned by GET /connectors/status)."""
+    credential_id: UUID
+    site_name: str
+    site_display_name: str
+    connector_status: str  # connected | stale | needs_reauth | degraded | error | disabled
+    last_probe_at: datetime | None
+    last_used_at: datetime | None
+    session_error_message: str | None
+    requires_manual_login: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class ConnectorProbeResponse(BaseModel):
+    """Result of an on-demand health probe."""
+    credential_id: UUID
+    connector_status: str
+    probe_duration_ms: int
+    message: str
+
+
 class AgentConnectionResponse(BaseModel):
     id: UUID
     agent_type: str
