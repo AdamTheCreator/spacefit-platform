@@ -129,7 +129,7 @@ function getStatusBadge(
       case 'error':
         return {
           icon: <XCircle size={14} />,
-          text: connectorHealth.session_error_message || 'Connection error',
+          text: connectorHealth?.session_error_message || 'Connection error',
           className: 'text-[var(--color-error)]',
           needsManualRefresh: requiresManualLogin,
         };
