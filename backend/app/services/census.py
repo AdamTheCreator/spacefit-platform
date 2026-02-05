@@ -7,10 +7,12 @@ Provides real demographic data from the US Census Bureau API.
 """
 
 import httpx
+import logging
 from typing import Any
 from dataclasses import dataclass
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 # Census API base URLs
 CENSUS_GEOCODER_URL = "https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress"
@@ -142,8 +144,8 @@ async def geocode_address(address: str) -> CensusGeography | None:
                 subdivision_name=subdivision_name,
             )
 
-        except Exception as e:
-            print(f"Geocoding error: {e}")
+        except Exception:
+            logger.exception("Geocoding error")
             return None
 
 
@@ -350,8 +352,8 @@ async def get_tract_demographics(geography: CensusGeography) -> DemographicData 
                 family_households_pct=round(family_pct, 1) if family_pct else None,
             )
 
-        except Exception as e:
-            print(f"Census API error: {e}")
+        except Exception:
+            logger.exception("Census API error")
             return None
 
 
@@ -431,8 +433,8 @@ async def get_county_demographics(geography: CensusGeography) -> DemographicData
                 avg_household_size=_safe_float(raw_data.get("avg_household_size")),
                 family_households_pct=round(family_pct, 1) if family_pct else None,
             )
-        except Exception as e:
-            print(f"Census API error (county): {e}")
+        except Exception:
+            logger.exception("Census API error (county)")
             return None
 
 
@@ -522,8 +524,8 @@ async def get_subdivision_demographics(geography: CensusGeography) -> Demographi
                 avg_household_size=_safe_float(raw_data.get("avg_household_size")),
                 family_households_pct=round(family_pct, 1) if family_pct else None,
             )
-        except Exception as e:
-            print(f"Census API error (subdivision): {e}")
+        except Exception:
+            logger.exception("Census API error (subdivision)")
             return None
 
 
@@ -668,7 +670,7 @@ async def analyze_demographics(location: str) -> str:
     start_time = record_tool_start("demographics_analysis")
 
     # Step 1: Use the Location Resolver for unified location handling
-    print(f"[CENSUS] Resolving location: {location}")
+    logger.debug("[census] Resolving location")
     resolved = await resolve_location(location)
 
     # Track the resolution for analytics
@@ -679,7 +681,11 @@ async def analyze_demographics(location: str) -> str:
         confidence=resolved.confidence.value if resolved.confidence else None,
     )
 
-    print(f"[CENSUS] Resolved to: {resolved.display_name} (confidence={resolved.confidence.value}, method={resolved.method.value})")
+    logger.debug(
+        "[census] Resolved location (confidence=%s, method=%s)",
+        resolved.confidence.value,
+        resolved.method.value if resolved.method else None,
+    )
 
     # Step 2: Try full address geocoding if we have street-level detail
     geography = await geocode_address(location)
@@ -695,7 +701,7 @@ async def analyze_demographics(location: str) -> str:
     # Step 3: Use resolved location data
     # Try place-level demographics if we have place FIPS
     if resolved.place_fips and resolved.state_fips:
-        print(f"[CENSUS] Attempting place-level query with place_fips={resolved.place_fips}")
+        logger.debug("[census] Attempting place-level query")
         place_data = await get_place_demographics(resolved.state_fips, resolved.place_fips)
         if place_data:
             record_tool_complete("demographics_analysis", start_time, success=True)
@@ -706,11 +712,11 @@ async def analyze_demographics(location: str) -> str:
 
     if not zip_code and not resolved.has_zip():
         # No ZIP found by resolver, try legacy lookup
-        print(f"[CENSUS] No ZIP in resolved location, attempting legacy lookup for: {location}")
+        logger.debug("[census] No ZIP found; attempting legacy lookup")
         zip_code = await _lookup_zip_for_location(location)
 
     if zip_code:
-        print(f"[CENSUS] Using ZIP code: {zip_code}")
+        logger.debug("[census] Using ZIP code")
         zcta_data = await get_zcta_demographics(zip_code)
         if zcta_data:
             record_tool_complete("demographics_analysis", start_time, success=True)
@@ -718,7 +724,7 @@ async def analyze_demographics(location: str) -> str:
 
     # Step 5: Try county-level fallback if we have county info
     if resolved.state_fips and resolved.county_fips:
-        print(f"[CENSUS] Attempting county-level fallback")
+        logger.debug("[census] Attempting county-level fallback")
         # Create a minimal geography object for county lookup
         county_geo = CensusGeography(
             address=resolved.display_name,
@@ -833,8 +839,8 @@ async def get_place_demographics(state_fips: str, place_fips: str) -> Demographi
                 avg_household_size=_safe_float(raw_data.get("avg_household_size")),
                 family_households_pct=round(family_pct, 1) if family_pct else None,
             )
-        except Exception as e:
-            print(f"Census API error (place): {e}")
+        except Exception:
+            logger.exception("Census API error (place)")
             return None
 
 
@@ -986,8 +992,8 @@ async def get_zcta_demographics(zip_code: str) -> DemographicData | None:
                 avg_household_size=_safe_float(raw_data.get("avg_household_size")),
                 family_households_pct=round(family_pct, 1) if family_pct else None,
             )
-        except Exception as e:
-            print(f"Census API error (ZCTA): {e}")
+        except Exception:
+            logger.exception("Census API error (ZCTA)")
             return None
 
 
@@ -1052,13 +1058,13 @@ async def _lookup_zip_for_location(location: str) -> str | None:
                     if "postal_code" in component.get("types", []):
                         zip_code = component.get("short_name", "")[:5]
                         if zip_code.isdigit() and len(zip_code) == 5:
-                            print(f"[CENSUS] Looked up ZIP for '{location}': {zip_code}")
+                            logger.debug("[census] ZIP lookup success")
                             return zip_code
 
-            print(f"[CENSUS] Could not find ZIP for '{location}'")
+            logger.debug("[census] ZIP lookup returned no results")
             return None
-        except Exception as e:
-            print(f"[CENSUS] ZIP lookup error: {e}")
+        except Exception:
+            logger.exception("[census] ZIP lookup error")
             return None
 
 

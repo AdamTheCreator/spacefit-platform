@@ -9,9 +9,8 @@ import json
 import re
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from app.core.config import settings
+from app.llm import LLMVisionDocument, LLMVisionRequest, get_vision_llm_client
 from app.models.document import (
     DocumentType,
     ExtractedFlyerData,
@@ -22,10 +21,7 @@ from app.models.document import (
     SitePlanLocationArea,
 )
 
-# Initialize Anthropic client
-client = Anthropic(api_key=settings.anthropic_api_key)
-
-# Use Claude Sonnet for better vision capabilities
+# Default vision model (can be overridden with LLM_VISION_MODEL)
 VISION_MODEL = "claude-sonnet-4-20250514"
 
 
@@ -73,33 +69,20 @@ KEY DISTINCTION: If the document is primarily a visual layout/diagram showing bu
 
 Respond with JSON only: {"type": "document_type", "confidence": 0.95}"""
 
-    response = client.messages.create(
-        model=VISION_MODEL,
-        max_tokens=200,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": "Classify this document. Return JSON only.",
-                    },
-                ],
-            }
-        ],
-    )
+    llm = get_vision_llm_client()
+    vision_model = settings.llm_vision_model or VISION_MODEL
 
-    # Parse the response
-    response_text = response.content[0].text.strip()
+    response_text = (
+        await llm.vision_document(
+            LLMVisionRequest(
+                model=vision_model,
+                max_tokens=200,
+                system=system_prompt,
+                document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),
+                user_text="Classify this document. Return JSON only.",
+            )
+        )
+    ).strip()
 
     # Extract JSON from response (handle markdown code blocks)
     json_match = re.search(r'\{[^}]+\}', response_text)
@@ -186,32 +169,23 @@ IMPORTANT:
 - If information is not available, use null
 - Return valid JSON only, no markdown formatting"""
 
-    response = client.messages.create(
-        model=VISION_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract all property information, available spaces, existing tenants, amenities, and highlights from this leasing flyer. Return JSON only.",
-                    },
-                ],
-            }
-        ],
-    )
+    llm = get_vision_llm_client()
+    vision_model = settings.llm_vision_model or VISION_MODEL
 
-    response_text = response.content[0].text.strip()
+    response_text = (
+        await llm.vision_document(
+            LLMVisionRequest(
+                model=vision_model,
+                max_tokens=4096,
+                system=system_prompt,
+                document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),
+                user_text=(
+                    "Extract all property information, available spaces, existing tenants, amenities, and "
+                    "highlights from this leasing flyer. Return JSON only."
+                ),
+            )
+        )
+    ).strip()
 
     # Extract JSON from response (handle markdown code blocks)
     json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -335,32 +309,24 @@ IMPORTANT EXTRACTION GUIDELINES:
 - If address is partially visible, extract what you can see
 - Return valid JSON only, no markdown formatting"""
 
-    response = client.messages.create(
-        model=VISION_MODEL,
-        max_tokens=8192,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract all property information, tenant locations, and available spaces from this site plan. Pay special attention to identifying the property address and all tenant names visible on the plan. Return JSON only.",
-                    },
-                ],
-            }
-        ],
-    )
+    llm = get_vision_llm_client()
+    vision_model = settings.llm_vision_model or VISION_MODEL
 
-    response_text = response.content[0].text.strip()
+    response_text = (
+        await llm.vision_document(
+            LLMVisionRequest(
+                model=vision_model,
+                max_tokens=8192,
+                system=system_prompt,
+                document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),
+                user_text=(
+                    "Extract all property information, tenant locations, and available spaces from this "
+                    "site plan. Pay special attention to identifying the property address and all tenant "
+                    "names visible on the plan. Return JSON only."
+                ),
+            )
+        )
+    ).strip()
 
     # Extract JSON from response (handle markdown code blocks)
     json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -456,32 +422,23 @@ IMPORTANT:
 - Extract specific tenant names mentioned as opportunities
 - Return valid JSON only"""
 
-    response = client.messages.create(
-        model=VISION_MODEL,
-        max_tokens=8192,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract all void/gap analysis data from this document. Identify all categories, existing retailers, and void opportunities. Return JSON only.",
-                    },
-                ],
-            }
-        ],
-    )
+    llm = get_vision_llm_client()
+    vision_model = settings.llm_vision_model or VISION_MODEL
 
-    response_text = response.content[0].text.strip()
+    response_text = (
+        await llm.vision_document(
+            LLMVisionRequest(
+                model=vision_model,
+                max_tokens=8192,
+                system=system_prompt,
+                document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),
+                user_text=(
+                    "Extract all void/gap analysis data from this document. Identify all categories, "
+                    "existing retailers, and void opportunities. Return JSON only."
+                ),
+            )
+        )
+    ).strip()
 
     # Extract JSON from response
     json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -568,32 +525,20 @@ IMPORTANT:
 - Identify any tenant interest or LOIs mentioned
 - Return valid JSON only"""
 
-    response = client.messages.create(
-        model=VISION_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract all investment and property information from this memo. Return JSON only.",
-                    },
-                ],
-            }
-        ],
-    )
+    llm = get_vision_llm_client()
+    vision_model = settings.llm_vision_model or VISION_MODEL
 
-    response_text = response.content[0].text.strip()
+    response_text = (
+        await llm.vision_document(
+            LLMVisionRequest(
+                model=vision_model,
+                max_tokens=4096,
+                system=system_prompt,
+                document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),
+                user_text="Extract all investment and property information from this memo. Return JSON only.",
+            )
+        )
+    ).strip()
 
     # Extract JSON from response
     json_match = re.search(r'\{[\s\S]*\}', response_text)

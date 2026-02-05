@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -19,6 +20,7 @@ from app.models.credential import (
 from app.scrapers import list_all_sites
 
 router = APIRouter(prefix="/credentials", tags=["credentials"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/sites", response_model=list[dict])
@@ -146,7 +148,7 @@ async def _background_verify_credential(
     from app.core.database import async_session_factory
     from app.services.credential_verification import verify_credentials
 
-    print(f"[BG-VERIFY] Starting background verification for {site_name}")
+    logger.info("[bg-verify] Starting background verification (site=%s)", site_name)
 
     try:
         result = await verify_credentials(
@@ -156,7 +158,7 @@ async def _background_verify_credential(
             user_id=user_id,
         )
 
-        print(f"[BG-VERIFY] Result: success={result.success}, message={result.message}")
+        logger.info("[bg-verify] Result (site=%s, success=%s)", site_name, result.success)
 
         async with async_session_factory() as db:
             db_result = await db.execute(
@@ -176,7 +178,7 @@ async def _background_verify_credential(
                 credential.session_last_checked = datetime.utcnow()
                 await db.commit()
     except Exception as e:
-        print(f"[BG-VERIFY] Error during background verification: {e}")
+        logger.exception("[bg-verify] Error during background verification (site=%s)", site_name)
         try:
             async with async_session_factory() as db:
                 db_result = await db.execute(
@@ -322,8 +324,7 @@ async def verify_credential(
     username = decrypt_credential(credential.username_encrypted)
     password = decrypt_credential(credential.password_encrypted)
 
-    print(f"[VERIFY] Starting browser verification for {site_name}")
-    print(f"[VERIFY] Username: {username}, Password length: {len(password)}")
+    logger.info("[verify] Starting browser verification (site=%s)", site_name)
 
     # Run actual browser verification
     verification_result = await verify_credentials(
@@ -333,8 +334,13 @@ async def verify_credential(
         user_id=current_user.id,
     )
 
-    print(f"[VERIFY] Result: success={verification_result.success}, message={verification_result.message}")
-    print(f"[VERIFY] CAPTCHA detected: {verification_result.captcha_detected}, requires_manual: {verification_result.requires_manual_session}")
+    logger.info(
+        "[verify] Result (site=%s success=%s captcha=%s requires_manual=%s)",
+        site_name,
+        verification_result.success,
+        verification_result.captcha_detected,
+        verification_result.requires_manual_session,
+    )
 
     # Update credential status based on result
     if verification_result.captcha_detected or verification_result.requires_manual_session:

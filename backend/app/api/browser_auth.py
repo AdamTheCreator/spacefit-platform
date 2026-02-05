@@ -6,6 +6,7 @@ Uses WebSocket for real-time status updates during the login process.
 """
 
 import asyncio
+import logging
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -29,6 +30,7 @@ from app.services.connector_health import update_connector_on_success
 
 
 router = APIRouter(prefix="/browser-auth", tags=["browser-auth"])
+logger = logging.getLogger(__name__)
 
 
 class BrowserLoginRequest(BaseModel):
@@ -313,11 +315,9 @@ async def browser_login_websocket(
                     # Update connector health state
                     await update_connector_on_success(credential, db)
                 else:
-                    print(
-                        f"[BROWSER-AUTH] WARNING: Browser login succeeded for "
-                        f"{manager.site_name} but no credential record found for "
-                        f"user {user.id}. Session was saved to disk but DB not updated. "
-                        f"User should save credentials first via the Connections page."
+                    logger.warning(
+                        "[browser-auth] Login succeeded but no credential record found (site=%s)",
+                        manager.site_name,
                     )
             elif result.status in (LoginStatus.FAILED, LoginStatus.TIMEOUT):
                 # Update credential to reflect failure

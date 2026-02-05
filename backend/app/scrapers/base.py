@@ -3,6 +3,7 @@ Base scraper class defining the interface for all site scrapers.
 """
 
 from abc import ABC, abstractmethod
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional
@@ -10,6 +11,7 @@ from enum import Enum
 
 from playwright.async_api import BrowserContext, Page
 
+logger = logging.getLogger(__name__)
 
 class ScraperError(Exception):
     """Base exception for scraper errors."""
@@ -384,10 +386,10 @@ class BaseScraper(ABC):
         try:
             path = f"/tmp/{filename}"
             await page.screenshot(path=path)
-            print(f"[{self.site_name.upper()}] Debug screenshot saved: {path}")
+            logger.debug("[%s] Debug screenshot saved: %s", self.site_name.upper(), path)
             return path
-        except Exception as e:
-            print(f"[{self.site_name.upper()}] Could not save screenshot: {e}")
+        except Exception:
+            logger.exception("[%s] Could not save screenshot", self.site_name.upper())
             return None
 
     @property

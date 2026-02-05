@@ -17,12 +17,14 @@ Note: Selectors may need adjustment based on actual Placer.ai page structure.
 """
 
 import time
+import logging
 from typing import Any
 
 from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeout
 
 from app.scrapers.base import BaseScraper, DataType, LoginResult, ScrapeResult
 
+logger = logging.getLogger(__name__)
 
 class PlacerAIScraper(BaseScraper):
     """Scraper for Placer.ai foot traffic and customer analytics.
@@ -85,7 +87,7 @@ class PlacerAIScraper(BaseScraper):
             # Check for CAPTCHA before attempting login
             captcha_detected, captcha_type = await self._detect_captcha(page)
             if captcha_detected:
-                print(f"[PLACER] CAPTCHA detected ({captcha_type}) - cannot proceed with automated login")
+                logger.warning("[placer] CAPTCHA detected (%s) - cannot proceed with automated login", captcha_type)
                 self._report_progress(
                     "login", 100,
                     f"CAPTCHA ({captcha_type}) detected. Please use manual session refresh."
@@ -140,7 +142,7 @@ class PlacerAIScraper(BaseScraper):
             # Check for CAPTCHA after filling credentials (sometimes appears here)
             captcha_detected, captcha_type = await self._detect_captcha(page)
             if captcha_detected:
-                print(f"[PLACER] CAPTCHA appeared after entering credentials ({captcha_type})")
+                logger.warning("[placer] CAPTCHA appeared after entering credentials (%s)", captcha_type)
                 self._report_progress(
                     "login", 100,
                     f"CAPTCHA ({captcha_type}) detected. Please use manual session refresh."
@@ -166,13 +168,12 @@ class PlacerAIScraper(BaseScraper):
 
             self._report_progress("login", 80, "Verifying login...")
 
-            current_url = page.url
-            print(f"[PLACER] After login, URL: {current_url}")
+            logger.debug("[placer] After login navigation complete")
 
             # Check for CAPTCHA challenge after submit (common scenario)
             captcha_detected, captcha_type = await self._detect_captcha(page)
             if captcha_detected:
-                print(f"[PLACER] CAPTCHA challenge appeared after submit ({captcha_type})")
+                logger.warning("[placer] CAPTCHA challenge appeared after submit (%s)", captcha_type)
                 self._report_progress(
                     "login", 100,
                     f"CAPTCHA challenge ({captcha_type}) blocked login. Please use manual session refresh."

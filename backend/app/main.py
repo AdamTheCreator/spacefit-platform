@@ -21,11 +21,13 @@ from app.api.billing import router as billing_router
 from app.api.connectors import router as connectors_router
 from app.core.config import settings
 from app.core.database import engine
+from app.llm.client import aclose_llm_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
+    await aclose_llm_client()
     await engine.dispose()
 
 

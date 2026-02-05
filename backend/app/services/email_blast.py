@@ -9,6 +9,7 @@ transactional email services for better deliverability and tracking.
 """
 
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ import asyncio
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class EmailResult:
@@ -115,10 +117,8 @@ async def send_email(
     # Check if email is configured
     if not settings.smtp_host:
         # Development mode - just log the email
-        print(f"[EMAIL] Would send to {to_email}:")
-        print(f"  Subject: {subject}")
-        print(f"  From: {from_name} <{from_email}>")
-        print(f"  Body preview: {body_html[:200]}...")
+        logger.info("[email] SMTP not configured; skipping send (dev mode)")
+        logger.debug("[email] subject_len=%d body_len=%d", len(subject), len(body_html))
 
         return EmailResult(
             success=True,

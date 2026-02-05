@@ -12,6 +12,7 @@ Benefits over SMTP:
 """
 
 import base64
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
@@ -26,6 +27,7 @@ from googleapiclient.errors import HttpError
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 # Gmail API scopes
 GMAIL_SCOPES = [
@@ -197,8 +199,8 @@ class GmailService:
             service = self._get_service()
             profile = service.users().getProfile(userId="me").execute()
             return profile.get("emailAddress")
-        except HttpError as e:
-            print(f"[GMAIL] Error getting user email: {e}")
+        except HttpError:
+            logger.exception("[gmail] Error getting user email")
             return None
 
     def send_email(

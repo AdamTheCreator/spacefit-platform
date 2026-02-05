@@ -48,6 +48,22 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(default="")
     anthropic_model: str = Field(default="claude-3-haiku-20240307")
 
+    # LLM Routing / Provider Abstraction
+    # - LLM_PROVIDER=anthropic (default) uses ANTHROPIC_API_KEY and ANTHROPIC_MODEL
+    # - LLM_PROVIDER=openai_compatible uses OPENAI_API_KEY and OPENAI_BASE_URL
+    llm_provider: str = Field(default="anthropic")
+    llm_vision_provider: str = Field(default="")  # Optional override for vision tasks
+    llm_model: str = Field(default="")  # Optional override for provider default model
+    llm_vision_model: str = Field(default="")  # Optional override for vision model
+    llm_timeout_seconds: float = Field(default=60.0)
+    llm_max_retries: int = Field(default=2)
+    llm_max_concurrency: int = Field(default=4)
+    llm_tool_result_max_chars: int = Field(default=12000)
+
+    # OpenAI-compatible settings (optional)
+    openai_api_key: str = Field(default="")
+    openai_base_url: str = Field(default="https://api.openai.com/v1")
+
     # Census Bureau API
     census_api_key: str = Field(default="")
 

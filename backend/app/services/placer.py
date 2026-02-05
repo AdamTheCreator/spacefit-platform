@@ -12,11 +12,13 @@ Key difference from Census:
 """
 
 import httpx
+import logging
 from typing import Any
 from dataclasses import dataclass
 from datetime import datetime
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 # Placer.ai API base URL
 PLACER_API_URL = "https://api.placer.ai/v1"
@@ -112,7 +114,7 @@ async def search_venue(address: str) -> str | None:
         venue_id string, or None if not found
     """
     if not settings.placer_api_key:
-        print("[PLACER] API key not configured - using stub data")
+        logger.warning("[placer] API key not configured - using stub data")
         return "stub_venue_12345"
 
     url = f"{PLACER_API_URL}/venues/search"
@@ -128,8 +130,8 @@ async def search_venue(address: str) -> str | None:
             if data.get("venues"):
                 return data["venues"][0].get("id")
             return None
-        except Exception as e:
-            print(f"[PLACER] Venue search error: {e}")
+        except Exception:
+            logger.exception("[placer] Venue search error")
             return None
 
 
@@ -188,8 +190,8 @@ async def get_audience_overview(venue_id: str) -> AudienceOverview | None:
                 most_common_ethnicity=data.get("top_ethnicity"),
                 avg_household_size=data.get("avg_hh_size"),
             )
-        except Exception as e:
-            print(f"[PLACER] Audience overview error: {e}")
+        except Exception:
+            logger.exception("[placer] Audience overview error")
             return None
 
 
@@ -248,8 +250,8 @@ async def get_foot_traffic(
                 avg_dwell_time_minutes=data.get("dwell_time"),
                 visitor_radius_miles=data.get("trade_area_radius", 5),
             )
-        except Exception as e:
-            print(f"[PLACER] Foot traffic error: {e}")
+        except Exception:
+            logger.exception("[placer] Foot traffic error")
             return None
 
 
@@ -343,8 +345,8 @@ async def get_void_analysis(venue_id: str) -> list[VoidOpportunity]:
                     contact_email=item.get("contact_email"),
                 ))
             return voids
-        except Exception as e:
-            print(f"[PLACER] Void analysis error: {e}")
+        except Exception:
+            logger.exception("[placer] Void analysis error")
             return []
 
 
@@ -404,8 +406,8 @@ async def get_tenant_match(venue_id: str) -> list[TenantMatch]:
                     expansion_status=item.get("expansion_status", "Unknown"),
                 ))
             return matches
-        except Exception as e:
-            print(f"[PLACER] Tenant match error: {e}")
+        except Exception:
+            logger.exception("[placer] Tenant match error")
             return []
 
 

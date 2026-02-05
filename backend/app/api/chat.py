@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import uuid
 from typing import Any, Annotated
 
@@ -24,6 +25,7 @@ from app.services.orchestrator import execute_tool
 from app.services.analytics import get_analytics, MetricType, MetricEvent
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 # Store active WebSocket connections
 active_connections: dict[str, WebSocket] = {}
@@ -452,7 +454,7 @@ async def handle_tool_calls(
     3. Sends results back to Claude for synthesis
     4. Returns the final synthesized response
     """
-    print(f"[HANDLE_TOOLS] Starting with {len(tool_calls)} tool calls")
+    logger.debug("[handle_tools] tool_calls=%d", len(tool_calls))
     from app.services.orchestrator import get_orchestrator_response
 
     # Map tool names to AgentType for UI
@@ -510,7 +512,8 @@ async def handle_tool_calls(
     async def execute_single_tool(tool_call: dict) -> dict:
         tool_name = tool_call["name"]
         tool_input = tool_call["input"]
-        print(f"[HANDLE_TOOLS] Executing tool: {tool_name} with input: {tool_input}")
+        tool_input_keys = list(tool_input.keys()) if isinstance(tool_input, dict) else []
+        logger.debug("[handle_tools] execute tool=%s input_keys=%s", tool_name, tool_input_keys)
 
         # Get credential if needed
         credential = await get_best_credential_for_agent(user_id, tool_name)
@@ -531,7 +534,7 @@ async def handle_tool_calls(
 
         try:
             result = await execute_tool(tool_name, tool_input, user_id, credential)
-            print(f"[HANDLE_TOOLS] Tool {tool_name} returned {len(result)} chars")
+            logger.debug("[handle_tools] tool=%s result_chars=%d", tool_name, len(result))
             return {
                 "tool_call_id": tool_call["id"],
                 "tool_name": tool_name,
@@ -539,9 +542,7 @@ async def handle_tool_calls(
                 "success": True,
             }
         except Exception as e:
-            print(f"[HANDLE_TOOLS] Tool {tool_name} ERROR: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("[handle_tools] tool=%s failed", tool_name)
             return {
                 "tool_call_id": tool_call["id"],
                 "tool_name": tool_name,
@@ -550,9 +551,9 @@ async def handle_tool_calls(
             }
 
     # Run all tools in parallel
-    print(f"[HANDLE_TOOLS] Running {len(tool_calls)} tools in parallel...")
+    logger.debug("[handle_tools] running tools=%d", len(tool_calls))
     tool_results = await asyncio.gather(*[execute_single_tool(tc) for tc in tool_calls])
-    print(f"[HANDLE_TOOLS] All tools completed, got {len(tool_results)} results")
+    logger.debug("[handle_tools] completed tools=%d", len(tool_results))
 
     # Send results for each tool and update workflow UI
     for result_dict in tool_results:
@@ -587,7 +588,7 @@ async def handle_tool_calls(
     ]
 
     try:
-        synthesis_response = get_orchestrator_response(
+        synthesis_response = await get_orchestrator_response(
             conversation_history,
             pending_tool_results=pending_results,
             user_context=user_context,
@@ -693,7 +694,7 @@ async def websocket_endpoint(
     # Track connection with user-specific key to avoid conflicts for "new" sessions
     connection_key = f"{user_id}:{session_id}"
     active_connections[connection_key] = websocket
-    print(f"WebSocket accepted for session: {session_id} (user: {user_id})")
+    logger.debug("WebSocket accepted session=%s", session_id)
 
     try:
         # Load existing conversation history for Claude (only for existing sessions)
@@ -702,9 +703,9 @@ async def websocket_endpoint(
         session_prompt_id: str | None = None
         session_analysis_type: str | None = None
         if actual_session_id:
-            print(f"Loading history for session: {actual_session_id}")
+            logger.debug("Loading history session=%s", actual_session_id)
             conversation_history = await load_session_history(actual_session_id)
-            print(f"Loaded {len(conversation_history)} messages")
+            logger.debug("Loaded messages=%d", len(conversation_history))
             # Load document context and prompt info for analysis sessions
             async with async_session_factory() as db:
                 result = await db.execute(
@@ -761,7 +762,7 @@ async def websocket_endpoint(
                     # Generate title from the first message
                     title = None
                     try:
-                        title = generate_conversation_title(user_content)
+                        title = await generate_conversation_title(user_content)
                     except Exception:
                         pass  # Title generation is non-critical
 
@@ -802,7 +803,7 @@ async def websocket_endpoint(
             if is_first_message and actual_session_id:
                 is_first_message = False
                 try:
-                    title = generate_conversation_title(user_content)
+                    title = await generate_conversation_title(user_content)
                     # Update session title in database
                     async with async_session_factory() as db:
                         result = await db.execute(
@@ -839,13 +840,13 @@ async def websocket_endpoint(
                     # Try to extract business name + location for resolution
                     business_query = extract_business_query_from_message(user_content)
                     if business_query:
-                        print(f"Detected business query: {business_query}")
+                        logger.debug("Detected business query")
                         # Try to resolve to an address using Google Places
                         resolved = await resolve_business_to_address(business_query)
                         if resolved:
                             business_name, resolved_address = resolved
                             current_address = resolved_address
-                            print(f"Resolved to address: {current_address}")
+                            logger.debug("Resolved business query to address")
 
             # Check user credentials for premium data sources
             has_placer = await get_user_placer_credential(user_id) is not None
@@ -853,7 +854,7 @@ async def websocket_endpoint(
 
             # Get orchestrator response with native tool calling
             try:
-                response = get_orchestrator_response(
+                response = await get_orchestrator_response(
                     conversation_history,
                     user_context=user_context,
                     has_placer_credentials=has_placer,
@@ -872,10 +873,14 @@ async def websocket_endpoint(
 
             # Check if Claude wants to use tools
             tool_calls = response.get("tool_calls", [])
-            print(f"[CHAT] Response received: {len(tool_calls)} tool_calls, stop_reason={response.get('stop_reason')}")
+            logger.debug(
+                "[chat] tool_calls=%d stop_reason=%s",
+                len(tool_calls),
+                response.get("stop_reason"),
+            )
 
             if tool_calls:
-                print(f"[CHAT] Executing {len(tool_calls)} tool calls...")
+                logger.debug("[chat] executing tool_calls=%d", len(tool_calls))
                 # Claude is requesting to use tools - execute them
                 await handle_tool_calls(
                     websocket=websocket,
@@ -968,9 +973,9 @@ async def websocket_endpoint(
                         if tool in browser_agents:
                             agent_credentials[tool] = await get_best_credential_for_agent(user_id, tool)
                             if agent_credentials[tool]:
-                                print(f"Found {agent_credentials[tool].site_name} credential for {tool}")
+                                logger.debug("Found browser credential tool=%s site=%s", tool, agent_credentials[tool].site_name)
                             else:
-                                print(f"No browser credential for {tool}, will use API fallback")
+                                logger.debug("No browser credential tool=%s; using API fallback", tool)
 
                     # If void analysis is requested, gather supporting data first
                     if needs_chaining:
@@ -1095,7 +1100,7 @@ async def websocket_endpoint(
                             )
 
                     # Get orchestrator to synthesize results with personalized context
-                    synthesis_response = get_orchestrator_response(
+                    synthesis_response = await get_orchestrator_response(
                         conversation_history,
                         pending_tool_results=agent_results,
                         user_context=user_context,
@@ -1123,11 +1128,9 @@ async def websocket_endpoint(
                     conversation_history.append({"role": "assistant", "content": synthesis_response["content"]})
 
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for session: {session_id}")
+        logger.info("WebSocket disconnected session=%s", session_id)
     except Exception as e:
-        import traceback
-        print(f"WebSocket error for session {session_id}: {e}")
-        traceback.print_exc()
+        logger.exception("WebSocket error session=%s", session_id)
         try:
             await websocket.send_json({
                 "type": "error",
@@ -1138,7 +1141,7 @@ async def websocket_endpoint(
     finally:
         if connection_key in active_connections:
             del active_connections[connection_key]
-        print(f"WebSocket cleanup for session: {session_id} (user: {user_id})")
+        logger.debug("WebSocket cleanup session=%s", session_id)
 
 
 @router.websocket("/ws")
@@ -1183,7 +1186,7 @@ async def websocket_chat_endpoint(
     await websocket.accept()
     connection_key = f"chat:{user_id}"
     active_connections[connection_key] = websocket
-    print(f"Chat WebSocket connected for user: {user_id}")
+    logger.debug("Chat WebSocket connected")
 
     # Track conversation state per session
     conversation_histories: dict[str, list[dict[str, str]]] = {}
@@ -1212,7 +1215,7 @@ async def websocket_chat_endpoint(
                     # Generate title from first message
                     title = None
                     try:
-                        title = generate_conversation_title(user_content)
+                        title = await generate_conversation_title(user_content)
                     except Exception:
                         pass
 
@@ -1309,7 +1312,7 @@ async def websocket_chat_endpoint(
 
             # Get orchestrator response (with document context and prompt ID for analysis sessions)
             try:
-                response = get_orchestrator_response(
+                response = await get_orchestrator_response(
                     conversation_history,
                     user_context=user_context,
                     has_placer_credentials=has_placer,
@@ -1328,10 +1331,14 @@ async def websocket_chat_endpoint(
 
             # Check if Claude wants to use tools (native tool calling)
             tool_calls = response.get("tool_calls", [])
-            print(f"[CHAT-WS] Response: {len(tool_calls)} tool_calls, {len(response.get('content', ''))} chars text")
+            logger.debug(
+                "[chat-ws] tool_calls=%d text_chars=%d",
+                len(tool_calls),
+                len(response.get("content", "")),
+            )
 
             if tool_calls:
-                print(f"[CHAT-WS] Executing {len(tool_calls)} tool calls...")
+                logger.debug("[chat-ws] executing tool_calls=%d", len(tool_calls))
                 # Claude is requesting to use tools - execute them
                 await handle_tool_calls(
                     websocket=websocket,
@@ -1373,11 +1380,9 @@ async def websocket_chat_endpoint(
                 )
 
     except WebSocketDisconnect:
-        print(f"Chat WebSocket disconnected for user: {user_id}")
+        logger.info("Chat WebSocket disconnected")
     except Exception as e:
-        import traceback
-        print(f"Chat WebSocket error for user {user_id}: {e}")
-        traceback.print_exc()
+        logger.exception("Chat WebSocket error")
         try:
             await websocket.send_json({
                 "type": "error",
@@ -1388,7 +1393,7 @@ async def websocket_chat_endpoint(
     finally:
         if connection_key in active_connections:
             del active_connections[connection_key]
-        print(f"Chat WebSocket cleanup for user: {user_id}")
+        logger.debug("Chat WebSocket cleanup")
 
 
 async def run_agent_workflow(
@@ -1462,9 +1467,9 @@ async def run_agent_workflow(
         if tool in browser_agents:
             agent_credentials[tool] = await get_best_credential_for_agent(user_id, tool)
             if agent_credentials[tool]:
-                print(f"Found {agent_credentials[tool].site_name} credential for {tool}")
+                logger.debug("Found browser credential tool=%s site=%s", tool, agent_credentials[tool].site_name)
             else:
-                print(f"No browser credential for {tool}, will use API fallback")
+                logger.debug("No browser credential tool=%s; using API fallback", tool)
 
     # Gather supporting data for void analysis
     if needs_chaining:
@@ -1560,7 +1565,7 @@ async def run_agent_workflow(
             )
 
     # Synthesize results
-    synthesis_response = get_orchestrator_response(
+    synthesis_response = await get_orchestrator_response(
         conversation_history,
         pending_tool_results=agent_results,
         user_context=user_context,

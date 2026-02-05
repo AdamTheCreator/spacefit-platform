@@ -14,12 +14,8 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from anthropic import Anthropic
-
 from app.core.config import settings
-
-# Initialize Anthropic client
-client = Anthropic(api_key=settings.anthropic_api_key)
+from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
 
 
 async def generate_investment_memo(
@@ -196,19 +192,22 @@ Return a JSON object:
 
 Write in a professional but engaging tone. Highlight the positives while being honest about the opportunity. Return valid JSON only."""
 
-    response = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Generate an investment memo for this property:\n\n{context}\n\nReturn JSON only.",
-            }
-        ],
+    llm = get_llm_client()
+    response = await llm.chat(
+        LLMChatRequest(
+            model=settings.llm_model or settings.anthropic_model,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[
+                LLMChatMessage(
+                    role="user",
+                    content=f"Generate an investment memo for this property:\n\n{context}\n\nReturn JSON only.",
+                )
+            ],
+        )
     )
 
-    response_text = response.content[0].text.strip()
+    response_text = response.content.strip()
 
     # Parse JSON
     try:

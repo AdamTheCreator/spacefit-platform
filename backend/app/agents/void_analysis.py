@@ -10,12 +10,9 @@ Identifies missing tenant categories based on:
 """
 
 import json
-from anthropic import Anthropic
 
 from app.core.config import settings
-
-# Initialize Anthropic client
-client = Anthropic(api_key=settings.anthropic_api_key)
+from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
 
 # Define retail categories and typical co-tenancy patterns
 RETAIL_CATEGORIES = {
@@ -235,19 +232,26 @@ Return a JSON object with this structure:
 
 Analyze comprehensively but return ONLY valid JSON."""
 
-    response = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Analyze voids for this property:\n\n{context}\n\nProvide comprehensive void analysis. Return JSON only.",
-            }
-        ],
+    llm = get_llm_client()
+    response = await llm.chat(
+        LLMChatRequest(
+            model=settings.llm_model or settings.anthropic_model,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[
+                LLMChatMessage(
+                    role="user",
+                    content=(
+                        "Analyze voids for this property:\n\n"
+                        f"{context}\n\n"
+                        "Provide comprehensive void analysis. Return JSON only."
+                    ),
+                )
+            ],
+        )
     )
 
-    response_text = response.content[0].text.strip()
+    response_text = response.content.strip()
 
     # Parse JSON from response
     try:

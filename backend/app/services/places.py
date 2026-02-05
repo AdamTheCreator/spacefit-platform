@@ -6,10 +6,12 @@ Used by the Tenant Roster Agent to get actual businesses at a location.
 """
 
 import httpx
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 # Google Places API endpoints (using legacy API which is more widely enabled)
 PLACES_NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
@@ -150,12 +152,12 @@ async def geocode_address(address: str) -> tuple[float, float] | None:
                     location = data["results"][0]["geometry"]["location"]
                     return (location["lat"], location["lng"])
                 else:
-                    print(f"Google Geocoding failed: {data.get('status')} - {data.get('error_message', '')}")
-            except Exception as e:
-                print(f"Google Geocoding error: {e}")
+                    logger.warning("Google Geocoding failed (status=%s)", data.get("status"))
+            except Exception:
+                logger.exception("Google Geocoding error")
 
     # Fallback to Census Geocoder (free, no API key needed)
-    print("Falling back to Census Geocoder...")
+    logger.debug("Falling back to Census Geocoder")
     census_url = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
     params = {
         "address": address,
@@ -177,11 +179,11 @@ async def geocode_address(address: str) -> tuple[float, float] | None:
                 if lat and lng:
                     return (lat, lng)
 
-            print("Census Geocoding: No matches found")
+            logger.debug("Census Geocoding: no matches found")
             return None
 
-        except Exception as e:
-            print(f"Census Geocoding error: {e}")
+        except Exception:
+            logger.exception("Census Geocoding error")
             return None
 
 
@@ -222,7 +224,7 @@ async def search_nearby_businesses(
             data = response.json()
 
             if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-                print(f"Places API error: {data.get('status')} - {data.get('error_message', '')}")
+                logger.warning("Places API error (status=%s)", data.get("status"))
                 return []
 
             businesses = []
@@ -245,8 +247,8 @@ async def search_nearby_businesses(
 
             return businesses
 
-        except Exception as e:
-            print(f"Places API error: {e}")
+        except Exception:
+            logger.exception("Places API error")
             return []
 
 
@@ -285,7 +287,7 @@ async def search_businesses_by_text(
             data = response.json()
 
             if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-                print(f"Places API error: {data.get('status')} - {data.get('error_message', '')}")
+                logger.warning("Places API error (status=%s)", data.get("status"))
                 return []
 
             businesses = []
@@ -308,8 +310,8 @@ async def search_businesses_by_text(
 
             return businesses
 
-        except Exception as e:
-            print(f"Places API text search error: {e}")
+        except Exception:
+            logger.exception("Places API text search error")
             return []
 
 
@@ -530,19 +532,19 @@ async def resolve_business_to_address(query: str) -> tuple[str, str] | None:
         Tuple of (business_name, formatted_address) or None if not found
     """
     if not settings.google_places_api_key:
-        print("Google Places API key not configured")
+        logger.warning("Google Places API key not configured")
         return None
 
     # Search for the business using text search
     businesses = await search_businesses_by_text(query)
 
     if not businesses:
-        print(f"No business found for query: {query}")
+        logger.debug("No business found for query")
         return None
 
     # Return the first (most relevant) result
     best_match = businesses[0]
-    print(f"Resolved '{query}' to: {best_match.name} at {best_match.address}")
+    logger.debug("Resolved business query to address")
 
     return (best_match.name, best_match.address)
 

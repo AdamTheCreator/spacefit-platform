@@ -10,12 +10,14 @@ This solves the problem where tools like the Census API require specific identif
 
 import re
 import httpx
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 from enum import Enum
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
 class ResolutionMethod(str, Enum):
     """How the location was resolved."""
@@ -280,8 +282,8 @@ async def _geocode_with_google(location: str) -> ResolvedLocation | None:
                 original_input=location,
             )
 
-        except Exception as e:
-            print(f"[LOCATION_RESOLVER] Google geocoding error: {e}")
+        except Exception:
+            logger.exception("[location_resolver] Google geocoding error")
             return None
 
 
@@ -343,8 +345,8 @@ async def _geocode_with_census(location: str) -> ResolvedLocation | None:
                 original_input=location,
             )
 
-        except Exception as e:
-            print(f"[LOCATION_RESOLVER] Census geocoding error: {e}")
+        except Exception:
+            logger.exception("[location_resolver] Census geocoding error")
             return None
 
 
@@ -397,8 +399,8 @@ async def _lookup_place_fips(city: str, state_abbrev: str) -> dict | None:
 
             return None
 
-        except Exception as e:
-            print(f"[LOCATION_RESOLVER] Place FIPS lookup error: {e}")
+        except Exception:
+            logger.exception("[location_resolver] Place FIPS lookup error")
             return None
 
 
@@ -455,7 +457,7 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
     zip_match = re.search(r'\b(\d{5})\b', input_string)
     input_zip = zip_match.group(1) if zip_match else None
 
-    print(f"[LOCATION_RESOLVER] Parsed: street={street}, city={city}, state={state_abbrev}, zip={input_zip}")
+    logger.debug("[location_resolver] Parsed input")
 
     # Strategy 1: Full address - try Census Geocoder
     if street and state_abbrev:
@@ -464,7 +466,7 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
             if input_zip:
                 result.primary_zip = input_zip
                 result.zip_codes = [input_zip]
-            print(f"[LOCATION_RESOLVER] Census geocoder success: {result.display_name}")
+            logger.debug("[location_resolver] Census geocoder success")
             return result
 
     # Strategy 2: City/State - try place FIPS lookup
@@ -508,7 +510,7 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
                 google_result.place_fips = place_info["place_fips"]
                 google_result.confidence = ResolutionConfidence.HIGH
 
-        print(f"[LOCATION_RESOLVER] Google geocoding success: {google_result.display_name}")
+        logger.debug("[location_resolver] Google geocoding success")
         return google_result
 
     # Strategy 4: ZIP code only

@@ -9,6 +9,7 @@ The login flow and page structure should be verified with a real CoStar account.
 """
 
 import asyncio
+import logging
 import time
 from datetime import datetime, date
 from typing import Any
@@ -17,6 +18,7 @@ from playwright.async_api import BrowserContext, Page, TimeoutError as Playwrigh
 
 from app.scrapers.base import BaseScraper, DataType, ScrapeResult
 
+logger = logging.getLogger(__name__)
 
 class CoStarScraper(BaseScraper):
     """
@@ -86,7 +88,7 @@ class CoStarScraper(BaseScraper):
                 timeout_ms=10000,
             )
             if not username_filled:
-                print("[COSTAR] Could not find username field")
+                logger.warning("[costar] Could not find username field")
                 return False
 
             # Click continue/next button if present (CoStar may have multi-step login)
@@ -103,7 +105,7 @@ class CoStarScraper(BaseScraper):
                 timeout_ms=10000,
             )
             if not password_filled:
-                print("[COSTAR] Could not find password field")
+                logger.warning("[costar] Could not find password field")
                 return False
 
             self._report_progress("login", 45, "Submitting login...")
@@ -129,11 +131,11 @@ class CoStarScraper(BaseScraper):
                 return False
 
         except PlaywrightTimeout:
-            print("[COSTAR] Login timeout")
+            logger.warning("[costar] Login timeout")
             self._report_progress("login", 100, "Login timeout")
             return False
         except Exception as e:
-            print(f"[COSTAR] Login error: {e}")
+            logger.exception("[costar] Login error")
             self._report_progress("login", 100, f"Login error: {str(e)}")
             return False
         finally:
@@ -182,8 +184,8 @@ class CoStarScraper(BaseScraper):
 
             return False
 
-        except Exception as e:
-            print(f"[COSTAR] Error checking login status: {e}")
+        except Exception:
+            logger.exception("[costar] Error checking login status")
             return False
 
     async def is_logged_in(self, context: BrowserContext) -> bool:
@@ -204,8 +206,8 @@ class CoStarScraper(BaseScraper):
             # Check for logged-in indicators
             return await self._check_login_success(page)
 
-        except Exception as e:
-            print(f"[COSTAR] Session check error: {e}")
+        except Exception:
+            logger.exception("[costar] Session check error")
             return False
         finally:
             await page.close()
@@ -354,12 +356,12 @@ class CoStarScraper(BaseScraper):
                     if tenant["name"]:
                         tenants.append(tenant)
 
-                except Exception as e:
-                    print(f"[COSTAR] Error extracting tenant row: {e}")
+                except Exception:
+                    logger.exception("[costar] Error extracting tenant row")
                     continue
 
-        except Exception as e:
-            print(f"[COSTAR] Error finding tenant rows: {e}")
+        except Exception:
+            logger.exception("[costar] Error finding tenant rows")
 
         return tenants
 

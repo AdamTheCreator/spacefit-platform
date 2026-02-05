@@ -10,12 +10,14 @@ Note: Selectors may need adjustment based on actual SiteUSA page structure.
 """
 
 import time
+import logging
 from typing import Any
 
 from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeout
 
 from app.scrapers.base import BaseScraper, DataType, ScrapeResult
 
+logger = logging.getLogger(__name__)
 
 class SiteUSAScraper(BaseScraper):
     """Scraper for SiteUSA commercial real estate data."""
@@ -123,14 +125,13 @@ class SiteUSAScraper(BaseScraper):
             # Add extra wait for Angular to settle
             await page.wait_for_timeout(2000)
 
-            current_url = page.url
-            print(f"[SITEUSA] After login, URL: {current_url}")
+            logger.debug("[siteusa] After login navigation complete")
 
             self._report_progress("login", 80, "Checking login status...")
 
             # Check for successful login
             is_dashboard = await self._is_on_dashboard(page)
-            print(f"[SITEUSA] Is on dashboard: {is_dashboard}")
+            logger.debug("[siteusa] Is on dashboard: %s", is_dashboard)
 
             if is_dashboard:
                 self._report_progress("login", 100, "Login successful!")
@@ -139,9 +140,9 @@ class SiteUSAScraper(BaseScraper):
             # Take screenshot for debugging
             try:
                 await page.screenshot(path="/tmp/siteusa_login_debug.png")
-                print("[SITEUSA] Screenshot saved to /tmp/siteusa_login_debug.png")
-            except Exception as e:
-                print(f"[SITEUSA] Could not save screenshot: {e}")
+                logger.debug("[siteusa] Screenshot saved to /tmp/siteusa_login_debug.png")
+            except Exception:
+                logger.exception("[siteusa] Could not save screenshot")
 
             # Check for error messages (including Angular Material errors)
             error_selectors = [
