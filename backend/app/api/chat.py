@@ -23,6 +23,15 @@ from app.models.chat import (
 )
 from app.services.orchestrator import execute_tool
 from app.services.analytics import get_analytics, MetricType, MetricEvent
+from app.services.guardrails import (
+    validate_message_size,
+    rate_limiter,
+    classify_message,
+    check_subscription_limit,
+    check_token_budget,
+    record_token_usage,
+    increment_session_usage,
+)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -444,6 +453,7 @@ async def handle_tool_calls(
     document_context: dict | None = None,
     system_prompt_id: str | None = None,
     analysis_type: str | None = None,
+    depth: int = 0,
 ) -> None:
     """
     Handle tool calls from Claude's native tool use.
@@ -454,7 +464,19 @@ async def handle_tool_calls(
     3. Sends results back to Claude for synthesis
     4. Returns the final synthesized response
     """
-    logger.debug("[handle_tools] tool_calls=%d", len(tool_calls))
+    from app.core.config import settings as _settings
+
+    if depth >= _settings.guardrail_tool_recursion_max_depth:
+        logger.warning("[handle_tools] recursion depth %d reached max, stopping", depth)
+        summary_msg = Message(
+            role=MessageRole.AGENT,
+            agent_type=AgentType.ORCHESTRATOR,
+            content="I've gathered the available data. Let me summarize what I found so far.",
+        )
+        await send_ws_message(websocket, "message", summary_msg.model_dump(mode="json"))
+        return
+
+    logger.debug("[handle_tools] tool_calls=%d depth=%d", len(tool_calls), depth)
     from app.services.orchestrator import get_orchestrator_response
 
     # Map tool names to AgentType for UI
@@ -599,9 +621,16 @@ async def handle_tool_calls(
             analysis_type=analysis_type,
         )
 
+        # Record tokens from synthesis call
+        await record_token_usage(
+            user_id,
+            synthesis_response.get("input_tokens", 0),
+            synthesis_response.get("output_tokens", 0),
+        )
+
         # Check if Claude wants to use more tools (rare, but possible)
         if synthesis_response.get("tool_calls"):
-            # Recursive call for additional tools
+            # Recursive call for additional tools (depth-capped)
             await handle_tool_calls(
                 websocket=websocket,
                 tool_calls=synthesis_response["tool_calls"],
@@ -614,6 +643,7 @@ async def handle_tool_calls(
                 document_context=document_context,
                 system_prompt_id=system_prompt_id,
                 analysis_type=analysis_type,
+                depth=depth + 1,
             )
         elif synthesis_response["content"]:
             # Send synthesized response
@@ -739,6 +769,8 @@ async def websocket_endpoint(
                     "data": existing_messages,
                 })
 
+        session_usage_counted = False
+
         while True:
             data = await websocket.receive_text()
             try:
@@ -746,6 +778,37 @@ async def websocket_endpoint(
             except json.JSONDecodeError:
                 continue
             user_content = message_data.get("content", "")
+
+            # --- Guardrail checks (pre-LLM) ---
+            # 1. Message size
+            ok, err = validate_message_size(user_content)
+            if not ok:
+                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
+                continue
+
+            # 2. Rate limit
+            ok, err = rate_limiter.check(user_id)
+            if not ok:
+                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
+                continue
+
+            # 3. Topic classifier
+            ok, err = await classify_message(user_content)
+            if not ok:
+                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
+                continue
+
+            # 4. Subscription session limit
+            ok, err = await check_subscription_limit(user_id)
+            if not ok:
+                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
+                continue
+
+            # 5. Token budget
+            ok, err = await check_token_budget(user_id)
+            if not ok:
+                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
+                continue
 
             # Echo user message back
             user_message = Message(
@@ -870,6 +933,16 @@ async def websocket_endpoint(
                 )
                 await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue
+
+            # --- Post-LLM: record tokens and session usage ---
+            await record_token_usage(
+                user_id,
+                response.get("input_tokens", 0),
+                response.get("output_tokens", 0),
+            )
+            if not session_usage_counted:
+                session_usage_counted = True
+                await increment_session_usage(user_id)
 
             # Check if Claude wants to use tools
             tool_calls = response.get("tool_calls", [])

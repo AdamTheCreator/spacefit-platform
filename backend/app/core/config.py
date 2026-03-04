@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     llm_max_concurrency: int = Field(default=4)
     llm_tool_result_max_chars: int = Field(default=12000)
 
+    # Guardrails
+    guardrail_max_message_chars: int = Field(default=8000)
+    guardrail_rate_limit_messages: int = Field(default=30)
+    guardrail_rate_limit_window_seconds: int = Field(default=60)
+    guardrail_tool_recursion_max_depth: int = Field(default=3)
+    guardrail_classifier_model: str = Field(default="claude-3-haiku-20240307")
+    guardrail_free_monthly_token_budget: int = Field(default=500_000)
+    guardrail_pro_monthly_token_budget: int = Field(default=-1)
+
     # OpenAI-compatible settings (optional)
     openai_api_key: str = Field(default="")
     openai_base_url: str = Field(default="https://api.openai.com/v1")

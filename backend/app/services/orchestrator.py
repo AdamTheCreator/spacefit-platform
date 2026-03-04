@@ -309,6 +309,8 @@ async def get_orchestrator_response(
         "content": response.content,
         "tool_calls": tool_calls,
         "stop_reason": response.stop_reason,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
     }
 
 
