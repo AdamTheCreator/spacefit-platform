@@ -70,6 +70,11 @@ class AnthropicLLMClient:
         tool_calls: list[LLMToolCall] = []
         stop_reason: str | None = getattr(response, "stop_reason", None)
 
+        # Extract token usage
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "input_tokens", 0) if usage else 0
+        output_tokens = getattr(usage, "output_tokens", 0) if usage else 0
+
         for block in getattr(response, "content", []):
             if isinstance(block, self._TextBlock):
                 text_content += block.text
@@ -82,6 +87,8 @@ class AnthropicLLMClient:
             content=text_content,
             tool_calls=tool_calls,
             stop_reason=stop_reason,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )
 
     async def aclose(self) -> None:

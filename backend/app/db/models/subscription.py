@@ -63,6 +63,9 @@ class SubscriptionPlan(Base):
     documents_per_month: Mapped[int] = mapped_column(Integer, default=5)
     team_members: Mapped[int] = mapped_column(Integer, default=1)
 
+    # Token budget (-1 = unlimited)
+    monthly_token_budget: Mapped[int] = mapped_column(Integer, default=500_000)
+
     # Feature flags
     has_placer_access: Mapped[bool] = mapped_column(Boolean, default=False)
     has_siteusa_access: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -144,6 +147,24 @@ class UsageRecord(Base):
 
     # Relationships
     subscription: Mapped["Subscription"] = relationship(back_populates="usage_records")
+
+
+class TokenUsage(Base):
+    """Track token consumption per user per monthly period."""
+
+    __tablename__ = "token_usage"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    period_start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 # Forward reference
