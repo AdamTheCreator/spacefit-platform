@@ -226,7 +226,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </p>
             </Link>
           )}
-          <p className="text-[11px] text-industrial-muted px-1">SpaceFit v0.1</p>
+          <p className="text-[11px] text-industrial-muted px-1">SpaceFit v0.2.0</p>
         </div>
       </div>
 
