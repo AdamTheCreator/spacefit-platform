@@ -30,6 +30,7 @@ class UserResponse(UserBase):
     email_verified: bool
     avatar_url: str | None
     is_active: bool
+    is_admin: bool = False
     created_at: datetime
     has_completed_onboarding: bool = False
 

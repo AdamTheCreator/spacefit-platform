@@ -55,6 +55,7 @@ async def register(
         email_verified=user.email_verified,
         avatar_url=user.avatar_url,
         is_active=user.is_active,
+        is_admin=user.is_admin,
         created_at=user.created_at,
         has_completed_onboarding=False,
     )
@@ -133,6 +134,7 @@ async def get_current_user_info(
         email_verified=current_user.email_verified,
         avatar_url=current_user.avatar_url,
         is_active=current_user.is_active,
+        is_admin=current_user.is_admin,
         created_at=current_user.created_at,
         has_completed_onboarding=has_completed,
     )

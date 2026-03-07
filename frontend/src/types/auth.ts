@@ -6,6 +6,7 @@ export interface User {
   email_verified: boolean;
   avatar_url: string | null;
   is_active: boolean;
+  is_admin: boolean;
   created_at: string;
   has_completed_onboarding: boolean;
 }

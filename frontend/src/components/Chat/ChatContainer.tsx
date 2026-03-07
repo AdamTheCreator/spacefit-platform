@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useChat } from '../../hooks/useChat';
+import { useAuthStore } from '../../stores/authStore';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
@@ -19,6 +20,7 @@ interface LocationState {
 export function ChatContainer({ initialSessionId }: ChatContainerProps) {
   const location = useLocation();
   const locationState = location.state as LocationState | null;
+  const user = useAuthStore(state => state.user);
 
   // Use the new simplified useChat hook
   const {
@@ -137,15 +139,17 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
             </p>
 
             {/* Demo Mode Button */}
-            <Link
-              to="/demo"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] font-medium text-sm hover:bg-[var(--accent-hover)] transition-colors shadow-sm mb-8"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-              </svg>
-              Watch Demo
-            </Link>
+            {user?.is_admin && (
+              <Link
+                to="/demo"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] font-medium text-sm hover:bg-[var(--accent-hover)] transition-colors shadow-sm mb-8"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                </svg>
+                Watch Demo
+              </Link>
+            )}
 
             <p className="text-xs font-medium text-industrial-muted uppercase tracking-wide mb-4">Try asking</p>
 
@@ -166,6 +170,16 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
                 </button>
               ))}
             </div>
+
+            <p className="text-xs text-industrial-muted mt-6">
+              Need help?{' '}
+              <a
+                href="mailto:support-spacefit@agentmail.to"
+                className="underline hover:text-industrial-secondary transition-colors"
+              >
+                Contact support
+              </a>
+            </p>
           </div>
         ) : (
           <>

@@ -15,6 +15,7 @@ import {
   FileText,
   Mail,
   Sparkles,
+  HelpCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -226,6 +227,13 @@ export function AppLayout({ children }: AppLayoutProps) {
               </p>
             </Link>
           )}
+          <a
+            href="mailto:support-spacefit@agentmail.to"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
+          >
+            <HelpCircle size={16} />
+            <span>Support</span>
+          </a>
           <p className="text-[11px] text-industrial-muted px-1">SpaceFit v0.2.0</p>
         </div>
       </div>
