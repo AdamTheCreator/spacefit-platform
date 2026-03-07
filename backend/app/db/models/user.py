@@ -67,6 +67,9 @@ class User(Base):
     subscription: Mapped["Subscription | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
+    email_tokens: Mapped[list["EmailToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     @property
     def tier(self) -> str:
@@ -141,3 +144,4 @@ from app.db.models.credential import SiteCredential, OnboardingProgress, UserPre
 from app.db.models.deal import Deal, Property  # noqa: E402
 from app.db.models.document import ParsedDocument  # noqa: E402
 from app.db.models.subscription import Subscription  # noqa: E402
+from app.db.models.email_token import EmailToken  # noqa: E402

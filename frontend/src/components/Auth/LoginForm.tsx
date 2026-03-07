@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -103,6 +104,14 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
         {errors.password && (
           <p className="mt-2 text-sm text-[var(--color-error)]">{errors.password.message}</p>
         )}
+        <div className="mt-2 text-right">
+          <Link
+            to="/forgot-password"
+            className="text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+          >
+            Forgot password?
+          </Link>
+        </div>
       </div>
 
       <button

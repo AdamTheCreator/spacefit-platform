@@ -21,6 +21,7 @@ from app.db import (  # noqa: F401 - Import all models to register them
     SiteCredential,
     AgentConnection,
     OnboardingProgress,
+    EmailToken,
 )
 
 config = context.config

@@ -3,6 +3,7 @@ from app.db.models.user import User, OAuthAccount, RefreshToken, SSOConfiguratio
 from app.db.models.chat import ChatSession, ChatMessage
 from app.db.models.customer import Customer, CustomerContact
 from app.db.models.credential import SiteCredential, AgentConnection, OnboardingProgress
+from app.db.models.email_token import EmailToken
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "SiteCredential",
     "AgentConnection",
     "OnboardingProgress",
+    "EmailToken",
 ]

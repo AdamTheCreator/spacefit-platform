@@ -33,6 +33,7 @@ interface RegisterFormProps {
 export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
   const { register: registerUser, error, clearError } = useAuthStore();
 
   const {
@@ -52,13 +53,37 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         first_name: data.first_name,
         last_name: data.last_name,
       });
-      onSuccess?.();
+      setRegistrationComplete(true);
+      // Don't call onSuccess - show verification message instead
     } catch {
       // Error is handled by the store
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (registrationComplete) {
+    return (
+      <div className="text-center py-6">
+        <div className="w-12 h-12 bg-[var(--accent)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-6 h-6 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-industrial mb-2">Check your email</h2>
+        <p className="text-sm text-industrial-muted mb-6">
+          We've sent a verification link to your email address. Please check your inbox and click the link to verify your account.
+        </p>
+        <button
+          type="button"
+          onClick={onSwitchToLogin}
+          className="text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium transition-colors"
+        >
+          Go to login
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

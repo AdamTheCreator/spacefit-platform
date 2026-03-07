@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     browser_timeout_seconds: int = Field(default=60)
     browser_session_max_age_hours: int = Field(default=24)
 
+    # Resend Email (transactional emails)
+    resend_api_key: str = Field(default="")
+    resend_from_email: str = Field(default="noreply@spacefit.ai")
+    resend_from_name: str = Field(default="SpaceFit")
+
     # Stripe Payments
     stripe_secret_key: str = Field(default="")
     stripe_publishable_key: str = Field(default="")
