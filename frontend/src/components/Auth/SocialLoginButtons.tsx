@@ -1,17 +1,11 @@
 import { useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export function SocialLoginButtons() {
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
 
   const handleGoogleLogin = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      setShowTooltip('google');
-      setTimeout(() => setShowTooltip(null), 3000);
-      return;
-    }
     window.location.href = `${API_URL}/api/v1/auth/google`;
   };
 
