@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, CurrentUser
 from app.core.config import settings
+from pydantic import BaseModel, Field
+
 from app.models.user import (
     UserCreate,
     UserResponse,
@@ -16,6 +18,15 @@ from app.models.user import (
     UserPasswordUpdate,
 )
 from app.services.auth import AuthService
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -244,8 +255,48 @@ async def google_callback(
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
 async def forgot_password(
-    data: ForgotPasswordRequest,
+    request: ForgotPasswordRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
     """Request password reset email."""
+    auth_service = AuthService(db)
+    await auth_service.send_password_reset(request.email)
     return {"message": "If an account exists with this email, a reset link will be sent"}
+
+
+@router.post("/verify-email")
+async def verify_email(
+    request: VerifyEmailRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Verify user email with token."""
+    auth_service = AuthService(db)
+    success, message = await auth_service.verify_email_token(request.token)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message,
+        )
+
+    return {"message": message}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Reset password with token."""
+    auth_service = AuthService(db)
+    success, message = await auth_service.reset_password_with_token(
+        request.token, request.new_password
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message,
+        )
+
+    return {"message": message}

@@ -1,3 +1,6 @@
+import hashlib
+import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -14,7 +17,11 @@ from app.core.security import (
     get_token_hash,
 )
 from app.db.models.user import User, RefreshToken, OAuthAccount, OnboardingProgress
+from app.db.models.email_token import EmailToken
 from app.models.user import UserCreate, TokenResponse
+from app.services.email_service import send_verification_email, send_password_reset_email
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -44,6 +51,12 @@ class AuthService:
 
         await self.db.commit()
         await self.db.refresh(user)
+
+        # Send verification email (non-blocking - failure does not block registration)
+        try:
+            await self.send_email_verification(user)
+        except Exception as e:
+            logger.warning(f"Failed to send verification email for {user.email}: {e}")
 
         return user
 
@@ -234,3 +247,124 @@ class AuthService:
         user.password_hash = hash_password(new_password)
         await self.db.commit()
         return True
+
+    async def send_email_verification(self, user: User) -> None:
+        """Generate verification token and send verification email."""
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+        email_token = EmailToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            token_type="verify_email",
+            expires_at=datetime.utcnow() + timedelta(hours=24),
+        )
+        self.db.add(email_token)
+        await self.db.commit()
+
+        verification_url = f"{settings.frontend_url}/verify-email?token={raw_token}"
+        await send_verification_email(user.email, user.first_name or "", verification_url)
+
+    async def verify_email_token(self, token: str) -> tuple[bool, str]:
+        """Verify email token and mark user's email as verified.
+
+        Returns (success, message) tuple.
+        """
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        result = await self.db.execute(
+            select(EmailToken).where(
+                EmailToken.token_hash == token_hash,
+                EmailToken.token_type == "verify_email",
+            )
+        )
+        email_token = result.scalar_one_or_none()
+
+        if email_token is None:
+            return False, "Invalid verification token"
+
+        if email_token.used_at is not None:
+            return False, "Token has already been used"
+
+        if email_token.expires_at < datetime.utcnow():
+            return False, "Token has expired"
+
+        # Mark token as used
+        email_token.used_at = datetime.utcnow()
+
+        # Mark user email as verified
+        result = await self.db.execute(
+            select(User).where(User.id == email_token.user_id)
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            user.email_verified = True
+
+        await self.db.commit()
+        return True, "Email verified successfully"
+
+    async def send_password_reset(self, email: str) -> None:
+        """Generate password reset token and send reset email.
+
+        Silently returns if user not found (prevents email enumeration).
+        """
+        result = await self.db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if user is None:
+            return
+
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+        email_token = EmailToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            token_type="password_reset",
+            expires_at=datetime.utcnow() + timedelta(hours=1),
+        )
+        self.db.add(email_token)
+        await self.db.commit()
+
+        reset_url = f"{settings.frontend_url}/reset-password?token={raw_token}"
+        await send_password_reset_email(user.email, user.first_name or "", reset_url)
+
+    async def reset_password_with_token(
+        self, token: str, new_password: str
+    ) -> tuple[bool, str]:
+        """Reset password using token.
+
+        Returns (success, message) tuple.
+        """
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        result = await self.db.execute(
+            select(EmailToken).where(
+                EmailToken.token_hash == token_hash,
+                EmailToken.token_type == "password_reset",
+            )
+        )
+        email_token = result.scalar_one_or_none()
+
+        if email_token is None:
+            return False, "Invalid reset token"
+
+        if email_token.used_at is not None:
+            return False, "Token has already been used"
+
+        if email_token.expires_at < datetime.utcnow():
+            return False, "Token has expired"
+
+        # Mark token as used
+        email_token.used_at = datetime.utcnow()
+
+        # Update user password
+        result = await self.db.execute(
+            select(User).where(User.id == email_token.user_id)
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            user.password_hash = hash_password(new_password)
+
+        await self.db.commit()
+        return True, "Password reset successfully"
