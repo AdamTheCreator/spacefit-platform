@@ -57,7 +57,7 @@ export function LoginPage() {
 
         {/* Version */}
         <div className="relative z-10 text-xs text-industrial-muted">
-          Version 0.1.0
+          v{import.meta.env.VITE_APP_VERSION}
         </div>
       </div>
 

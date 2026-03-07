@@ -69,7 +69,7 @@ export function NotFoundPage() {
       {/* Footer */}
       <footer className="relative z-10 border-t border-[var(--border-subtle)] p-4">
         <div className="flex items-center justify-center max-w-7xl mx-auto">
-          <span className="text-xs text-industrial-muted">SpaceFit v0.2.0</span>
+          <span className="text-xs text-industrial-muted">SpaceFit v{import.meta.env.VITE_APP_VERSION}</span>
         </div>
       </footer>
     </div>

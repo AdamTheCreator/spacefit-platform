@@ -234,7 +234,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <HelpCircle size={16} />
             <span>Support</span>
           </a>
-          <p className="text-[11px] text-industrial-muted px-1">SpaceFit v0.2.0</p>
+          <p className="text-[11px] text-industrial-muted px-1">SpaceFit v{import.meta.env.VITE_APP_VERSION}</p>
         </div>
       </div>
 
