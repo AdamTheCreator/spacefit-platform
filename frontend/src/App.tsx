@@ -27,22 +27,15 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m 
 function PageLoader() {
   return (
     <div className="h-screen w-screen bg-industrial flex items-center justify-center">
-      <div className="flex flex-col items-center gap-6">
-        {/* Industrial loading indicator */}
-        <div className="relative">
-          <div className="w-12 h-12 border border-[var(--border-color)]" />
-          <div className="absolute inset-0 border-t-2 border-[var(--accent)] animate-spin" />
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-bounce [animation-delay:-0.3s]" />
+          <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-bounce [animation-delay:-0.15s]" />
+          <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-bounce" />
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <p className="font-mono text-xs tracking-wider uppercase text-industrial-secondary">
-            Initializing
-          </p>
-          <div className="flex gap-1">
-            <span className="w-1.5 h-1.5 bg-[var(--accent)] animate-pulse" />
-            <span className="w-1.5 h-1.5 bg-[var(--accent)] animate-pulse [animation-delay:150ms]" />
-            <span className="w-1.5 h-1.5 bg-[var(--accent)] animate-pulse [animation-delay:300ms]" />
-          </div>
-        </div>
+        <p className="font-mono text-xs tracking-wider uppercase text-industrial-secondary">
+          Loading
+        </p>
       </div>
     </div>
   );
