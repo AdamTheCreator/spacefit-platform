@@ -10,11 +10,6 @@ interface ImportModalProps {
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_TYPES = [
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-];
 const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx', '.xls'];
 
 function formatFileSize(bytes: number): string {
