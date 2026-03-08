@@ -1,8 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
-import { useAuthStore } from '../../stores/authStore';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
@@ -32,8 +31,6 @@ type VerticalModeId = typeof VERTICAL_MODES[number]['id'];
 export function ChatContainer({ initialSessionId }: ChatContainerProps) {
   const location = useLocation();
   const locationState = location.state as LocationState | null;
-  const user = useAuthStore(state => state.user);
-
   // Track selected vertical mode for new conversations
   const [selectedMode, setSelectedMode] = useState<VerticalModeId>("MASTER_DEFAULT");
 

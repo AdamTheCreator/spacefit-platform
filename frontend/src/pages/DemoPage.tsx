@@ -54,7 +54,6 @@ export function DemoPage() {
   const progressPercent = Math.round((currentStep / totalSteps) * 100);
 
   // Determine message variant based on screen size
-  const messageVariant = isDesktop ? 'card' : 'bubble';
 
   return (
     <div className="h-screen w-screen flex flex-col bg-industrial dark">
@@ -206,7 +205,7 @@ export function DemoPage() {
 
             {/* Messages */}
             {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} variant={messageVariant} />
+              <ChatMessage key={message.id} message={message} />
             ))}
 
             {/* Processing indicator */}

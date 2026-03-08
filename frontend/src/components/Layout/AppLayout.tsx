@@ -8,13 +8,11 @@ import {
   LogOut,
   Users,
   Key,
-  ChevronDown,
   Menu,
   X,
   Kanban,
   FileText,
   Mail,
-  Sparkles,
   HelpCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -52,11 +50,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { clearChat, connectionStatus } = useChatStore();
+  const { clearChat } = useChatStore();
   const navigate = useNavigate();
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const { sessions, isLoading, deleteSession } = useChatSessions();
-  const { data: preferences } = usePreferences();
+  usePreferences();
 
   const handleLogout = useCallback(async () => {
     await logout();
