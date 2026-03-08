@@ -274,6 +274,27 @@ async def import_customers(
 
     await db.commit()
 
+    # Update user memory with book of business summary
+    if imported > 0:
+        try:
+            from app.services.memory_service import get_memory_service
+            memory_svc = get_memory_service(db)
+
+            # Build tenant data list from the imported customers
+            tenant_data = []
+            for idx, row in df.iterrows():
+                tenant_data.append({
+                    "name": str(row.get(mapped_columns.get("name", ""), "")),
+                    "company_name": str(row.get(mapped_columns.get("company_name", ""), "")) or None,
+                    "city": str(row.get(mapped_columns.get("city", ""), "")) or None,
+                    "state": str(row.get(mapped_columns.get("state", ""), "")) or None,
+                })
+
+            await memory_svc.update_book_of_business(current_user.id, tenant_data)
+        except Exception:
+            # Don't fail the import if memory update fails
+            pass
+
     return CustomerImportResult(imported=imported, failed=failed, errors=errors[:10])
 
 

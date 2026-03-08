@@ -20,6 +20,7 @@ from app.db.models.subscription import (
     SubscriptionStatus,
     UsageType,
 )
+from app.db.models.user_memory import UserMemory
 
 __all__ = [
     "User",
@@ -50,4 +51,5 @@ __all__ = [
     "SubscriptionTier",
     "SubscriptionStatus",
     "UsageType",
+    "UserMemory",
 ]

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { AppLayout } from '../components/Layout';
-import { Bell, Shield, Palette, Sparkles, Check, Plus, X } from 'lucide-react';
+import { Bell, Shield, Palette, Sparkles, Check, Plus, X, Brain, Trash2, Building2, Users, MapPin } from 'lucide-react';
 import {
   usePreferences,
   usePreferencesOptions,
   useUpdatePreferences,
   type PreferencesUpdate,
 } from '../hooks/usePreferences';
+import { useMemory, useClearMemory } from '../hooks/useMemory';
 
 function MultiSelect({
   options,
@@ -331,6 +332,203 @@ function AIPreferencesSection() {
   );
 }
 
+function MemorySection() {
+  const { data: memory, isLoading } = useMemory();
+  const clearMutation = useClearMemory();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleClear = async () => {
+    await clearMutation.mutateAsync();
+    setShowConfirm(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="card-industrial animate-pulse">
+        <div className="h-4 bg-[var(--bg-tertiary)] rounded w-48 mb-4"></div>
+        <div className="space-y-3">
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-full"></div>
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-3/4"></div>
+        </div>
+      </div>
+    );
+  }
+
+  const hasMemory = memory && (memory.total_analyses > 0 || memory.book_of_business_summary?.tenant_count);
+
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
+            <Brain size={16} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-sm font-semibold text-industrial">SpaceFit Memory</h2>
+        </div>
+        {hasMemory && (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="btn-industrial btn-sm text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--bg-error)]"
+          >
+            <Trash2 size={14} />
+            Clear Memory
+          </button>
+        )}
+      </div>
+
+      <p className="text-sm text-industrial-secondary mb-6 leading-relaxed">
+        SpaceFit remembers your analysis history and preferences to provide more personalized recommendations.
+      </p>
+
+      {!hasMemory ? (
+        <div className="text-center py-8 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-subtle)]">
+          <Brain size={32} className="text-industrial-muted mx-auto mb-3" />
+          <p className="text-sm text-industrial-muted">No memory yet</p>
+          <p className="text-xs text-industrial-muted mt-1">
+            Start analyzing properties to build your memory
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-subtle)]">
+              <div className="flex items-center gap-2 mb-2">
+                <Building2 size={14} className="text-[var(--accent)]" />
+                <span className="text-xs text-industrial-muted">Analyses</span>
+              </div>
+              <div className="text-2xl font-bold text-industrial tabular-nums">
+                {memory.total_analyses}
+              </div>
+            </div>
+
+            <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-subtle)]">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin size={14} className="text-[var(--color-success)]" />
+                <span className="text-xs text-industrial-muted">Properties</span>
+              </div>
+              <div className="text-2xl font-bold text-industrial tabular-nums">
+                {memory.analyzed_properties?.length || 0}
+              </div>
+            </div>
+
+            <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-subtle)]">
+              <div className="flex items-center gap-2 mb-2">
+                <Users size={14} className="text-[var(--color-info)]" />
+                <span className="text-xs text-industrial-muted">Tenants</span>
+              </div>
+              <div className="text-2xl font-bold text-industrial tabular-nums">
+                {memory.book_of_business_summary?.tenant_count || 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Properties */}
+          {memory.analyzed_properties && memory.analyzed_properties.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-3">
+                Recent Properties
+              </h3>
+              <div className="space-y-2">
+                {memory.analyzed_properties.slice(0, 5).map((prop, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-subtle)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-industrial truncate">
+                        {prop.address}
+                      </p>
+                      <p className="text-xs text-industrial-muted">
+                        {prop.asset_type} &bull; {prop.void_count} voids
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-industrial-muted flex-shrink-0 ml-4">
+                      {new Date(prop.analysis_date).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Top Categories */}
+          {memory.book_of_business_summary?.top_categories && memory.book_of_business_summary.top_categories.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-3">
+                Top Tenant Categories
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {memory.book_of_business_summary.top_categories.slice(0, 8).map((cat) => (
+                  <span
+                    key={cat}
+                    className="px-3 py-1.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full text-xs font-medium"
+                  >
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Preferred Areas */}
+          {memory.preferences?.preferred_trade_areas && memory.preferences.preferred_trade_areas.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-3">
+                Your Markets
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {memory.preferences.preferred_trade_areas.map((area) => (
+                  <span
+                    key={area}
+                    className="px-3 py-1.5 bg-[var(--bg-success)] text-[var(--color-success)] rounded-full text-xs font-medium"
+                  >
+                    {area}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Last Updated */}
+          {memory.last_updated && (
+            <p className="text-xs text-industrial-muted text-right">
+              Last updated: {new Date(memory.last_updated).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Clear Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] p-6 max-w-sm mx-4 shadow-xl">
+            <h3 className="text-sm font-semibold text-industrial mb-2">Clear Memory?</h3>
+            <p className="text-xs text-industrial-secondary mb-4">
+              This will permanently delete all your analysis history, property data, and inferred preferences. SpaceFit will start fresh.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="btn-industrial"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClear}
+                disabled={clearMutation.isPending}
+                className="btn-industrial bg-[var(--color-error)] text-white border-[var(--color-error)] hover:bg-[var(--color-error)]/90"
+              >
+                {clearMutation.isPending ? 'Clearing...' : 'Clear Memory'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   return (
     <AppLayout>
@@ -338,7 +536,10 @@ export function SettingsPage() {
         <h1 className="text-xl font-semibold text-industrial mb-6">Settings</h1>
 
         <div className="space-y-6">
-          {/* AI Preferences - Featured at top */}
+          {/* SpaceFit Memory - Featured at top */}
+          <MemorySection />
+
+          {/* AI Preferences */}
           <AIPreferencesSection />
 
           {/* Notifications */}

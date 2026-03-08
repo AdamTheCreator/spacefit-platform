@@ -33,7 +33,7 @@ export function AgentStatusStrip({
       <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
         {/* Animated progress bar */}
         <div className="h-1 bg-[var(--bg-tertiary)] overflow-hidden rounded-full mx-4 mt-3">
-          <div className="h-full w-1/3 bg-[var(--accent)] rounded-full animate-shimmer" />
+          <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{width: '40%'}} />
         </div>
 
         {/* Processing indicator */}
@@ -131,9 +131,13 @@ export function AgentStatusStrip({
                   </svg>
                 )}
 
-                {/* Spinner for running */}
+                {/* 3-dot bounce indicator for running */}
                 {isRunning && (
-                  <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
+                  <span className="flex gap-0.5 items-center">
+                    <span className="w-1 h-1 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1 h-1 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1 h-1 rounded-full bg-current animate-bounce" />
+                  </span>
                 )}
               </div>
             );
