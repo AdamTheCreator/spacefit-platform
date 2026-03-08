@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useChat } from '../../hooks/useChat';
 import { useAuthStore } from '../../stores/authStore';
@@ -17,10 +17,24 @@ interface LocationState {
   analysisType?: string;
 }
 
+// Vertical mode definitions for the mode picker
+const VERTICAL_MODES = [
+  { id: "MASTER_DEFAULT", emoji: "🏢", label: "General CRE", desc: "All property types" },
+  { id: "QSR_FAST_FOOD", emoji: "🍔", label: "Fast Food / QSR", desc: "Site selection for restaurants" },
+  { id: "MALL_RETAIL", emoji: "🛍️", label: "Mall & Retail", desc: "Tenant mix and void analysis" },
+  { id: "OFFICE_SPACE", emoji: "💼", label: "Office Space", desc: "Leasing and market comps" },
+  { id: "INDUSTRIAL", emoji: "🏭", label: "Industrial", desc: "Warehouse and logistics" },
+] as const;
+
+type VerticalModeId = typeof VERTICAL_MODES[number]['id'];
+
 export function ChatContainer({ initialSessionId }: ChatContainerProps) {
   const location = useLocation();
   const locationState = location.state as LocationState | null;
   const user = useAuthStore(state => state.user);
+
+  // Track selected vertical mode for new conversations
+  const [selectedMode, setSelectedMode] = useState<VerticalModeId>("MASTER_DEFAULT");
 
   // Use the new simplified useChat hook
   const {
@@ -31,7 +45,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
     isConnected,
     isLoading,
     sendMessage,
-  } = useChat(initialSessionId);
+  } = useChat(initialSessionId, selectedMode);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSentRef = useRef(false);
@@ -150,6 +164,32 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
                 Watch Demo
               </Link>
             )}
+
+            {/* Vertical Mode Picker */}
+            <p className="text-xs font-medium text-industrial-muted uppercase tracking-wide mb-3">Select Mode</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-8 w-full max-w-2xl">
+              {VERTICAL_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  onClick={() => setSelectedMode(mode.id)}
+                  className={`flex flex-col items-center p-3 rounded-lg border transition-all text-center ${
+                    selectedMode === mode.id
+                      ? 'border-[var(--accent)] bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)]'
+                      : 'border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-tertiary)]'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">{mode.emoji}</span>
+                  <span className={`text-xs font-medium ${
+                    selectedMode === mode.id ? 'text-[var(--accent)]' : 'text-industrial'
+                  }`}>
+                    {mode.label}
+                  </span>
+                  <span className="text-[10px] text-industrial-muted mt-0.5 leading-tight">
+                    {mode.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
 
             <p className="text-xs font-medium text-industrial-muted uppercase tracking-wide mb-4">Try asking</p>
 

@@ -40,12 +40,18 @@ async function fetchSessionMessages(sessionId: string): Promise<Message[]> {
   }));
 }
 
-export function useChat(sessionId?: string) {
+export function useChat(sessionId?: string, systemPromptId?: string) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const currentSessionRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const systemPromptIdRef = useRef<string | undefined>(systemPromptId);
   const queryClient = useQueryClient();
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    systemPromptIdRef.current = systemPromptId;
+  }, [systemPromptId]);
 
   const {
     messages,
@@ -254,11 +260,19 @@ export function useChat(sessionId?: string) {
     setActiveAgentType(null);
     setIsProcessing(true);
 
-    // Send message with session ID (null = create new session)
-    wsRef.current.send(JSON.stringify({
+    // Build message payload
+    const payload: { session_id: string | null; content: string; system_prompt_id?: string } = {
       session_id: currentSessionRef.current,
       content,
-    }));
+    };
+
+    // Include system_prompt_id for new sessions (when no current session)
+    if (!currentSessionRef.current && systemPromptIdRef.current) {
+      payload.system_prompt_id = systemPromptIdRef.current;
+    }
+
+    // Send message with session ID (null = create new session)
+    wsRef.current.send(JSON.stringify(payload));
   }, [setIsProcessing, setWorkflowSteps, setActiveAgentType]);
 
   // Connect on mount
