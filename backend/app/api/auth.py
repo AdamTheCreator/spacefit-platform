@@ -184,75 +184,83 @@ async def google_auth() -> RedirectResponse:
 
 @router.get("/google/callback")
 async def google_callback(
-    code: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    code: str | None = None,
+    error: str | None = None,
+    db: AsyncSession = Depends(get_db),
     state: str | None = None,
 ) -> RedirectResponse:
     """Handle Google OAuth callback."""
     import httpx
+    import logging
+    logger = logging.getLogger(__name__)
 
-    if not settings.google_client_id or not settings.google_client_secret:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Google OAuth not configured",
-        )
+    # Handle OAuth error from Google (e.g. user denied access)
+    if error or not code:
+        logger.warning(f"Google OAuth error: {error}")
+        return RedirectResponse(url=f"{settings.frontend_url}/login?error=google_auth_failed")
 
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "code": code,
-                "grant_type": "authorization_code",
-                "redirect_uri": settings.google_redirect_uri,
-            },
-        )
-
-        if token_response.status_code != 200:
+    try:
+        if not settings.google_client_id or not settings.google_client_secret:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to exchange code for tokens",
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Google OAuth not configured",
             )
 
-        token_data = token_response.json()
-        access_token = token_data.get("access_token")
-
-        userinfo_response = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-
-        if userinfo_response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to get user info from Google",
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": settings.google_client_id,
+                    "client_secret": settings.google_client_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": settings.google_redirect_uri,
+                },
             )
 
-        userinfo = userinfo_response.json()
+            if token_response.status_code != 200:
+                logger.error(f"Token exchange failed: {token_response.text}")
+                return RedirectResponse(url=f"{settings.frontend_url}/login?error=google_token_failed")
 
-    auth_service = AuthService(db)
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
 
-    user = await auth_service.get_or_create_oauth_user(
-        provider="google",
-        provider_account_id=userinfo.get("id"),
-        email=userinfo.get("email"),
-        first_name=userinfo.get("given_name"),
-        last_name=userinfo.get("family_name"),
-        avatar_url=userinfo.get("picture"),
-        access_token=token_data.get("access_token"),
-        refresh_token=token_data.get("refresh_token"),
-    )
+            userinfo_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
 
-    tokens = await auth_service.create_tokens(user)
+            if userinfo_response.status_code != 200:
+                logger.error(f"Userinfo fetch failed: {userinfo_response.text}")
+                return RedirectResponse(url=f"{settings.frontend_url}/login?error=google_userinfo_failed")
 
-    redirect_url = (
-        f"{settings.frontend_url}/auth/callback"
-        f"?access_token={tokens.access_token}"
-        f"&refresh_token={tokens.refresh_token}"
-    )
+            userinfo = userinfo_response.json()
 
-    return RedirectResponse(url=redirect_url)
+        auth_service = AuthService(db)
+        user = await auth_service.get_or_create_oauth_user(
+            provider="google",
+            provider_account_id=userinfo.get("id"),
+            email=userinfo.get("email"),
+            first_name=userinfo.get("given_name"),
+            last_name=userinfo.get("family_name"),
+            avatar_url=userinfo.get("picture"),
+            access_token=token_data.get("access_token"),
+            refresh_token=token_data.get("refresh_token"),
+        )
+
+        tokens = await auth_service.create_tokens(user)
+
+        redirect_url = (
+            f"{settings.frontend_url}/auth/callback"
+            f"?access_token={tokens.access_token}"
+            f"&refresh_token={tokens.refresh_token}"
+        )
+
+        return RedirectResponse(url=redirect_url)
+
+    except Exception as e:
+        logger.error(f"Google OAuth callback error: {e}", exc_info=True)
+        return RedirectResponse(url=f"{settings.frontend_url}/login?error=google_auth_failed")
 
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
