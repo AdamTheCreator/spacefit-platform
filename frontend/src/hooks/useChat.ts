@@ -7,7 +7,7 @@
  * - Clean separation of concerns
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '../stores/chatStore';
 import api from '../lib/axios';
@@ -41,10 +41,10 @@ async function fetchSessionMessages(sessionId: string): Promise<Message[]> {
 }
 
 export function useChat(sessionId?: string, systemPromptId?: string) {
-  const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const currentSessionRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const shouldReconnectRef = useRef(true);
   const systemPromptIdRef = useRef<string | undefined>(systemPromptId);
   const queryClient = useQueryClient();
 
@@ -64,6 +64,8 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
     updateWorkflowStep,
     setIsProcessing,
     setActiveAgentType,
+    connectionStatus,
+    setConnectionStatus,
   } = useChatStore();
 
   // Fetch conversation history when sessionId changes (REST API - instant!)
@@ -101,9 +103,12 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
 
     const token = localStorage.getItem('access_token');
     if (!token) {
+      setConnectionStatus('disconnected');
       console.warn('No access token for WebSocket');
       return;
     }
+
+    setConnectionStatus('connecting');
 
     // Single WebSocket endpoint - session is passed in message payload
     const wsUrl = `${WS_BASE_URL}/api/v1/chat/ws?token=${encodeURIComponent(token)}`;
@@ -111,27 +116,32 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      setIsConnected(true);
+      setConnectionStatus('connected');
       console.log('Chat WebSocket connected');
     };
 
     ws.onclose = (event) => {
-      setIsConnected(false);
       setIsProcessing(false);
       console.log('Chat WebSocket closed:', event.code, event.reason);
 
       // Handle auth failure
       if (event.code === 4001) {
+        setConnectionStatus('disconnected');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/login';
         return;
       }
 
-      // Reconnect after 3 seconds (unless auth failed)
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        connect();
-      }, 3000);
+      if (shouldReconnectRef.current) {
+        setConnectionStatus('connecting');
+        // Reconnect after 3 seconds (unless auth failed)
+        reconnectTimeoutRef.current = window.setTimeout(() => {
+          connect();
+        }, 3000);
+      } else {
+        setConnectionStatus('disconnected');
+      }
     };
 
     ws.onerror = (error) => {
@@ -148,7 +158,7 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
     };
 
     wsRef.current = ws;
-  }, []);
+  }, [setConnectionStatus, setIsProcessing]);
 
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
@@ -277,16 +287,19 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
 
   // Connect on mount
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connect();
     return () => {
+      shouldReconnectRef.current = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
       if (wsRef.current) {
         wsRef.current.close();
       }
+      setConnectionStatus('disconnected');
     };
-  }, [connect]);
+  }, [connect, setConnectionStatus]);
 
   return {
     // State
@@ -294,7 +307,7 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
     workflowSteps,
     isProcessing,
     activeAgentType,
-    isConnected,
+    isConnected: connectionStatus === 'connected',
     isLoading: isLoadingHistory,
     currentSessionId: currentSessionRef.current,
 

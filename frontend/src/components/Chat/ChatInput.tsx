@@ -70,7 +70,7 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-5 py-3.5 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-3xl min-h-[48px] transition-all"
+          className="w-full px-5 py-3.5 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none focus-visible:outline-none rounded-3xl min-h-[48px] transition-all"
         />
         {/* Character count indicator */}
         {input.length > 0 && (

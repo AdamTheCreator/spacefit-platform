@@ -851,6 +851,10 @@ textarea.input-industrial {
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
+.animate-pulse-slow {
+  animation: pulse-soft 3s ease-in-out infinite;
+}
+
 .animate-pulse-industrial {
   animation: pulse-industrial 2s ease-in-out infinite;
 }

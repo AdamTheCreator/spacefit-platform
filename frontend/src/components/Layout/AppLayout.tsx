@@ -52,7 +52,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { clearChat } = useChatStore();
+  const { clearChat, connectionStatus } = useChatStore();
   const navigate = useNavigate();
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const { sessions, isLoading, deleteSession } = useChatSessions();
@@ -310,7 +310,29 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Logo - centered on mobile */}
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent)]/25 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    connectionStatus === 'connected'
+                      ? 'bg-emerald-500 animate-pulse-slow'
+                      : connectionStatus === 'connecting'
+                      ? 'bg-amber-500 animate-pulse-slow'
+                      : 'bg-red-500'
+                  }`}
+                  title={
+                    connectionStatus === 'connected'
+                      ? 'Connected to server'
+                      : connectionStatus === 'connecting'
+                      ? 'Connecting to server'
+                      : 'Disconnected from server'
+                  }
+                  aria-label={
+                    connectionStatus === 'connected'
+                      ? 'Connected to server'
+                      : connectionStatus === 'connecting'
+                      ? 'Connecting to server'
+                      : 'Disconnected from server'
+                  }
+                />
               </div>
               <span className="text-sm font-semibold tracking-tight text-industrial">
                 SpaceFit

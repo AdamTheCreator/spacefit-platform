@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Message, WorkflowStep } from '../types/chat';
 
 interface ChatState {
+  connectionStatus: 'connected' | 'connecting' | 'disconnected';
   // Current conversation state
   currentSessionId: string | null;
   messages: Message[];
@@ -19,10 +20,12 @@ interface ChatState {
   updateWorkflowStep: (id: string, updates: Partial<WorkflowStep>) => void;
   setIsProcessing: (isProcessing: boolean) => void;
   setActiveAgentType: (agentType: string | null) => void;
+  setConnectionStatus: (status: 'connected' | 'connecting' | 'disconnected') => void;
   clearChat: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
+  connectionStatus: 'disconnected',
   currentSessionId: null,
   messages: [],
   workflowSteps: [],
@@ -72,6 +75,8 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setActiveAgentType: (agentType) => set({ activeAgentType: agentType }),
 
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
+
   clearChat: () =>
     set({
       currentSessionId: null,
@@ -88,6 +93,7 @@ export const useChatWorkflowSteps = () => useChatStore(state => state.workflowSt
 export const useChatIsProcessing = () => useChatStore(state => state.isProcessing);
 export const useChatActiveAgent = () => useChatStore(state => state.activeAgentType);
 export const useChatSessionId = () => useChatStore(state => state.currentSessionId);
+export const useChatConnectionStatus = () => useChatStore(state => state.connectionStatus);
 
 // Combined selector for components that need multiple values
 export const useChatStatus = () => useChatStore(
@@ -108,6 +114,7 @@ export const useChatActions = () => useChatStore(
     updateWorkflowStep: state.updateWorkflowStep,
     setIsProcessing: state.setIsProcessing,
     setActiveAgentType: state.setActiveAgentType,
+    setConnectionStatus: state.setConnectionStatus,
     clearChat: state.clearChat,
   }))
 );
