@@ -27,8 +27,26 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+// Mobile breakpoint hook
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isMobile;
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -110,6 +128,25 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [dropdownOpen]);
 
+  // Close sidebar on mobile when navigating
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [currentSessionId, isMobile]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isMobile && sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobile, sidebarOpen]);
+
   return (
     <div className="h-screen flex bg-[var(--bg-primary)] dark">
       {/* Skip link for keyboard users */}
@@ -120,21 +157,51 @@ export function AppLayout({ children }: AppLayoutProps) {
         Skip to main content
       </a>
 
+      {/* Mobile Backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <div
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-0'
-        } transition-all duration-300 flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] overflow-hidden`}
+        className={`
+          ${isMobile
+            ? `fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-out ${
+                sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+              }`
+            : `${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300`
+          }
+          flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] overflow-hidden
+        `}
       >
         {/* Sidebar Header */}
         <div className="p-4 border-b border-[var(--border-subtle)]">
-          <button
-            onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] font-medium text-sm hover:bg-[var(--accent-hover)] transition-colors shadow-sm"
-          >
-            <Plus size={16} />
-            New Chat
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => {
+                handleNewChat();
+                if (isMobile) setSidebarOpen(false);
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] font-medium text-sm hover:bg-[var(--accent-hover)] transition-colors shadow-sm min-h-[44px]"
+            >
+              <Plus size={16} />
+              New Chat
+            </button>
+            {/* Mobile close button */}
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-2.5 rounded-lg text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Close sidebar"
+              >
+                <X size={20} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Main Navigation */}
@@ -143,21 +210,24 @@ export function AppLayout({ children }: AppLayoutProps) {
           <nav className="space-y-1">
             <Link
               to="/pipeline"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
+              onClick={() => isMobile && setSidebarOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
               <Kanban size={16} />
               <span>Pipeline</span>
             </Link>
             <Link
               to="/documents"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
+              onClick={() => isMobile && setSidebarOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
               <FileText size={16} />
               <span>Documents</span>
             </Link>
             <Link
               to="/outreach"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
+              onClick={() => isMobile && setSidebarOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
               <Mail size={16} />
               <span>Outreach</span>
@@ -180,7 +250,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Link
                   key={session.id}
                   to={`/chat/${session.id}`}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-all group ${
+                  onClick={() => isMobile && setSidebarOpen(false)}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-all group min-h-[44px] ${
                     session.id === currentSessionId
                       ? 'bg-[var(--accent-subtle)] text-industrial border-l-2 border-[var(--accent)] rounded-l-none'
                       : ''
@@ -229,7 +300,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           )}
           <a
             href="mailto:support-spacefit@agentmail.to"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
           >
             <HelpCircle size={16} />
             <span>Support</span>
@@ -241,15 +312,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="h-14 flex items-center justify-between px-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-          <div className="flex items-center gap-4">
+        <header className="h-14 min-h-[48px] flex items-center justify-between px-2 sm:px-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-              className="p-2 rounded-lg text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors"
+              className="p-2.5 rounded-lg text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              <Menu size={20} />
             </button>
+            {/* Logo - centered on mobile */}
             <div className="flex items-center gap-2.5">
               <div className="w-2 h-2 rounded-sm bg-[var(--accent)]" />
               <span className="text-sm font-semibold tracking-wide text-industrial">
@@ -258,15 +330,27 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           </div>
 
-          {/* User Dropdown */}
-          <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* New Chat button - mobile only (icon only) */}
+            {isMobile && (
+              <button
+                onClick={handleNewChat}
+                aria-label="New chat"
+                className="p-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] hover:bg-[var(--accent-hover)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              >
+                <Plus size={18} />
+              </button>
+            )}
+
+            {/* User Dropdown */}
+            <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               aria-haspopup="menu"
               aria-expanded={dropdownOpen}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
-              <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
                 <span className="text-[var(--color-neutral-900)] text-sm font-semibold">
                   {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
                 </span>
@@ -274,7 +358,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <span className="text-sm font-medium hidden sm:block">
                 {user?.first_name || user?.email?.split('@')[0]}
               </span>
-              <ChevronDown size={16} className="text-industrial-muted" />
+              <ChevronDown size={16} className="text-industrial-muted hidden sm:block" />
             </button>
 
             {dropdownOpen && (
@@ -355,6 +439,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </div>
               </>
             )}
+            </div>
           </div>
         </header>
 

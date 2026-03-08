@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.security import (
@@ -182,7 +183,9 @@ class AuthService:
     ) -> User:
         """Get or create a user from OAuth provider data."""
         result = await self.db.execute(
-            select(OAuthAccount).where(
+            select(OAuthAccount)
+            .options(selectinload(OAuthAccount.user))
+            .where(
                 OAuthAccount.provider == provider,
                 OAuthAccount.provider_account_id == provider_account_id,
             )
