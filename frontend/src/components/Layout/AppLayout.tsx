@@ -44,14 +44,10 @@ function useIsMobile() {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Open sidebar by default on desktop only, after mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-      setSidebarOpen(true);
-    }
-  }, []);
+  // Initialize sidebar state synchronously: open on desktop, closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= 768
+  );
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -316,8 +312,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <header className="h-14 min-h-[48px] flex items-center justify-between px-2 sm:px-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+        {/* Top Header — 56px mobile, 60px desktop */}
+        <header className="h-14 sm:h-15 min-h-[56px] flex items-center justify-between px-2 sm:px-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}

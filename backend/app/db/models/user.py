@@ -71,6 +71,9 @@ class User(Base):
     email_tokens: Mapped[list["EmailToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    memory: Mapped["UserMemory | None"] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
     @property
     def tier(self) -> str:
@@ -146,3 +149,4 @@ from app.db.models.deal import Deal, Property  # noqa: E402
 from app.db.models.document import ParsedDocument  # noqa: E402
 from app.db.models.subscription import Subscription  # noqa: E402
 from app.db.models.email_token import EmailToken  # noqa: E402
+from app.db.models.user_memory import UserMemory  # noqa: E402

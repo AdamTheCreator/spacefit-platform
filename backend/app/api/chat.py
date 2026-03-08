@@ -678,6 +678,7 @@ async def websocket_endpoint(
     from app.services.orchestrator import get_orchestrator_response, run_agent_async, generate_conversation_title
     from app.services.places import resolve_business_to_address, extract_business_query_from_message
     from app.api.preferences import build_personalized_context
+    from app.services.memory_service import get_memory_service
 
     async with async_session_factory() as db:
         user = await get_user_from_token(token, db) if token else None
@@ -704,6 +705,14 @@ async def websocket_endpoint(
             # to prevent cross-chat city leakage
             from app.api.preferences import build_conversation_scoped_context
             user_context = build_conversation_scoped_context(user_prefs)
+
+        # Fetch user memory context for personalization
+        memory_context: str | None = None
+        try:
+            memory_svc = get_memory_service(db)
+            memory_context = await memory_svc.get_context_block(user_id)
+        except Exception as e:
+            logger.warning("Failed to load memory context for user %s: %s", user_id, e)
 
         if not is_new_session:
             # Validate existing session
@@ -928,6 +937,7 @@ async def websocket_endpoint(
                     document_context=doc_context,
                     system_prompt_id=session_prompt_id,
                     analysis_type=session_analysis_type,
+                    memory_context=memory_context,
                 )
             except Exception as e:
                 error_msg = Message(
@@ -1238,6 +1248,7 @@ async def websocket_chat_endpoint(
     from app.services.orchestrator import get_orchestrator_response, run_agent_async, generate_conversation_title
     from app.services.places import resolve_business_to_address, extract_business_query_from_message
     from app.api.preferences import build_personalized_context
+    from app.services.memory_service import get_memory_service
 
     # Authenticate user
     async with async_session_factory() as db:
@@ -1258,6 +1269,14 @@ async def websocket_chat_endpoint(
         if user_prefs:
             from app.api.preferences import build_conversation_scoped_context
             user_context = build_conversation_scoped_context(user_prefs)
+
+        # Fetch user memory context for personalization
+        memory_context: str | None = None
+        try:
+            memory_svc = get_memory_service(db)
+            memory_context = await memory_svc.get_context_block(user_id)
+        except Exception as e:
+            logger.warning("Failed to load memory context for user %s: %s", user_id, e)
 
     await websocket.accept()
     connection_key = f"chat:{user_id}"
@@ -1399,6 +1418,7 @@ async def websocket_chat_endpoint(
                     document_context=doc_context,
                     system_prompt_id=s_prompt_id,
                     analysis_type=s_analysis_type,
+                    memory_context=memory_context,
                 )
             except Exception as e:
                 error_msg = Message(

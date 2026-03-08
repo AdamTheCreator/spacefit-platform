@@ -19,6 +19,7 @@ from app.api.tracking import router as tracking_router
 from app.api.subscription import router as subscription_router
 from app.api.billing import router as billing_router
 from app.api.connectors import router as connectors_router
+from app.api.memory import router as memory_router
 from app.core.config import settings
 from app.core.database import engine
 from app.llm.client import aclose_llm_client
@@ -63,6 +64,7 @@ app.include_router(tracking_router, prefix=settings.api_prefix)
 app.include_router(subscription_router, prefix=settings.api_prefix)
 app.include_router(billing_router, prefix=settings.api_prefix)
 app.include_router(connectors_router, prefix=settings.api_prefix)
+app.include_router(memory_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

@@ -16,15 +16,25 @@ export function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Dynamic height: compact when idle, expands on focus or typing
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(
-        textareaRef.current.scrollHeight,
-        200
-      )}px`;
+      const isExpanded = isFocused || input.length > 0;
+      // Mobile max: 120px, Desktop max: 200px
+      const maxHeight = window.innerWidth < 640 ? 120 : 200;
+
+      if (isExpanded) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(
+          textareaRef.current.scrollHeight,
+          maxHeight
+        )}px`;
+      } else {
+        // Compact single-line when not focused and empty
+        textareaRef.current.style.height = '44px';
+      }
     }
-  }, [input]);
+  }, [input, isFocused]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +56,7 @@ export function ChatInput({
       <div
         className={`flex-1 relative rounded-xl border transition-all duration-150 ${
           isFocused
-            ? 'border-[var(--accent)] shadow-sm ring-2 ring-[var(--accent-subtle)]'
+            ? 'border-[var(--accent)] ring-1 ring-[var(--accent)] shadow-none'
             : 'border-[var(--border-default)] hover:border-[var(--border-strong)]'
         } ${disabled ? 'opacity-60' : ''} bg-[var(--bg-elevated)]`}
       >
@@ -60,7 +70,7 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-4 py-3 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-xl min-h-[44px] max-h-[44px] sm:max-h-[200px] focus:max-h-[200px] transition-all"
+          className="w-full px-4 py-3 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-xl min-h-[44px] transition-all"
         />
         {/* Character count indicator */}
         {input.length > 0 && (

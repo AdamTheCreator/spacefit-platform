@@ -167,6 +167,7 @@ async def get_orchestrator_response(
     document_context: dict | None = None,
     system_prompt_id: str | None = None,
     analysis_type: str | None = None,
+    memory_context: str | None = None,
 ) -> dict:
     """
     Get a response from the orchestrator using Claude's native tool calling.
@@ -179,6 +180,7 @@ async def get_orchestrator_response(
         document_context: Extracted document data for analysis sessions
         system_prompt_id: Explicit prompt ID from the session's system_prompt_id field
         analysis_type: Session analysis_type for fallback prompt resolution
+        memory_context: User memory context block from MemoryService.get_context_block()
 
     Returns:
         dict with:
@@ -247,6 +249,10 @@ async def get_orchestrator_response(
 
     if user_context:
         full_system_prompt = full_system_prompt + "\n\n" + redact_secrets(user_context)
+
+    # Inject user memory context if available
+    if memory_context:
+        full_system_prompt = full_system_prompt + "\n\n" + redact_secrets(memory_context)
 
     # Get available tools based on user credentials
     tools = get_tools_for_context(
