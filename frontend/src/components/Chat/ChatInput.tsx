@@ -60,7 +60,7 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-4 py-3 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-xl min-h-[44px]"
+          className="w-full px-4 py-3 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-xl min-h-[44px] max-h-[44px] sm:max-h-[200px] focus:max-h-[200px] transition-all"
         />
         {/* Character count indicator */}
         {input.length > 0 && (
