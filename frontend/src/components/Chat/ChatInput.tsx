@@ -54,11 +54,11 @@ export function ChatInput({
   return (
     <form onSubmit={handleSubmit} className="flex gap-3 items-end">
       <div
-        className={`flex-1 relative rounded-xl border transition-all duration-150 ${
+        className={`flex-1 relative rounded-3xl border transition-all duration-150 ${
           isFocused
-            ? 'border-[var(--accent)] ring-1 ring-[var(--accent)] shadow-none'
+            ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]/15 shadow-sm'
             : 'border-[var(--border-default)] hover:border-[var(--border-strong)]'
-        } ${disabled ? 'opacity-60' : ''} bg-[var(--bg-elevated)]`}
+        } ${disabled ? 'opacity-60' : ''} bg-[var(--bg-secondary)]`}
       >
         <textarea
           ref={textareaRef}
@@ -70,7 +70,7 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-4 py-3 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-xl min-h-[44px] transition-all"
+          className="w-full px-5 py-3.5 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-3xl min-h-[48px] transition-all"
         />
         {/* Character count indicator */}
         {input.length > 0 && (
@@ -83,7 +83,7 @@ export function ChatInput({
         type="submit"
         disabled={disabled || !input.trim()}
         aria-label="Send message"
-        className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--color-neutral-900)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-sm hover:shadow-md active:scale-95"
+        className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-full bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-sm hover:shadow-md active:scale-95"
       >
         <Send size={18} strokeWidth={2} aria-hidden="true" />
       </button>

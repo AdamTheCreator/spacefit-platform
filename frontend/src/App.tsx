@@ -43,7 +43,7 @@ function PageLoader() {
 
 function App() {
   return (
-    <div className="h-screen w-screen bg-industrial dark">
+    <div className="app-shell h-screen w-screen bg-industrial">
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}

@@ -30,14 +30,14 @@ export function AgentStatusStrip({
   // Show simple processing indicator if processing but no workflow steps yet
   if (workflowSteps.length === 0 && isProcessing) {
     return (
-      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+      <div className="chat-input-shell border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
         {/* Animated progress bar */}
-        <div className="h-1 bg-[var(--bg-tertiary)] overflow-hidden rounded-full mx-4 mt-3">
+        <div className="chat-stage h-1 bg-[var(--bg-tertiary)] overflow-hidden rounded-full mt-3">
           <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{width: '40%'}} />
         </div>
 
         {/* Processing indicator */}
-        <div className="px-4 sm:px-6 py-2.5">
+        <div className="chat-stage px-1 py-2.5">
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] animate-pulse-soft" />
             <span className="text-sm text-industrial-secondary">Thinking...</span>
@@ -53,9 +53,9 @@ export function AgentStatusStrip({
   const allComplete = completedCount === totalCount;
 
   return (
-    <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+    <div className="chat-input-shell border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
       {/* Progress bar - rounded at top */}
-      <div className="h-1 bg-[var(--bg-tertiary)] mx-4 mt-3 rounded-full overflow-hidden">
+      <div className="chat-stage h-1 bg-[var(--bg-tertiary)] mt-3 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ease-out ${
             allComplete
@@ -67,7 +67,7 @@ export function AgentStatusStrip({
       </div>
 
       {/* Agent chips */}
-      <div className="px-4 sm:px-6 py-2.5">
+      <div className="chat-stage px-1 py-2.5">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
           {/* Status label */}
           <div className="flex-shrink-0 flex items-center gap-2 pr-3 border-r border-[var(--border-subtle)]">

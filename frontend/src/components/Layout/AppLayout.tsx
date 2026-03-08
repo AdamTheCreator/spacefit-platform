@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   MessageSquare,
@@ -58,10 +58,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { sessions, isLoading, deleteSession } = useChatSessions();
   const { data: preferences } = usePreferences();
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await logout();
     navigate('/login');
-  };
+  }, [logout, navigate]);
 
   const handleNewChat = () => {
     clearChat();
@@ -77,13 +77,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     { path: '/profile', label: 'Profile' },
     { path: '/customers', label: 'Customers' },
     { path: '/connections', label: 'Connections' },
     { path: '/settings', label: 'Settings' },
     { action: 'logout', label: 'Sign out' },
-  ];
+  ], []);
 
   const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!dropdownOpen) return;
@@ -121,21 +121,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [dropdownOpen, focusedIndex, menuItems, navigate, handleLogout]);
 
-  useEffect(() => {
-    if (dropdownOpen) {
-      setFocusedIndex(0);
-    } else {
-      setFocusedIndex(-1);
-    }
-  }, [dropdownOpen]);
-
-  // Close sidebar on mobile when navigating
-  useEffect(() => {
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
-  }, [currentSessionId, isMobile]);
-
   // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {
     if (isMobile && sidebarOpen) {
@@ -149,7 +134,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [isMobile, sidebarOpen]);
 
   return (
-    <div className="h-screen flex bg-[var(--bg-primary)] dark">
+    <div className="app-shell h-screen flex bg-[var(--bg-primary)]">
       {/* Skip link for keyboard users */}
       <a
         href="#main-content"
@@ -161,7 +146,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Mobile Backdrop */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+          className="fixed inset-0 z-40 bg-black/35 backdrop-blur-sm transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -176,7 +161,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               }`
             : `${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300`
           }
-          flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] overflow-hidden
+          app-sidebar flex flex-col border-r border-[var(--border-subtle)] overflow-hidden
         `}
       >
         {/* Sidebar Header */}
@@ -187,7 +172,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 handleNewChat();
                 if (isMobile) setSidebarOpen(false);
               }}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] font-medium text-sm hover:bg-[var(--accent-hover)] transition-colors shadow-sm min-h-[44px]"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-industrial font-medium text-sm hover:bg-[var(--hover-overlay)] transition-colors border border-[var(--border-default)] min-h-[44px]"
             >
               <Plus size={16} />
               New Chat
@@ -207,12 +192,12 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Main Navigation */}
         <div className="p-3 border-b border-[var(--border-subtle)]">
-          <p className="text-[11px] font-medium text-industrial-muted uppercase tracking-wide px-3 py-2">Navigation</p>
+          <p className="text-[11px] font-semibold text-industrial-muted uppercase tracking-wide px-3 py-2">Workspace</p>
           <nav className="space-y-1">
             <Link
               to="/pipeline"
               onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
               <Kanban size={16} />
               <span>Pipeline</span>
@@ -220,7 +205,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link
               to="/documents"
               onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
               <FileText size={16} />
               <span>Documents</span>
@@ -228,7 +213,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link
               to="/outreach"
               onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
               <Mail size={16} />
               <span>Outreach</span>
@@ -238,7 +223,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
-          <p className="text-[11px] font-medium text-industrial-muted uppercase tracking-wide px-3 py-2">Conversations</p>
+          <p className="text-[11px] font-semibold text-industrial-muted uppercase tracking-wide px-3 py-2">Conversations</p>
           {isLoading ? (
             <div className="text-industrial-muted text-sm px-3 py-4">Loading...</div>
           ) : sessions.filter(s => s.message_count > 0).length === 0 ? (
@@ -252,9 +237,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   key={session.id}
                   to={`/chat/${session.id}`}
                   onClick={() => isMobile && setSidebarOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-all group min-h-[44px] ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-all group min-h-[44px] ${
                     session.id === currentSessionId
-                      ? 'bg-[var(--accent-subtle)] text-industrial border-l-2 border-[var(--accent)] rounded-l-none'
+                      ? 'bg-[var(--accent-subtle)] text-industrial border border-[var(--accent)]/35'
                       : ''
                   }`}
                 >
@@ -264,7 +249,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </span>
                   <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-[var(--bg-error)] transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-[var(--bg-error)] transition-all"
                     title="Delete conversation"
                     aria-label="Delete conversation"
                   >
@@ -282,7 +267,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {preferences && !preferences.is_complete && (
             <Link
               to="/settings"
-              className="block p-3 rounded-lg bg-[var(--accent-subtle)] hover:bg-[var(--accent)]/20 transition-colors group"
+              className="block p-3 rounded-xl bg-[var(--accent-subtle)] hover:bg-[var(--accent)]/20 transition-colors group border border-[var(--accent)]/20"
             >
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles size={14} className="text-[var(--accent)]" />
@@ -301,7 +286,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           )}
           <a
             href="mailto:support-spacefit@agentmail.to"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
           >
             <HelpCircle size={16} />
             <span>Support</span>
@@ -313,19 +298,21 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header — 56px mobile, 60px desktop */}
-        <header className="h-14 sm:h-15 min-h-[56px] flex items-center justify-between px-2 sm:px-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+        <header className="app-topbar h-14 min-h-[56px] flex items-center justify-between px-2 sm:px-4 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-              className="p-2.5 rounded-lg text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="p-2.5 rounded-xl text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <Menu size={20} />
             </button>
             {/* Logo - centered on mobile */}
             <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-sm bg-[var(--accent)]" />
-              <span className="text-sm font-semibold tracking-wide text-industrial">
+              <div className="w-7 h-7 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent)]/25 flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+              </div>
+              <span className="text-sm font-semibold tracking-tight text-industrial">
                 SpaceFit
               </span>
             </div>
@@ -337,7 +324,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <button
                 onClick={handleNewChat}
                 aria-label="New chat"
-                className="p-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] hover:bg-[var(--accent-hover)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="p-2.5 rounded-xl bg-[var(--bg-tertiary)] text-industrial hover:bg-[var(--hover-overlay)] border border-[var(--border-default)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <Plus size={18} />
               </button>
@@ -346,13 +333,16 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* User Dropdown */}
             <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
             <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+              onClick={() => {
+                setDropdownOpen(prev => !prev);
+                setFocusedIndex(dropdownOpen ? -1 : 0);
+              }}
               aria-haspopup="menu"
               aria-expanded={dropdownOpen}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
             >
-              <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
-                <span className="text-[var(--color-neutral-900)] text-sm font-semibold">
+              <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent)]/30 flex items-center justify-center flex-shrink-0">
+                <span className="text-industrial text-sm font-semibold">
                   {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
                 </span>
               </div>
@@ -369,7 +359,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   onClick={() => setDropdownOpen(false)}
                 />
                 <div
-                  className="absolute right-0 mt-2 w-56 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-lg z-20 overflow-hidden animate-scale-in"
+                  className="absolute right-0 mt-2 w-56 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-2xl shadow-md z-20 overflow-hidden animate-scale-in"
                   role="menu"
                   aria-orientation="vertical"
                 >

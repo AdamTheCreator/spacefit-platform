@@ -61,24 +61,24 @@ export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubbl
 
   // Bubble variant (default) - softer chat style with rounded corners
   const widthClasses = isUser
-    ? 'max-w-[90%] sm:max-w-[75%] md:max-w-[60%] lg:max-w-[50%] xl:max-w-[40%]'
-    : 'max-w-[95%] sm:max-w-[90%] md:max-w-[85%] lg:max-w-[80%]';
+    ? 'max-w-[92%] sm:max-w-[76%] md:max-w-[64%] lg:max-w-[52%]'
+    : 'max-w-[97%] sm:max-w-[92%] md:max-w-[88%]';
 
   return (
     <div
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in`}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-5 animate-fade-in`}
     >
       <div
         className={`${widthClasses} ${
           isUser
-            ? 'bg-[var(--accent)] text-[var(--color-neutral-900)] rounded-2xl rounded-br-md'
+            ? 'bg-[var(--accent-subtle)] text-industrial rounded-3xl rounded-br-lg border border-[var(--accent)]/20'
             : isSystem
-            ? 'bg-[var(--bg-tertiary)] text-industrial-secondary rounded-2xl rounded-bl-md border border-[var(--border-subtle)]'
-            : 'bg-[var(--bg-elevated)] text-industrial rounded-2xl rounded-bl-md shadow-sm border border-[var(--border-subtle)]'
+            ? 'bg-[var(--bg-tertiary)] text-industrial-secondary rounded-3xl rounded-bl-lg border border-[var(--border-subtle)]'
+            : 'bg-[var(--bg-elevated)] text-industrial rounded-3xl rounded-bl-lg border border-[var(--border-subtle)]'
         } px-4 py-3 sm:px-5 sm:py-4`}
       >
         {!isUser && agent && (
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[var(--border-subtle)]/80">
             <span
               className={`w-2 h-2 rounded-full ${agent.color} ${
                 message.isStreaming ? 'animate-pulse-soft' : ''
@@ -112,7 +112,7 @@ export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubbl
 
         <div
           className={`text-[11px] mt-3 ${
-            isUser ? 'text-[var(--color-neutral-700)]' : 'text-industrial-muted'
+            isUser ? 'text-industrial-muted' : 'text-industrial-muted'
           }`}
         >
           {message.timestamp.toLocaleTimeString([], {

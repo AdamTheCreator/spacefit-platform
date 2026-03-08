@@ -80,11 +80,11 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
   }, [sendMessage]);
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-primary)]">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Connection Status */}
       {!isConnected && (
         <div className="flex-shrink-0 px-4 py-2.5 bg-[var(--bg-warning)] border-b border-[var(--color-warning)]/20" role="status" aria-live="polite">
-          <div className="flex items-center gap-2 text-sm text-[var(--color-warning)]">
+          <div className="chat-stage flex items-center gap-2 text-sm text-[var(--color-warning)]">
             <span className="w-2 h-2 rounded-full bg-[var(--color-warning)] animate-pulse" />
             Connecting to server...
           </div>
@@ -94,7 +94,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
       {/* Loading State */}
       {isLoading && messages.length === 0 && (
         <div className="flex-shrink-0 px-4 py-2.5 bg-[var(--bg-info)] border-b border-[var(--color-info)]/20" role="status" aria-live="polite">
-          <div className="flex items-center gap-2 text-sm text-[var(--color-info)]">
+          <div className="chat-stage flex items-center gap-2 text-sm text-[var(--color-info)]">
             <span className="w-2 h-2 rounded-full bg-[var(--color-info)] animate-pulse" />
             Loading conversation...
           </div>
@@ -102,7 +102,8 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-6 scrollbar-thin">
+        <div className="chat-stage">
         {messages.length === 0 && !isLoading && isAnalysisKickoff ? (
           /* Analysis kickoff loading state */
           <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto animate-fade-in">
@@ -133,30 +134,23 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
             </div>
           </div>
         ) : messages.length === 0 && !isLoading ? (
-          <div className="flex flex-col items-center justify-center h-full text-center max-w-xl mx-auto animate-fade-in">
-            {/* Welcome graphic - softer, friendlier */}
-            <div className="relative mb-8">
-              <div className="w-20 h-20 rounded-2xl bg-[var(--accent-subtle)] flex items-center justify-center">
-                <div className="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center">
-                  <svg className="w-5 h-5 text-[var(--color-neutral-900)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
-              </div>
+          <div className="flex flex-col items-center justify-center h-full text-center max-w-2xl mx-auto animate-fade-in rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]/70 px-6 py-10 sm:px-10">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--accent-subtle)] border border-[var(--accent)]/20 flex items-center justify-center mb-5">
+              <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" />
             </div>
 
-            <h2 className="text-xl font-semibold text-industrial mb-2">
-              Welcome to SpaceFit
+            <h2 className="text-2xl font-semibold tracking-tight text-industrial mb-2">
+              SpaceFit Assistant
             </h2>
-            <p className="text-sm text-industrial-secondary max-w-md mb-8 leading-relaxed">
-              Your AI-powered commercial real estate assistant. Analyze properties, discover tenant opportunities, and automate outreach.
+            <p className="text-sm text-industrial-secondary max-w-lg mb-8 leading-relaxed">
+              Ask for site analysis, tenant matching, deal support, or outreach. Responses are grounded in your workspace data.
             </p>
 
             {/* Demo Mode Button */}
             {user?.is_admin && (
               <Link
                 to="/demo"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--color-neutral-900)] font-medium text-sm hover:bg-[var(--accent-hover)] transition-colors shadow-sm mb-8"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-industrial font-medium text-sm hover:bg-[var(--hover-overlay)] transition-colors border border-[var(--border-default)] mb-8"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
@@ -166,16 +160,16 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
             )}
 
             {/* Vertical Mode Picker */}
-            <p className="text-xs font-medium text-industrial-muted uppercase tracking-wide mb-3">Select Mode</p>
+            <p className="text-xs font-medium text-industrial-muted uppercase tracking-wide mb-3">Assistant Mode</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-8 w-full max-w-2xl">
               {VERTICAL_MODES.map((mode) => (
                 <button
                   key={mode.id}
                   onClick={() => setSelectedMode(mode.id)}
-                  className={`flex flex-col items-center p-3 rounded-lg border transition-all text-center ${
+                  className={`flex flex-col items-center p-3 rounded-xl border transition-all text-center ${
                     selectedMode === mode.id
-                      ? 'border-[var(--accent)] bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)]'
-                      : 'border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-tertiary)]'
+                      ? 'border-[var(--accent)] bg-[var(--accent-subtle)]'
+                      : 'border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)]'
                   }`}
                 >
                   <span className="text-2xl mb-1">{mode.emoji}</span>
@@ -195,16 +189,16 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
 
             <div className="flex flex-wrap gap-2 justify-center">
               {[
-                'Analyze a mall property',
-                'Find void opportunities',
-                'Check foot traffic data',
-                'Notify matching clients',
+                'Analyze this property',
+                'Find tenant gaps',
+                'Compare nearby demand',
+                'Draft outreach',
               ].map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => handleSendMessage(suggestion)}
                   disabled={!isConnected}
-                  className="px-4 py-2 rounded-lg text-sm text-industrial-secondary bg-[var(--bg-elevated)] border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="px-4 py-2 rounded-full text-sm text-industrial-secondary bg-[var(--bg-elevated)] border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:bg-[var(--hover-overlay)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {suggestion}
                 </button>
@@ -222,13 +216,14 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
             </p>
           </div>
         ) : (
-          <>
+          <div className="space-y-1">
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
             <div ref={messagesEndRef} />
-          </>
+          </div>
         )}
+        </div>
       </div>
 
       {/* Agent Status Strip */}
@@ -239,23 +234,25 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
       />
 
       {/* Input Area */}
-      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 xl:px-12 py-4 border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-        <ChatInput
-          onSend={handleSendMessage}
-          disabled={!isConnected || isProcessing}
-          placeholder={
-            !isConnected
-              ? 'Connecting to server...'
-              : isProcessing
-              ? 'Processing your request...'
-              : 'Ask me anything about commercial real estate...'
-          }
-        />
-        <p className="text-xs text-industrial-muted mt-3 text-center">
-          {isProcessing
-            ? 'AI agents are working on your request'
-            : 'Press Enter to send • Shift+Enter for new line'}
-        </p>
+      <div className="chat-input-shell flex-shrink-0 px-3 sm:px-5 py-4 border-t border-[var(--border-subtle)]">
+        <div className="chat-stage">
+          <ChatInput
+            onSend={handleSendMessage}
+            disabled={!isConnected || isProcessing}
+            placeholder={
+              !isConnected
+                ? 'Connecting to server...'
+                : isProcessing
+                ? 'Processing your request...'
+                : 'Message SpaceFit...'
+            }
+          />
+          <p className="text-xs text-industrial-muted mt-3 text-center">
+            {isProcessing
+              ? 'AI agents are working on your request'
+              : 'Enter to send, Shift+Enter for a new line'}
+          </p>
+        </div>
       </div>
     </div>
   );

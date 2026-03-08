@@ -19,7 +19,8 @@ export function ConnectorHealthBanner() {
       : `${count} connectors need attention`;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20">
+    <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20">
+      <div className="chat-stage flex items-center gap-3">
       <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
       <span className="flex-1 text-sm text-industrial-secondary">
         {message}
@@ -38,6 +39,7 @@ export function ConnectorHealthBanner() {
       >
         <X size={14} />
       </button>
+      </div>
     </div>
   );
 }

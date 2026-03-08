@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -14,30 +15,30 @@
      Warmer neutrals, gentler contrasts, more approachable feel
      ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Neutral Palette - Warmer undertones */
-  --color-neutral-50: #FAFAF9;
-  --color-neutral-100: #F5F4F2;
-  --color-neutral-200: #E8E7E5;
-  --color-neutral-300: #D4D3D0;
-  --color-neutral-400: #A3A19D;
-  --color-neutral-500: #737169;
-  --color-neutral-600: #5C5A55;
-  --color-neutral-700: #45433F;
-  --color-neutral-800: #2A2927;
-  --color-neutral-900: #1A1918;
-  --color-neutral-950: #0F0E0D;
+  /* Neutral Palette - crisp, modern */
+  --color-neutral-50: #f8faf9;
+  --color-neutral-100: #f2f5f3;
+  --color-neutral-200: #e5ebe8;
+  --color-neutral-300: #d4ddd8;
+  --color-neutral-400: #98a5a0;
+  --color-neutral-500: #708079;
+  --color-neutral-600: #54635c;
+  --color-neutral-700: #3a4741;
+  --color-neutral-800: #222d29;
+  --color-neutral-900: #141b18;
+  --color-neutral-950: #0a0f0d;
 
-  /* Accent - Warm Gold (refined) */
-  --color-accent-50: #FFFCF5;
-  --color-accent-100: #FEF7E6;
-  --color-accent-200: #FDECC7;
-  --color-accent-300: #FBDB99;
-  --color-accent-400: #F5C44D;
-  --color-accent-500: #E5A840;
-  --color-accent-600: #D49A35;
-  --color-accent-700: #B07D28;
-  --color-accent-800: #8C6320;
-  --color-accent-900: #73511A;
+  /* Accent - restrained green */
+  --color-accent-50: #eefcf3;
+  --color-accent-100: #daf8e5;
+  --color-accent-200: #b6efcd;
+  --color-accent-300: #84dfad;
+  --color-accent-400: #4dc288;
+  --color-accent-500: #23a26b;
+  --color-accent-600: #138a59;
+  --color-accent-700: #0f6d47;
+  --color-accent-800: #0d5538;
+  --color-accent-900: #0b4430;
 
   /* Semantic Colors - Balanced saturation */
   --color-success: #22C55E;
@@ -53,10 +54,10 @@
      TYPOGRAPHY
      Sans-serif for UI, monospace reserved for code/data
      ═══════════════════════════════════════════════════════════════════════════ */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
-  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
+  --font-display: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-body: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
 
   /* ═══════════════════════════════════════════════════════════════════════════
      SPACING SCALE (4px base)
@@ -113,11 +114,11 @@
    ───────────────────────────────────────────────────────────────────────────── */
 :root {
   /* Light Theme (Default) - Warm and approachable */
-  --bg-primary: #F8F8F7;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #F0EFED;
-  --bg-elevated: #FFFFFF;
-  --bg-muted: #E8E7E5;
+  --bg-primary: #f6f8f7;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eef2f0;
+  --bg-elevated: #ffffff;
+  --bg-muted: #e6ece9;
   --bg-accent-subtle: var(--color-accent-50);
 
   --text-primary: var(--color-neutral-900);
@@ -125,9 +126,9 @@
   --text-muted: var(--color-neutral-500);
   --text-inverted: #FFFFFF;
 
-  --border-default: #E0DFDD;
-  --border-strong: #CFCDC9;
-  --border-subtle: #EAEAE8;
+  --border-default: #dce4e0;
+  --border-strong: #c8d4ce;
+  --border-subtle: #e8efec;
   /* Legacy aliases for compatibility */
   --border-color: var(--border-strong);
 
@@ -142,8 +143,8 @@
   --bg-info: var(--color-info-light);
 
   /* Interactive states */
-  --hover-overlay: rgba(0, 0, 0, 0.04);
-  --active-overlay: rgba(0, 0, 0, 0.08);
+  --hover-overlay: rgba(20, 27, 24, 0.05);
+  --active-overlay: rgba(20, 27, 24, 0.09);
   --focus-ring: var(--accent);
   --focus-ring-offset: 2px;
 
@@ -152,26 +153,26 @@
 
 /* Dark Theme Override */
 .dark, [data-theme="dark"] {
-  --bg-primary: #141312;
-  --bg-secondary: #1A1918;
-  --bg-tertiary: #222120;
-  --bg-elevated: #1E1D1C;
-  --bg-muted: #2A2928;
-  --bg-accent-subtle: rgba(229, 168, 64, 0.1);
+  --bg-primary: #121a17;
+  --bg-secondary: #18221f;
+  --bg-tertiary: #1f2c28;
+  --bg-elevated: #1d2925;
+  --bg-muted: #2a3732;
+  --bg-accent-subtle: rgba(35, 162, 107, 0.12);
 
   --text-primary: var(--color-neutral-100);
   --text-secondary: var(--color-neutral-400);
   --text-muted: var(--color-neutral-500);
   --text-inverted: var(--color-neutral-900);
 
-  --border-default: #2D2C29;
-  --border-strong: #3D3C38;
-  --border-subtle: #252423;
+  --border-default: #2d3a35;
+  --border-strong: #3a4a44;
+  --border-subtle: #24302c;
   --border-color: var(--border-strong);
 
   --accent: var(--color-accent-400);
   --accent-hover: var(--color-accent-300);
-  --accent-subtle: rgba(229, 168, 64, 0.15);
+  --accent-subtle: rgba(77, 194, 136, 0.16);
 
   /* Semantic backgrounds (darker variants) */
   --bg-success: rgba(34, 197, 94, 0.15);
@@ -199,9 +200,9 @@ body {
   min-height: 100vh;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
-  letter-spacing: -0.006em;
+  letter-spacing: -0.01em;
   transition: background-color var(--duration-normal) var(--ease-in-out),
               color var(--duration-normal) var(--ease-in-out);
 }
@@ -1247,4 +1248,33 @@ textarea.input-industrial {
   width: 1px;
   height: 100%;
   background: var(--border-subtle);
+}
+
+/* Application shell helpers */
+.app-shell {
+  background:
+    radial-gradient(1200px 560px at 20% -10%, rgba(35, 162, 107, 0.08), transparent 65%),
+    radial-gradient(900px 420px at 95% 0%, rgba(84, 99, 92, 0.08), transparent 70%),
+    var(--bg-primary);
+}
+
+.app-sidebar {
+  background: color-mix(in oklab, var(--bg-secondary) 92%, var(--bg-primary));
+  backdrop-filter: blur(12px);
+}
+
+.app-topbar {
+  background: color-mix(in oklab, var(--bg-secondary) 90%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.chat-stage {
+  max-width: 940px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.chat-input-shell {
+  background: color-mix(in oklab, var(--bg-secondary) 92%, transparent);
+  backdrop-filter: blur(10px);
 }
