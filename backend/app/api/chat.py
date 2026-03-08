@@ -821,6 +821,9 @@ async def websocket_endpoint(
 
             # Create session lazily on first message (only for new sessions)
             if actual_session_id is None and is_new_session:
+                # Get system_prompt_id from message payload (default to MASTER_DEFAULT)
+                requested_prompt_id = message_data.get("system_prompt_id", "MASTER_DEFAULT")
+
                 async with async_session_factory() as db:
                     # Generate title from the first message
                     title = None
@@ -832,13 +835,13 @@ async def websocket_endpoint(
                     chat_session = ChatSession(
                         user_id=user_id,
                         title=title,
-                        system_prompt_id="MASTER_DEFAULT",
+                        system_prompt_id=requested_prompt_id,
                     )
                     db.add(chat_session)
                     await db.commit()
                     await db.refresh(chat_session)
                     actual_session_id = chat_session.id
-                    session_prompt_id = "MASTER_DEFAULT"
+                    session_prompt_id = requested_prompt_id
 
                 # Send session info to frontend now that session exists
                 await websocket.send_json({
@@ -1284,6 +1287,9 @@ async def websocket_chat_endpoint(
 
             # Create new session if needed
             if not session_id:
+                # Get system_prompt_id from message payload (default to MASTER_DEFAULT)
+                requested_prompt_id = message_data.get("system_prompt_id", "MASTER_DEFAULT")
+
                 async with async_session_factory() as db:
                     # Generate title from first message
                     title = None
@@ -1295,7 +1301,7 @@ async def websocket_chat_endpoint(
                     chat_session = ChatSession(
                         user_id=user_id,
                         title=title,
-                        system_prompt_id="MASTER_DEFAULT",
+                        system_prompt_id=requested_prompt_id,
                     )
                     db.add(chat_session)
                     await db.commit()
@@ -1311,7 +1317,7 @@ async def websocket_chat_endpoint(
                 # Initialize conversation history for new session
                 conversation_histories[session_id] = []
                 document_contexts[session_id] = None
-                session_prompt_ids[session_id] = "MASTER_DEFAULT"
+                session_prompt_ids[session_id] = requested_prompt_id
                 session_analysis_types[session_id] = None
 
             # Load conversation history and document context if not cached
