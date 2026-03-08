@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import { ProtectedRoute } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -23,18 +24,16 @@ const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => (
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 
-// Loading fallback component - Industrial style
+// Loading fallback component - Minimalist style
 function PageLoader() {
   return (
-    <div className="h-screen w-screen bg-industrial flex items-center justify-center">
+    <div className="h-screen w-screen bg-[var(--bg-primary)] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <div className="flex gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-bounce" />
+        <div className="w-12 h-12 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-[var(--accent)]/20 animate-pulse-slow">
+          <Sparkles size={24} />
         </div>
-        <p className="font-mono text-xs tracking-wider uppercase text-industrial-secondary">
-          Loading
+        <p className="text-xs font-bold tracking-widest uppercase text-industrial-muted">
+          Initialising
         </p>
       </div>
     </div>
@@ -43,7 +42,7 @@ function PageLoader() {
 
 function App() {
   return (
-    <div className="app-shell h-screen w-screen bg-industrial">
+    <div className="app-shell h-screen w-screen bg-[var(--bg-primary)]">
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}

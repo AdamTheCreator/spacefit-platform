@@ -1,124 +1,71 @@
 import { memo } from 'react';
+import { Sparkles } from 'lucide-react';
 import type { Message } from '../../types/chat';
 import { AGENTS } from '../../types/chat';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatMessageProps {
   message: Message;
-  variant?: 'bubble' | 'card'; // bubble = chat style, card = full-width dashboard style
 }
 
-export const ChatMessage = memo(function ChatMessage({ message, variant = 'bubble' }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
-  const isSystem = message.role === 'system';
   const agent = message.agentType ? AGENTS[message.agentType] : null;
 
-  // On desktop with card variant, agent messages are full-width cards
-  // User messages stay as small bubbles on the right
-  if (variant === 'card' && !isUser) {
-    return (
-      <div className="mb-6 animate-fade-in">
-        <div className="bg-[var(--bg-elevated)] rounded-xl shadow-sm border border-[var(--border-subtle)] overflow-hidden">
-          {/* Card Header with agent info */}
-          {agent && (
-            <div className="flex items-center gap-3 px-5 py-3 bg-[var(--bg-tertiary)] border-b border-[var(--border-subtle)]">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${agent.color} ${
-                  message.isStreaming ? 'animate-pulse-soft' : ''
-                }`}
-              />
-              <span className="text-xs font-medium text-industrial">
-                {agent.name}
+  return (
+    <div className={`w-full group animate-fade-in ${isUser ? '' : 'bg-[var(--bg-secondary)]/50 py-2 rounded-2xl'}`}>
+      <div className="chat-stage px-4 py-2">
+        <div className="flex gap-4 sm:gap-6">
+          {/* Avatar Area */}
+          <div className="flex-shrink-0 pt-1">
+            {isUser ? (
+              <div className="w-7 h-7 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[10px] font-bold text-industrial-secondary">
+                U
+              </div>
+            ) : (
+              <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center text-white">
+                <Sparkles size={14} />
+              </div>
+            )}
+          </div>
+
+          {/* Content Area */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-bold text-industrial">
+                {isUser ? 'You' : agent?.name || 'SpaceFit'}
               </span>
-              {message.isStreaming && (
-                <span className="text-xs text-industrial-muted">Processing...</span>
+              {!isUser && message.isStreaming && (
+                <span className="text-[10px] font-medium text-[var(--accent)] uppercase tracking-wider animate-pulse">
+                  Thinking...
+                </span>
               )}
-              <span className="ml-auto text-xs text-industrial-muted">
+            </div>
+
+            <div className="text-[15px] text-industrial leading-relaxed prose prose-sm max-w-none">
+              {isUser ? (
+                <p className="whitespace-pre-wrap">{message.content}</p>
+              ) : (
+                <MarkdownRenderer
+                  content={message.content}
+                  agentType={message.agentType}
+                />
+              )}
+              {message.isStreaming && !isUser && (
+                <span className="inline-block w-1 h-4 ml-1 bg-[var(--accent)] rounded-full animate-pulse align-middle" />
+              )}
+            </div>
+
+            {/* Subtle Timestamp */}
+            <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-[10px] text-industrial-muted uppercase tracking-tighter">
                 {message.timestamp.toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
               </span>
             </div>
-          )}
-
-          {/* Card Content - full width */}
-          <div className="p-5">
-            <div className="text-sm text-industrial leading-relaxed">
-              <MarkdownRenderer
-                content={message.content}
-                agentType={message.agentType}
-              />
-              {message.isStreaming && (
-                <span className="inline-block w-1.5 h-4 ml-1 bg-[var(--accent)] rounded-sm animate-pulse" />
-              )}
-            </div>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Bubble variant (default) - softer chat style with rounded corners
-  const widthClasses = isUser
-    ? 'max-w-[92%] sm:max-w-[76%] md:max-w-[64%] lg:max-w-[52%]'
-    : 'max-w-[97%] sm:max-w-[92%] md:max-w-[88%]';
-
-  return (
-    <div
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-5 animate-fade-in`}
-    >
-      <div
-        className={`${widthClasses} ${
-          isUser
-            ? 'bg-[var(--accent-subtle)] text-industrial rounded-3xl rounded-br-lg border border-[var(--accent)]/20'
-            : isSystem
-            ? 'bg-[var(--bg-tertiary)] text-industrial-secondary rounded-3xl rounded-bl-lg border border-[var(--border-subtle)]'
-            : 'bg-[var(--bg-elevated)] text-industrial rounded-3xl rounded-bl-lg border border-[var(--border-subtle)]'
-        } px-4 py-3 sm:px-5 sm:py-4`}
-      >
-        {!isUser && agent && (
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[var(--border-subtle)]/80">
-            <span
-              className={`w-2 h-2 rounded-full ${agent.color} ${
-                message.isStreaming ? 'animate-pulse-soft' : ''
-              }`}
-            />
-            <span className="text-xs font-medium text-industrial-secondary">
-              {agent.name}
-            </span>
-            {message.isStreaming && (
-              <span className="text-xs text-industrial-muted ml-2">Typing...</span>
-            )}
-          </div>
-        )}
-
-        {/* Render content - use markdown for agents, plain text for user */}
-        {isUser ? (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-            {message.content}
-          </p>
-        ) : (
-          <div className="text-sm leading-relaxed">
-            <MarkdownRenderer
-              content={message.content}
-              agentType={message.agentType}
-            />
-            {message.isStreaming && (
-              <span className="inline-block w-1.5 h-4 ml-1 bg-[var(--accent)] rounded-sm animate-pulse" />
-            )}
-          </div>
-        )}
-
-        <div
-          className={`text-[11px] mt-3 ${
-            isUser ? 'text-industrial-muted' : 'text-industrial-muted'
-          }`}
-        >
-          {message.timestamp.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
         </div>
       </div>
     </div>

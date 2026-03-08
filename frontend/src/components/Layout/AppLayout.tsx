@@ -156,48 +156,39 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div
         className={`
           ${isMobile
-            ? `fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-out ${
+            ? `fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-out ${
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }`
-            : `${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300`
+            : `${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300`
           }
           app-sidebar flex flex-col border-r border-[var(--border-subtle)] overflow-hidden
         `}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-[var(--border-subtle)]">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              onClick={() => {
-                handleNewChat();
-                if (isMobile) setSidebarOpen(false);
-              }}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] text-industrial font-medium text-sm hover:bg-[var(--hover-overlay)] transition-colors border border-[var(--border-default)] min-h-[44px]"
-            >
-              <Plus size={16} />
-              New Chat
-            </button>
-            {/* Mobile close button */}
-            {isMobile && (
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-2.5 rounded-lg text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                aria-label="Close sidebar"
-              >
-                <X size={20} />
-              </button>
-            )}
-          </div>
+        <div className="p-4">
+          <button
+            onClick={() => {
+              handleNewChat();
+              if (isMobile) setSidebarOpen(false);
+            }}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg hover:bg-[var(--bg-tertiary)] text-industrial font-medium text-sm transition-all group border border-transparent hover:border-[var(--border-default)]"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center">
+                <Plus size={16} strokeWidth={3} />
+              </div>
+              <span>New Chat</span>
+            </div>
+          </button>
         </div>
 
-        {/* Main Navigation */}
-        <div className="p-3 border-b border-[var(--border-subtle)]">
-          <p className="text-[11px] font-semibold text-industrial-muted uppercase tracking-wide px-3 py-2">Workspace</p>
-          <nav className="space-y-1">
+        {/* Workspace Navigation */}
+        <div className="px-3 py-2">
+          <nav className="space-y-0.5">
             <Link
               to="/pipeline"
               onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
             >
               <Kanban size={16} />
               <span>Pipeline</span>
@@ -205,7 +196,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link
               to="/documents"
               onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
             >
               <FileText size={16} />
               <span>Documents</span>
@@ -213,7 +204,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link
               to="/outreach"
               onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
             >
               <Mail size={16} />
               <span>Outreach</span>
@@ -222,24 +213,28 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
-          <p className="text-[11px] font-semibold text-industrial-muted uppercase tracking-wide px-3 py-2">Conversations</p>
+        <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
+          <p className="text-[11px] font-bold text-industrial-muted uppercase tracking-widest px-3 mb-2">History</p>
           {isLoading ? (
-            <div className="text-industrial-muted text-sm px-3 py-4">Loading...</div>
+            <div className="flex items-center gap-2 px-3 py-4">
+              <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse" />
+              <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse [animation-delay:200ms]" />
+              <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse [animation-delay:400ms]" />
+            </div>
           ) : sessions.filter(s => s.message_count > 0).length === 0 ? (
-            <div className="text-industrial-muted text-sm px-3 py-4">
-              No conversations yet
+            <div className="text-industrial-muted text-xs px-3 py-4">
+              Your conversations will appear here
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {sessions.filter(s => s.message_count > 0).map((session) => (
                 <Link
                   key={session.id}
                   to={`/chat/${session.id}`}
                   onClick={() => isMobile && setSidebarOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-all group min-h-[44px] ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-all group relative ${
                     session.id === currentSessionId
-                      ? 'bg-[var(--accent-subtle)] text-industrial border border-[var(--accent)]/35'
+                      ? 'bg-[var(--bg-tertiary)] text-industrial font-medium'
                       : ''
                   }`}
                 >
@@ -249,11 +244,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </span>
                   <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-[var(--bg-error)] transition-all"
-                    title="Delete conversation"
-                    aria-label="Delete conversation"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-[var(--color-error)]/10 text-industrial-muted hover:text-[var(--color-error)] transition-all"
+                    title="Delete"
                   >
-                    <X size={12} className="text-industrial-muted group-hover:text-[var(--color-error)]" />
+                    <X size={12} />
                   </button>
                 </Link>
               ))}
@@ -262,96 +256,43 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[var(--border-subtle)] space-y-3">
-          {/* Profile Completion Nudge */}
-          {preferences && !preferences.is_complete && (
-            <Link
-              to="/settings"
-              className="block p-3 rounded-xl bg-[var(--accent-subtle)] hover:bg-[var(--accent)]/20 transition-colors group border border-[var(--accent)]/20"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={14} className="text-[var(--accent)]" />
-                <span className="text-xs font-medium text-[var(--accent)]">Complete Setup</span>
-              </div>
-              <div className="h-1.5 bg-[var(--bg-primary)] rounded-full overflow-hidden mb-2">
-                <div
-                  className="h-full bg-[var(--accent)] rounded-full transition-all"
-                  style={{ width: `${preferences.completion_percentage}%` }}
-                />
-              </div>
-              <p className="text-xs text-industrial-muted group-hover:text-industrial-secondary">
-                {preferences.completion_percentage}% complete
-              </p>
-            </Link>
-          )}
+        <div className="p-3 border-t border-[var(--border-subtle)] space-y-0.5">
           <a
             href="mailto:support-spacefit@agentmail.to"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <HelpCircle size={16} />
             <span>Support</span>
           </a>
-          <p className="text-[11px] text-industrial-muted px-1">SpaceFit v{import.meta.env.VITE_APP_VERSION}</p>
+          <div className="px-3 pt-2">
+             <p className="text-[10px] text-industrial-muted">SpaceFit v{import.meta.env.VITE_APP_VERSION}</p>
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header — 56px mobile, 60px desktop */}
-        <header className="app-topbar h-14 min-h-[56px] flex items-center justify-between px-2 sm:px-4 border-b border-[var(--border-subtle)]">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-              className="p-2.5 rounded-xl text-industrial-secondary hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-            >
-              <Menu size={20} />
-            </button>
-            {/* Logo - centered on mobile */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent)]/25 flex items-center justify-center">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    connectionStatus === 'connected'
-                      ? 'bg-emerald-500 animate-pulse-slow'
-                      : connectionStatus === 'connecting'
-                      ? 'bg-amber-500 animate-pulse-slow'
-                      : 'bg-red-500'
-                  }`}
-                  title={
-                    connectionStatus === 'connected'
-                      ? 'Connected to server'
-                      : connectionStatus === 'connecting'
-                      ? 'Connecting to server'
-                      : 'Disconnected from server'
-                  }
-                  aria-label={
-                    connectionStatus === 'connected'
-                      ? 'Connected to server'
-                      : connectionStatus === 'connecting'
-                      ? 'Connecting to server'
-                      : 'Disconnected from server'
-                  }
-                />
-              </div>
+        {/* Top Header */}
+        <header className="app-topbar h-14 flex items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 rounded-lg text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                <Menu size={20} />
+              </button>
+            )}
+            
+            <div className="flex items-center gap-2 ml-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse-slow" />
               <span className="text-sm font-semibold tracking-tight text-industrial">
                 SpaceFit
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* New Chat button - mobile only (icon only) */}
-            {isMobile && (
-              <button
-                onClick={handleNewChat}
-                aria-label="New chat"
-                className="p-2.5 rounded-xl bg-[var(--bg-tertiary)] text-industrial hover:bg-[var(--hover-overlay)] border border-[var(--border-default)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-              >
-                <Plus size={18} />
-              </button>
-            )}
-
+          <div className="flex items-center gap-3">
             {/* User Dropdown */}
             <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
             <button
@@ -359,19 +300,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 setDropdownOpen(prev => !prev);
                 setFocusedIndex(dropdownOpen ? -1 : 0);
               }}
-              aria-haspopup="menu"
-              aria-expanded={dropdownOpen}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-xl text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors min-h-[44px]"
+              className="flex items-center gap-2 p-1 rounded-full hover:bg-[var(--bg-tertiary)] transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent)]/30 flex items-center justify-center flex-shrink-0">
-                <span className="text-industrial text-sm font-semibold">
-                  {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
-                </span>
+              <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] flex items-center justify-center font-bold text-xs">
+                {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
               </div>
-              <span className="text-sm font-medium hidden sm:block">
-                {user?.first_name || user?.email?.split('@')[0]}
-              </span>
-              <ChevronDown size={16} className="text-industrial-muted hidden sm:block" />
             </button>
 
             {dropdownOpen && (

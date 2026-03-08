@@ -52,13 +52,13 @@ export function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-3 items-end">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2">
       <div
-        className={`flex-1 relative rounded-3xl border transition-all duration-150 ${
+        className={`relative flex items-end w-full rounded-2xl border transition-all duration-200 ${
           isFocused
-            ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]/15 shadow-sm'
-            : 'border-[var(--border-default)] hover:border-[var(--border-strong)]'
-        } ${disabled ? 'opacity-60' : ''} bg-[var(--bg-secondary)]`}
+            ? 'border-[var(--border-strong)] bg-[var(--bg-primary)] shadow-md'
+            : 'border-[var(--border-default)] bg-[var(--bg-secondary)]'
+        } ${disabled ? 'opacity-50' : ''}`}
       >
         <textarea
           ref={textareaRef}
@@ -70,23 +70,19 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full px-5 py-3.5 pr-12 bg-transparent text-base sm:text-sm text-industrial placeholder:text-industrial-muted resize-none outline-none focus-visible:outline-none rounded-3xl min-h-[48px] transition-all"
+          className="w-full pl-4 pr-12 py-3 bg-transparent text-[15px] text-industrial placeholder:text-industrial-muted resize-none outline-none rounded-2xl min-h-[52px] max-h-[200px] scrollbar-thin"
         />
-        {/* Character count indicator */}
-        {input.length > 0 && (
-          <span className="absolute right-3 bottom-3 text-[10px] text-industrial-muted tabular-nums">
-            {input.length}
-          </span>
-        )}
+        
+        <div className="absolute right-2 bottom-2">
+          <button
+            type="submit"
+            disabled={disabled || !input.trim()}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-tertiary)] disabled:text-industrial-muted transition-all"
+          >
+            <Send size={16} strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
-      <button
-        type="submit"
-        disabled={disabled || !input.trim()}
-        aria-label="Send message"
-        className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-full bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-sm hover:shadow-md active:scale-95"
-      >
-        <Send size={18} strokeWidth={2} aria-hidden="true" />
-      </button>
     </form>
   );
 }
