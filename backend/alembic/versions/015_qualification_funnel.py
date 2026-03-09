@@ -70,7 +70,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column('cap_rate', sa.Float, nullable=True))
         batch_op.add_column(sa.Column('price_psf', sa.Float, nullable=True))
         batch_op.add_column(sa.Column('noi', sa.Float, nullable=True))
-        batch_op.add_column(sa.Column('is_sale_comp', sa.Boolean, server_default='0', nullable=False))
+        batch_op.add_column(sa.Column('is_sale_comp', sa.Boolean, server_default=sa.text('false'), nullable=False))
 
         # Broker contact
         batch_op.add_column(sa.Column('broker_name', sa.String(255), nullable=True))
@@ -92,26 +92,26 @@ def upgrade() -> None:
 
     # --- 4. Add new feature flags to subscription_plans ---
     with op.batch_alter_table('subscription_plans') as batch_op:
-        batch_op.add_column(sa.Column('has_gmail_monitoring', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_qualification_scoring', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_loi_generation', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_pro_forma', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_approval_workflow', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_followup_automation', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_pipeline_reports', sa.Boolean, server_default='0', nullable=False))
-        batch_op.add_column(sa.Column('has_comp_database', sa.Boolean, server_default='0', nullable=False))
+        batch_op.add_column(sa.Column('has_gmail_monitoring', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_qualification_scoring', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_loi_generation', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_pro_forma', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_approval_workflow', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_followup_automation', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_pipeline_reports', sa.Boolean, server_default=sa.text('false'), nullable=False))
+        batch_op.add_column(sa.Column('has_comp_database', sa.Boolean, server_default=sa.text('false'), nullable=False))
         batch_op.add_column(sa.Column('properties_limit', sa.Integer, server_default='-1', nullable=False))
         batch_op.add_column(sa.Column('gmail_emails_per_day', sa.Integer, server_default='0', nullable=False))
 
     # Set feature flags for individual tier
     op.execute(sa.text("""
         UPDATE subscription_plans SET
-            has_qualification_scoring = 1,
-            has_comp_database = 1,
-            has_gmail_monitoring = 1,
-            has_loi_generation = 1,
-            has_pro_forma = 1,
-            has_pipeline_reports = 1,
+            has_qualification_scoring = true,
+            has_comp_database = true,
+            has_gmail_monitoring = true,
+            has_loi_generation = true,
+            has_pro_forma = true,
+            has_pipeline_reports = true,
             gmail_emails_per_day = 50
         WHERE tier = 'individual'
     """))
@@ -119,14 +119,14 @@ def upgrade() -> None:
     # Set feature flags for enterprise tier
     op.execute(sa.text("""
         UPDATE subscription_plans SET
-            has_qualification_scoring = 1,
-            has_comp_database = 1,
-            has_gmail_monitoring = 1,
-            has_loi_generation = 1,
-            has_pro_forma = 1,
-            has_approval_workflow = 1,
-            has_followup_automation = 1,
-            has_pipeline_reports = 1,
+            has_qualification_scoring = true,
+            has_comp_database = true,
+            has_gmail_monitoring = true,
+            has_loi_generation = true,
+            has_pro_forma = true,
+            has_approval_workflow = true,
+            has_followup_automation = true,
+            has_pipeline_reports = true,
             gmail_emails_per_day = -1
         WHERE tier = 'enterprise'
     """))
