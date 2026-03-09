@@ -27,7 +27,7 @@ def uuid_str() -> str:
 
 class SubscriptionTier(str, enum.Enum):
     FREE = "free"
-    PRO = "pro"
+    INDIVIDUAL = "individual"
     ENTERPRISE = "enterprise"
 
 
@@ -72,6 +72,18 @@ class SubscriptionPlan(Base):
     has_costar_access: Mapped[bool] = mapped_column(Boolean, default=False)
     has_email_outreach: Mapped[bool] = mapped_column(Boolean, default=False)
     has_api_access: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Acquisition workflow feature flags
+    has_gmail_monitoring: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_qualification_scoring: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_loi_generation: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_pro_forma: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_approval_workflow: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_followup_automation: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_pipeline_reports: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_comp_database: Mapped[bool] = mapped_column(Boolean, default=False)
+    properties_limit: Mapped[int] = mapped_column(Integer, default=-1)  # -1 = unlimited
+    gmail_emails_per_day: Mapped[int] = mapped_column(Integer, default=0)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
@@ -124,6 +136,9 @@ class UsageType(str, enum.Enum):
     DEMOGRAPHICS_REPORT = "demographics_report"
     EMAIL_SENT = "email_sent"
     DOCUMENT_PARSED = "document_parsed"
+    LOI_GENERATED = "loi_generated"
+    PRO_FORMA_CALCULATED = "pro_forma_calculated"
+    PROPERTY_QUALIFIED = "property_qualified"
 
 
 class UsageRecord(Base):

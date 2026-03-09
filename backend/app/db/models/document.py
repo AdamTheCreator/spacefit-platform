@@ -29,6 +29,8 @@ class DocumentType(str, Enum):
     SITE_PLAN = "site_plan"
     VOID_ANALYSIS = "void_analysis"
     INVESTMENT_MEMO = "investment_memo"
+    OFFERING_MEMORANDUM = "offering_memorandum"
+    LOI = "loi"
     LOAN_DOCUMENT = "loan_document"
     COMP_REPORT = "comp_report"
     OTHER = "other"

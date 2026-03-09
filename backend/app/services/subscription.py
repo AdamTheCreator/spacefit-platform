@@ -209,7 +209,7 @@ class SubscriptionService:
 
         # Check if feature is disabled (0 limit)
         if limit == 0:
-            return False, f"This feature requires a Pro or Enterprise subscription."
+            return False, f"This feature requires an Individual or Enterprise subscription."
 
         # Check current usage
         current = await SubscriptionService.get_usage(db, subscription, usage_type)
@@ -286,8 +286,8 @@ class SubscriptionService:
                 has_api_access=False,
             ),
             SubscriptionPlan(
-                tier=SubscriptionTier.PRO,
-                name="Pro",
+                tier=SubscriptionTier.INDIVIDUAL,
+                name="Individual",
                 description="For growing CRE professionals",
                 price_monthly=4900,  # $49.00
                 chat_sessions_per_month=-1,  # Unlimited

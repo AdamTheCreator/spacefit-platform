@@ -926,3 +926,126 @@ async def analyze_document_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Analysis failed: {str(e)}",
         )
+
+
+# ============ LOI GENERATION ============
+
+class LOIGenerateRequest(BaseModel):
+    """Request to generate an LOI."""
+    property_id: str | None = None
+    purchase_price: float
+    earnest_money: float
+    earnest_money_type: str = "flat"
+    due_diligence_days: int = 30
+    closing_days: int = 60
+    financing_contingency: bool = True
+    financing_days: int = 45
+    inspection_contingency: bool = True
+    title_contingency: bool = True
+    buyer_entity: str = ""
+    buyer_contact_name: str = ""
+    buyer_contact_email: str = ""
+    additional_terms: str = ""
+
+
+@router.post("/generate/loi")
+async def generate_loi_endpoint(
+    request: LOIGenerateRequest,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Generate a Letter of Intent document."""
+    from app.agents.loi_generator import LOITerms, generate_loi
+    from app.db.models.deal import Property
+
+    property_info: dict = {}
+    if request.property_id:
+        result = await db.execute(
+            select(Property).where(
+                Property.id == request.property_id,
+                Property.user_id == current_user.id,
+            )
+        )
+        prop = result.scalar_one_or_none()
+        if prop:
+            property_info = {
+                "address": prop.address,
+                "city": prop.city,
+                "state": prop.state,
+                "zip_code": prop.zip_code,
+                "property_type": prop.property_type,
+                "total_sf": prop.total_sf,
+                "asking_price": prop.asking_price,
+                "cap_rate": prop.cap_rate,
+                "noi": prop.noi,
+            }
+
+    terms = LOITerms(
+        purchase_price=request.purchase_price,
+        earnest_money=request.earnest_money,
+        earnest_money_type=request.earnest_money_type,
+        due_diligence_days=request.due_diligence_days,
+        closing_days=request.closing_days,
+        financing_contingency=request.financing_contingency,
+        financing_days=request.financing_days,
+        inspection_contingency=request.inspection_contingency,
+        title_contingency=request.title_contingency,
+        buyer_entity=request.buyer_entity,
+        buyer_contact_name=request.buyer_contact_name,
+        buyer_contact_email=request.buyer_contact_email,
+        additional_terms=request.additional_terms,
+    )
+
+    loi_result = await generate_loi(property_info, terms)
+    return loi_result.to_dict()
+
+
+# ============ PRO FORMA CALCULATOR ============
+
+class ProFormaRequest(BaseModel):
+    """Request for pro forma calculation."""
+    purchase_price: float
+    cap_rate: float
+    noi: float
+    loan_to_value: float = 70.0
+    interest_rate: float = 6.5
+    loan_term_years: int = 10
+    amortization_years: int = 30
+    hold_period_years: int = 5
+    exit_cap_rate: float = 7.5
+    rent_growth_rate: float = 2.5
+    expense_growth_rate: float = 2.0
+    vacancy_rate: float = 5.0
+    capex_reserve_psf: float = 0.50
+    total_sf: int = 0
+    closing_costs_pct: float = 2.0
+
+
+@router.post("/analysis/pro-forma")
+async def calculate_pro_forma_endpoint(
+    request: ProFormaRequest,
+    current_user: CurrentUser,
+) -> dict:
+    """Calculate a pro forma analysis for a property acquisition."""
+    from app.services.pro_forma import ProFormaInputs, calculate_pro_forma
+
+    inputs = ProFormaInputs(
+        purchase_price=request.purchase_price,
+        cap_rate=request.cap_rate,
+        noi=request.noi,
+        loan_to_value=request.loan_to_value,
+        interest_rate=request.interest_rate,
+        loan_term_years=request.loan_term_years,
+        amortization_years=request.amortization_years,
+        hold_period_years=request.hold_period_years,
+        exit_cap_rate=request.exit_cap_rate,
+        rent_growth_rate=request.rent_growth_rate,
+        expense_growth_rate=request.expense_growth_rate,
+        vacancy_rate=request.vacancy_rate,
+        capex_reserve_psf=request.capex_reserve_psf,
+        total_sf=request.total_sf,
+        closing_costs_pct=request.closing_costs_pct,
+    )
+
+    result = calculate_pro_forma(inputs)
+    return result.to_dict()

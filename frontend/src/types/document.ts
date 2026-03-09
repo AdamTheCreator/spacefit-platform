@@ -7,6 +7,8 @@ export type DocumentType =
   | 'site_plan'
   | 'void_analysis'
   | 'investment_memo'
+  | 'offering_memorandum'
+  | 'loi'
   | 'loan_document'
   | 'comp_report'
   | 'other';

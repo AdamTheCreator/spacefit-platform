@@ -96,7 +96,7 @@ export function PricingPage() {
         <div className="grid md:grid-cols-3 gap-8">
           {plans.map((plan) => {
             const isCurrentPlan = currentTier === plan.tier;
-            const isPopular = plan.tier === 'pro';
+            const isPopular = plan.tier === 'individual';
 
             return (
               <div

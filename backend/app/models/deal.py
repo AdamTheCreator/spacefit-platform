@@ -6,12 +6,15 @@ from pydantic import BaseModel, Field
 
 
 class DealStage(str, Enum):
-    LEAD = "lead"
-    TOUR = "tour"
+    INTAKE = "intake"
+    QUALIFICATION = "qualification"
+    DUE_DILIGENCE = "due_diligence"
+    TENANT_VETTING = "tenant_vetting"
     LOI = "loi"
-    LEASE = "lease"
+    UNDER_CONTRACT = "under_contract"
     CLOSED = "closed"
-    LOST = "lost"
+    PASSED = "passed"
+    DEAD = "dead"
 
 
 class DealType(str, Enum):
@@ -44,6 +47,44 @@ class PropertyBase(BaseModel):
     landlord_id: str | None = None
     notes: str | None = None
 
+    # Market classification
+    market_region: str | None = None
+    metro_area: str | None = None
+    product_type: str | None = None
+
+    # Qualification
+    intersection_quality: str | None = None
+    traffic_count_vpd: int | None = None
+    population_1mi: int | None = None
+    population_3mi: int | None = None
+    population_5mi: int | None = None
+    median_hhi_3mi: float | None = None
+    qualification_score: int | None = None
+    qualification_data: dict | None = None
+
+    # Ownership & Zoning
+    owner_name: str | None = None
+    owner_entity: str | None = None
+    zoning_code: str | None = None
+    zoning_description: str | None = None
+
+    # Pricing (for comps)
+    asking_price: float | None = None
+    cap_rate: float | None = None
+    price_psf: float | None = None
+    noi: float | None = None
+    is_sale_comp: bool = False
+
+    # Broker contact
+    broker_name: str | None = None
+    broker_company: str | None = None
+    broker_phone: str | None = None
+    broker_email: str | None = None
+
+    # Source tracking
+    source_type: str | None = None
+    source_url: str | None = None
+
 
 class PropertyCreate(PropertyBase):
     pass
@@ -62,6 +103,44 @@ class PropertyUpdate(BaseModel):
     available_sf: int | None = None
     landlord_id: str | None = None
     notes: str | None = None
+
+    # Market classification
+    market_region: str | None = None
+    metro_area: str | None = None
+    product_type: str | None = None
+
+    # Qualification
+    intersection_quality: str | None = None
+    traffic_count_vpd: int | None = None
+    population_1mi: int | None = None
+    population_3mi: int | None = None
+    population_5mi: int | None = None
+    median_hhi_3mi: float | None = None
+    qualification_score: int | None = None
+    qualification_data: dict | None = None
+
+    # Ownership & Zoning
+    owner_name: str | None = None
+    owner_entity: str | None = None
+    zoning_code: str | None = None
+    zoning_description: str | None = None
+
+    # Pricing
+    asking_price: float | None = None
+    cap_rate: float | None = None
+    price_psf: float | None = None
+    noi: float | None = None
+    is_sale_comp: bool | None = None
+
+    # Broker contact
+    broker_name: str | None = None
+    broker_company: str | None = None
+    broker_phone: str | None = None
+    broker_email: str | None = None
+
+    # Source tracking
+    source_type: str | None = None
+    source_url: str | None = None
 
 
 class PropertyResponse(PropertyBase):
@@ -110,7 +189,7 @@ class DealStageHistoryResponse(BaseModel):
 # Deal Models
 class DealBase(BaseModel):
     name: str
-    stage: DealStage = DealStage.LEAD
+    stage: DealStage = DealStage.INTAKE
     deal_type: DealType = DealType.LEASE
     property_id: str | None = None
     customer_id: str | None = None

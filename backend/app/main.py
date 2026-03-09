@@ -11,7 +11,7 @@ from app.api.customers import router as customers_router
 from app.api.credentials import router as credentials_router
 from app.api.browser_auth import router as browser_auth_router
 from app.api.onboarding import router as onboarding_router
-from app.api.deals import router as deals_router, properties_router
+from app.api.deals import router as deals_router, properties_router, approvals_router
 from app.api.documents import router as documents_router
 from app.api.preferences import router as preferences_router
 from app.api.outreach import router as outreach_router
@@ -65,6 +65,7 @@ app.include_router(subscription_router, prefix=settings.api_prefix)
 app.include_router(billing_router, prefix=settings.api_prefix)
 app.include_router(connectors_router, prefix=settings.api_prefix)
 app.include_router(memory_router, prefix=settings.api_prefix)
+app.include_router(approvals_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

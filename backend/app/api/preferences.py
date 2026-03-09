@@ -360,6 +360,81 @@ def build_personalized_context(
     return "\n\n**User Context:**\n" + "\n".join(lines)
 
 
+class MarketConfigRequest(BaseModel):
+    """Request model for market configuration."""
+    target_states: list[str] | None = None
+    target_metros: list[str] | None = None
+    target_product_types: list[str] | None = None
+
+
+class MarketConfigResponse(BaseModel):
+    """Response model for market configuration."""
+    target_states: list[str]
+    target_metros: list[str]
+    target_product_types: list[str]
+
+
+@router.get("/market-config", response_model=MarketConfigResponse)
+async def get_market_config(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MarketConfigResponse:
+    """Get user's target market configuration."""
+    from app.services.market_config import MarketConfig
+
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+
+    config_data = getattr(prefs, 'market_config', None) if prefs else None
+    config = MarketConfig.from_dict(config_data)
+
+    return MarketConfigResponse(
+        target_states=config.target_states,
+        target_metros=config.target_metros,
+        target_product_types=config.target_product_types,
+    )
+
+
+@router.put("/market-config", response_model=MarketConfigResponse)
+async def update_market_config(
+    updates: MarketConfigRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MarketConfigResponse:
+    """Update user's target market configuration."""
+    from app.services.market_config import MarketConfig
+
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+
+    # Load existing config and merge updates
+    existing = MarketConfig.from_dict(getattr(prefs, 'market_config', None))
+    if updates.target_states is not None:
+        existing.target_states = updates.target_states
+    if updates.target_metros is not None:
+        existing.target_metros = updates.target_metros
+    if updates.target_product_types is not None:
+        existing.target_product_types = updates.target_product_types
+
+    prefs.market_config = existing.to_dict()
+    await db.commit()
+    await db.refresh(prefs)
+
+    return MarketConfigResponse(
+        target_states=existing.target_states,
+        target_metros=existing.target_metros,
+        target_product_types=existing.target_product_types,
+    )
+
+
 def build_conversation_scoped_context(prefs: UserPreferences) -> str:
     """
     Build context that is safe for conversation scope (no cross-chat leakage risk).

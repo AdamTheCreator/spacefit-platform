@@ -1,4 +1,4 @@
-export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
+export type SubscriptionTier = 'free' | 'individual' | 'enterprise';
 
 export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'trialing' | 'paused';
 

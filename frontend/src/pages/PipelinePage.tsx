@@ -1,7 +1,7 @@
 import { Plus, LayoutGrid, List, Calendar, Map, Filter, Search } from 'lucide-react';
 import { useDeals, usePipelineSummary } from '../hooks/useDeals';
 import { usePipelineStore, type ViewMode } from '../stores/pipelineStore';
-import { KanbanBoard } from '../components/Pipeline';
+import { KanbanBoard, PipelineListView, PipelineMapView, PipelineCalendarView, DealDetailDrawer } from '../components/Pipeline';
 import { formatCurrency } from '../types/deal';
 import { AppLayout } from '../components/Layout';
 
@@ -108,21 +108,15 @@ export function PipelinePage() {
           ) : viewMode === 'kanban' ? (
             <KanbanBoard deals={deals} />
           ) : viewMode === 'list' ? (
-            <div className="label-technical text-center py-12">
-              List view coming soon...
-            </div>
+            <PipelineListView deals={deals} />
           ) : viewMode === 'calendar' ? (
-            <div className="label-technical text-center py-12">
-              Calendar view coming soon...
-            </div>
+            <PipelineCalendarView deals={deals} />
           ) : viewMode === 'map' ? (
-            <div className="label-technical text-center py-12">
-              Map view coming soon...
-            </div>
+            <PipelineMapView deals={deals} />
           ) : null}
         </div>
 
-        {/* TODO: Add DealDetailDrawer and DealForm modals */}
+        <DealDetailDrawer />
       </div>
     </AppLayout>
   );

@@ -50,7 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { clearChat } = useChatStore();
+  const { clearChat, connectionStatus } = useChatStore();
   const navigate = useNavigate();
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const { sessions, isLoading, deleteSession } = useChatSessions();
@@ -169,12 +169,10 @@ export function AppLayout({ children }: AppLayoutProps) {
               handleNewChat();
               if (isMobile) setSidebarOpen(false);
             }}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg hover:bg-[var(--bg-tertiary)] text-industrial font-medium text-sm transition-all group border border-transparent hover:border-[var(--border-default)]"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg bg-[var(--accent)] text-white font-bold text-sm transition-all group hover:bg-[var(--accent-hover)] shadow-lg shadow-[var(--accent)]/20 active:scale-[0.98]"
           >
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center">
-                <Plus size={16} strokeWidth={3} />
-              </div>
+              <Plus size={18} strokeWidth={3} />
               <span>New Chat</span>
             </div>
           </button>
@@ -282,12 +280,34 @@ export function AppLayout({ children }: AppLayoutProps) {
               </button>
             )}
             
-            <div className="flex items-center gap-2 ml-2">
-              <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse-slow" />
-              <span className="text-sm font-semibold tracking-tight text-industrial">
+            <Link to="/chat" className="flex items-center gap-2.5 ml-2 group">
+              <div className="relative w-8 h-8 flex items-center justify-center">
+                <img
+                  src="/spacefit-mark.svg"
+                  alt="SpaceFit logo"
+                  className="w-8 h-8 rounded-lg object-cover"
+                />
+                <span
+                  className={`absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg-secondary)] ${
+                    connectionStatus === 'connected'
+                      ? 'bg-emerald-500 animate-pulse-slow'
+                      : connectionStatus === 'connecting'
+                      ? 'bg-amber-500 animate-pulse-slow'
+                      : 'bg-red-500'
+                  }`}
+                  title={
+                    connectionStatus === 'connected'
+                      ? 'Connected to server'
+                      : connectionStatus === 'connecting'
+                      ? 'Connecting to server'
+                      : 'Disconnected from server'
+                  }
+                />
+              </div>
+              <span className="text-sm font-bold tracking-tight text-industrial group-hover:text-[var(--accent)] transition-colors">
                 SpaceFit
               </span>
-            </div>
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">

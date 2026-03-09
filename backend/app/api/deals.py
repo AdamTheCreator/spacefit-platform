@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -258,7 +258,7 @@ async def get_commission_forecast(
             Deal.is_archived == False,
             Deal.expected_close_date >= today,
             Deal.expected_close_date <= end_date,
-            Deal.stage.notin_([DealStageEnum.CLOSED.value, DealStageEnum.LOST.value]),
+            Deal.stage.notin_([DealStageEnum.CLOSED.value, DealStageEnum.PASSED.value, DealStageEnum.DEAD.value]),
         )
     )
 
@@ -646,6 +646,34 @@ async def create_deal_activity(
 properties_router = APIRouter(prefix="/properties", tags=["properties"])
 
 
+@properties_router.get("/comps", response_model=list[PropertyResponse])
+async def list_comps(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    state: str | None = None,
+    min_cap_rate: float | None = None,
+    max_cap_rate: float | None = None,
+) -> list[PropertyResponse]:
+    """List sale comp properties."""
+    query = select(Property).where(
+        Property.user_id == current_user.id,
+        Property.is_sale_comp == True,
+    )
+
+    if state:
+        query = query.where(Property.state.ilike(f"%{state}%"))
+    if min_cap_rate is not None:
+        query = query.where(Property.cap_rate >= min_cap_rate)
+    if max_cap_rate is not None:
+        query = query.where(Property.cap_rate <= max_cap_rate)
+
+    query = query.order_by(Property.updated_at.desc())
+    result = await db.execute(query)
+    properties = result.scalars().all()
+
+    return [PropertyResponse.model_validate(p) for p in properties]
+
+
 @properties_router.get("", response_model=list[PropertyResponse])
 async def list_properties(
     current_user: CurrentUser,
@@ -765,3 +793,288 @@ async def delete_property(
 
     await db.delete(prop)
     await db.commit()
+
+
+@properties_router.post("/{property_id}/qualify")
+async def qualify_property(
+    property_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Run qualification scoring on a property."""
+    from app.services.qualification import score_property
+    from app.services.market_config import MarketConfig
+    from app.db.models.credential import UserPreferences
+
+    # Get user's market config
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    config_data = getattr(prefs, 'market_config', None) if prefs else None
+    market_config = MarketConfig.from_dict(config_data)
+
+    try:
+        score = await score_property(str(property_id), db, market_config)
+        return score.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@properties_router.post("/{property_id}/mark-as-comp", response_model=PropertyResponse)
+async def mark_as_comp(
+    property_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> PropertyResponse:
+    """Mark a property as a sale comp."""
+    result = await db.execute(
+        select(Property).where(
+            Property.id == str(property_id), Property.user_id == current_user.id
+        )
+    )
+    prop = result.scalar_one_or_none()
+
+    if prop is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    prop.is_sale_comp = True
+    await db.commit()
+    await db.refresh(prop)
+
+    return PropertyResponse.model_validate(prop)
+
+
+@properties_router.post("/import/csv")
+async def import_csv(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...),
+) -> dict:
+    """Import properties from a CSV file (Airtable migration)."""
+    from app.services.csv_import import import_properties_from_csv
+
+    if not file.filename or not file.filename.endswith('.csv'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a CSV",
+        )
+
+    content = await file.read()
+    result = await import_properties_from_csv(content, current_user.id, db)
+
+    return {
+        "total_rows": result.total_rows,
+        "imported": result.imported,
+        "skipped": result.skipped,
+        "errors": result.errors,
+    }
+
+
+# ============ APPROVAL ENDPOINTS ============
+
+approvals_router = APIRouter(prefix="/approvals", tags=["approvals"])
+
+
+@approvals_router.get("")
+async def list_approvals(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status_filter: str | None = None,
+) -> list[dict]:
+    """List approval requests."""
+    from app.db.models.approval import ApprovalRequest
+
+    query = select(ApprovalRequest).where(
+        ApprovalRequest.requested_by == current_user.id
+    )
+    if status_filter:
+        query = query.where(ApprovalRequest.status == status_filter)
+
+    query = query.order_by(ApprovalRequest.created_at.desc())
+    result = await db.execute(query)
+    approvals = result.scalars().all()
+
+    return [
+        {
+            "id": a.id,
+            "deal_id": a.deal_id,
+            "requested_by": a.requested_by,
+            "approval_type": a.approval_type,
+            "status": a.status,
+            "decided_by": a.decided_by,
+            "notes": a.notes,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "decided_at": a.decided_at.isoformat() if a.decided_at else None,
+        }
+        for a in approvals
+    ]
+
+
+@router.post("/{deal_id}/request-approval")
+async def request_approval(
+    deal_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    approval_type: str = "deal_advancement",
+    notes: str | None = None,
+) -> dict:
+    """Request approval for a deal action."""
+    from app.db.models.approval import ApprovalRequest
+
+    # Verify deal exists and belongs to user
+    deal_result = await db.execute(
+        select(Deal).where(Deal.id == str(deal_id), Deal.user_id == current_user.id)
+    )
+    if not deal_result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deal not found")
+
+    approval = ApprovalRequest(
+        deal_id=str(deal_id),
+        requested_by=current_user.id,
+        approval_type=approval_type,
+        notes=notes,
+    )
+    db.add(approval)
+    await db.commit()
+    await db.refresh(approval)
+
+    return {
+        "id": approval.id,
+        "deal_id": approval.deal_id,
+        "approval_type": approval.approval_type,
+        "status": approval.status,
+        "created_at": approval.created_at.isoformat(),
+    }
+
+
+@approvals_router.patch("/{approval_id}/decide")
+async def decide_approval(
+    approval_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    decision: str = "approved",  # "approved" or "rejected"
+    notes: str | None = None,
+) -> dict:
+    """Approve or reject an approval request."""
+    from datetime import datetime
+    from app.db.models.approval import ApprovalRequest
+
+    result = await db.execute(
+        select(ApprovalRequest).where(ApprovalRequest.id == str(approval_id))
+    )
+    approval = result.scalar_one_or_none()
+
+    if not approval:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found")
+
+    if approval.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approval has already been decided",
+        )
+
+    approval.status = decision
+    approval.decided_by = current_user.id
+    approval.decided_at = datetime.utcnow()
+    if notes:
+        approval.notes = notes
+
+    await db.commit()
+
+    return {
+        "id": approval.id,
+        "status": approval.status,
+        "decided_by": approval.decided_by,
+        "decided_at": approval.decided_at.isoformat(),
+    }
+
+
+# ============ GMAIL MONITORING ENDPOINTS ============
+
+@properties_router.post("/gmail/enable-monitoring")
+async def enable_gmail_monitoring(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Enable Gmail inbox monitoring for property intake."""
+    # Store monitoring preference in user preferences
+    from app.db.models.credential import UserPreferences
+
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+
+    config = getattr(prefs, 'market_config', None) or {}
+    config["gmail_monitoring_enabled"] = True
+    prefs.market_config = config
+    await db.commit()
+
+    return {"status": "enabled", "message": "Gmail monitoring enabled"}
+
+
+@properties_router.delete("/gmail/disable-monitoring")
+async def disable_gmail_monitoring(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Disable Gmail inbox monitoring."""
+    from app.db.models.credential import UserPreferences
+
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+    if prefs:
+        config = getattr(prefs, 'market_config', None) or {}
+        config["gmail_monitoring_enabled"] = False
+        prefs.market_config = config
+        await db.commit()
+
+    return {"status": "disabled", "message": "Gmail monitoring disabled"}
+
+
+@properties_router.get("/gmail/monitoring-status")
+async def get_monitoring_status(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Get Gmail monitoring status."""
+    from app.db.models.credential import UserPreferences
+
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+    config = getattr(prefs, 'market_config', None) or {} if prefs else {}
+
+    return {
+        "enabled": config.get("gmail_monitoring_enabled", False),
+    }
+
+
+# ============ PIPELINE REPORT ENDPOINTS ============
+
+@router.post("/reports/pipeline/generate")
+async def generate_pipeline_report(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Generate a pipeline report."""
+    from app.services.pipeline_report import generate_pipeline_report, render_report_html
+
+    data = await generate_pipeline_report(current_user.id, db)
+    html = render_report_html(data)
+
+    return {
+        "deals_by_stage": data.deals_by_stage,
+        "stage_changes_this_week": data.stage_changes_this_week,
+        "followups_due": data.followups_due,
+        "new_properties_count": data.new_properties_count,
+        "generated_at": data.generated_at.isoformat(),
+        "html": html,
+    }

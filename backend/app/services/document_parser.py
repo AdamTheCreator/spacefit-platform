@@ -554,6 +554,107 @@ IMPORTANT:
     }
 
 
+async def parse_offering_memorandum(file_path: str) -> dict:
+    """
+    Parse an Offering Memorandum (OM) and extract acquisition-relevant data.
+
+    Extracts: asking price, cap rate, NOI, tenant lease terms, rent roll,
+    broker contact, property details, and financing assumptions.
+    """
+    base64_data = encode_file_to_base64(file_path)
+    media_type = get_media_type(file_path)
+
+    system_prompt = """You are a commercial real estate offering memorandum analyst.
+Analyze this Offering Memorandum (OM) and extract all acquisition-relevant data.
+
+Return a JSON object with this exact structure:
+{
+    "property_info": {
+        "name": "Property Name",
+        "address": "Street Address",
+        "city": "City",
+        "state": "State",
+        "zip_code": "Zip",
+        "property_type": "retail/office/industrial/mixed",
+        "total_sf": null,
+        "year_built": null,
+        "lot_size_acres": null,
+        "parking_spaces": null,
+        "parking_ratio": null
+    },
+    "financials": {
+        "asking_price": null,
+        "cap_rate": null,
+        "noi": null,
+        "price_psf": null,
+        "gross_income": null,
+        "operating_expenses": null,
+        "expense_ratio": null,
+        "occupancy_rate": null
+    },
+    "tenant_summary": [
+        {
+            "tenant_name": "Name",
+            "suite": "Suite #",
+            "sf": null,
+            "annual_rent": null,
+            "rent_psf": null,
+            "lease_start": "YYYY-MM-DD or null",
+            "lease_expiration": "YYYY-MM-DD or null",
+            "options": "Option terms or null",
+            "rent_increases": "Increase schedule or null",
+            "is_anchor": false,
+            "is_national": false
+        }
+    ],
+    "rent_roll": {
+        "total_rentable_sf": null,
+        "occupied_sf": null,
+        "vacant_sf": null,
+        "total_annual_rent": null,
+        "weighted_avg_rent_psf": null,
+        "weighted_avg_lease_term_remaining": null
+    },
+    "broker_contact": {
+        "name": "Broker Name",
+        "company": "Company",
+        "phone": "Phone",
+        "email": "Email"
+    },
+    "investment_highlights": [],
+    "risk_factors": [],
+    "comparable_sales": []
+}
+
+Extract as much data as possible. Use null for fields you cannot find.
+Return ONLY the JSON object, no markdown or explanation."""
+
+    llm = get_vision_llm_client()
+    vision_model = settings.llm_vision_model or VISION_MODEL
+
+    response_text = (
+        await llm.vision_document(
+            LLMVisionRequest(
+                model=vision_model,
+                max_tokens=4000,
+                system=system_prompt,
+                document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),
+                user_text="Extract all financial and property data from this Offering Memorandum. Return JSON only.",
+            )
+        )
+    ).strip()
+
+    # Parse JSON from response
+    json_match = re.search(r'\{[\s\S]*\}', response_text)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    return {"raw_text": response_text, "parse_error": "Could not extract structured data"}
+
+
 async def parse_document(file_path: str, document_type: DocumentType | None = None) -> dict:
     """
     Main entry point for document parsing.
@@ -582,6 +683,8 @@ async def parse_document(file_path: str, document_type: DocumentType | None = No
         extracted_data = await parse_void_analysis(file_path)
     elif document_type == DocumentType.INVESTMENT_MEMO:
         extracted_data = await parse_investment_memo(file_path)
+    elif document_type == DocumentType.OFFERING_MEMORANDUM:
+        extracted_data = await parse_offering_memorandum(file_path)
     else:
         # For other types, do a generic extraction
         extracted_data = {"raw_text": "Document type not fully supported yet"}

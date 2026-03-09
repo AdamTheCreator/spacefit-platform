@@ -1,4 +1,4 @@
-export type DealStage = 'lead' | 'tour' | 'loi' | 'lease' | 'closed' | 'lost';
+export type DealStage = 'intake' | 'qualification' | 'due_diligence' | 'tenant_vetting' | 'loi' | 'under_contract' | 'closed' | 'passed' | 'dead';
 export type DealType = 'lease' | 'sale' | 'sublease';
 export type ActivityType = 'note' | 'call' | 'email' | 'meeting' | 'tour' | 'document';
 
@@ -16,6 +16,45 @@ export interface Property {
   available_sf?: number;
   landlord_id?: string;
   notes?: string;
+
+  // Market classification
+  market_region?: string;
+  metro_area?: string;
+  product_type?: string;
+
+  // Qualification
+  intersection_quality?: string;
+  traffic_count_vpd?: number;
+  population_1mi?: number;
+  population_3mi?: number;
+  population_5mi?: number;
+  median_hhi_3mi?: number;
+  qualification_score?: number;
+  qualification_data?: Record<string, unknown>;
+
+  // Ownership & Zoning
+  owner_name?: string;
+  owner_entity?: string;
+  zoning_code?: string;
+  zoning_description?: string;
+
+  // Pricing (for comps)
+  asking_price?: number;
+  cap_rate?: number;
+  price_psf?: number;
+  noi?: number;
+  is_sale_comp: boolean;
+
+  // Broker contact
+  broker_name?: string;
+  broker_company?: string;
+  broker_phone?: string;
+  broker_email?: string;
+
+  // Source tracking
+  source_type?: string;
+  source_url?: string;
+
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +72,30 @@ export interface PropertyCreate {
   available_sf?: number;
   landlord_id?: string;
   notes?: string;
+  market_region?: string;
+  metro_area?: string;
+  product_type?: string;
+  intersection_quality?: string;
+  traffic_count_vpd?: number;
+  population_1mi?: number;
+  population_3mi?: number;
+  population_5mi?: number;
+  median_hhi_3mi?: number;
+  owner_name?: string;
+  owner_entity?: string;
+  zoning_code?: string;
+  zoning_description?: string;
+  asking_price?: number;
+  cap_rate?: number;
+  price_psf?: number;
+  noi?: number;
+  is_sale_comp?: boolean;
+  broker_name?: string;
+  broker_company?: string;
+  broker_phone?: string;
+  broker_email?: string;
+  source_type?: string;
+  source_url?: string;
 }
 
 export interface DealActivity {
@@ -168,12 +231,15 @@ export interface DealCalendarItem {
 
 // Stage configuration for UI
 export const DEAL_STAGES: { value: DealStage; label: string; color: string }[] = [
-  { value: 'lead', label: 'Lead', color: 'bg-gray-500' },
-  { value: 'tour', label: 'Tour', color: 'bg-blue-500' },
+  { value: 'intake', label: 'Intake', color: 'bg-gray-500' },
+  { value: 'qualification', label: 'Qualification', color: 'bg-blue-500' },
+  { value: 'due_diligence', label: 'Due Diligence', color: 'bg-indigo-500' },
+  { value: 'tenant_vetting', label: 'Tenant Vetting', color: 'bg-violet-500' },
   { value: 'loi', label: 'LOI', color: 'bg-yellow-500' },
-  { value: 'lease', label: 'Lease', color: 'bg-purple-500' },
+  { value: 'under_contract', label: 'Under Contract', color: 'bg-orange-500' },
   { value: 'closed', label: 'Closed', color: 'bg-green-500' },
-  { value: 'lost', label: 'Lost', color: 'bg-red-500' },
+  { value: 'passed', label: 'Passed', color: 'bg-slate-500' },
+  { value: 'dead', label: 'Dead', color: 'bg-red-500' },
 ];
 
 export const ACTIVITY_TYPES: { value: ActivityType; label: string; icon: string }[] = [

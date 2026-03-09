@@ -107,11 +107,18 @@ class Settings(BaseSettings):
     resend_from_email: str = Field(default="noreply@spacefit.ai")
     resend_from_name: str = Field(default="SpaceFit")
 
+    # ATTOM Data API (title/owner lookup)
+    attom_api_key: str = Field(default="")
+
+    # Gmail Monitoring
+    gmail_monitor_interval_minutes: int = Field(default=5)
+    gmail_monitor_max_emails_per_check: int = Field(default=20)
+
     # Stripe Payments
     stripe_secret_key: str = Field(default="")
     stripe_publishable_key: str = Field(default="")
     stripe_webhook_secret: str = Field(default="")
-    stripe_pro_price_id: str = Field(default="")
+    stripe_individual_price_id: str = Field(default="")
     stripe_enterprise_price_id: str = Field(default="")
 
     model_config = {"env_file": ".env", "extra": "ignore"}

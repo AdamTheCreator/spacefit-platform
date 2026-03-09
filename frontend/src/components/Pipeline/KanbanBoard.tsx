@@ -18,6 +18,11 @@ import { KanbanCard } from './KanbanCard';
 import { useUpdateDealStage } from '../../hooks/useDeals';
 import { usePipelineStore } from '../../stores/pipelineStore';
 
+const ALL_STAGES: DealStage[] = [
+  'intake', 'qualification', 'due_diligence', 'tenant_vetting',
+  'loi', 'under_contract', 'closed', 'passed', 'dead',
+];
+
 interface KanbanBoardProps {
   deals: Deal[];
 }
@@ -40,14 +45,10 @@ export function KanbanBoard({ deals }: KanbanBoardProps) {
 
   // Group deals by stage
   const dealsByStage = useMemo(() => {
-    const grouped: Record<DealStage, Deal[]> = {
-      lead: [],
-      tour: [],
-      loi: [],
-      lease: [],
-      closed: [],
-      lost: [],
-    };
+    const grouped = {} as Record<DealStage, Deal[]>;
+    for (const stage of ALL_STAGES) {
+      grouped[stage] = [];
+    }
 
     deals.forEach((deal) => {
       if (grouped[deal.stage]) {
@@ -60,14 +61,10 @@ export function KanbanBoard({ deals }: KanbanBoardProps) {
 
   // Calculate commission totals by stage
   const commissionByStage = useMemo(() => {
-    const totals: Record<DealStage, number> = {
-      lead: 0,
-      tour: 0,
-      loi: 0,
-      lease: 0,
-      closed: 0,
-      lost: 0,
-    };
+    const totals = {} as Record<DealStage, number>;
+    for (const stage of ALL_STAGES) {
+      totals[stage] = 0;
+    }
 
     deals.forEach((deal) => {
       if (totals[deal.stage] !== undefined) {
@@ -111,8 +108,8 @@ export function KanbanBoard({ deals }: KanbanBoardProps) {
     }
   };
 
-  // Filter out lost from default view (show active pipeline)
-  const visibleStages = DEAL_STAGES.filter(s => s.value !== 'lost');
+  // Filter out terminal stages (passed, dead) from default view
+  const visibleStages = DEAL_STAGES.filter(s => s.value !== 'passed' && s.value !== 'dead');
 
   return (
     <DndContext

@@ -72,9 +72,18 @@ export const KanbanCard = memo(function KanbanCard({ deal, onClick }: KanbanCard
       {deal.property && (
         <div className="flex items-center gap-2 mb-3">
           <span className="text-[10px] font-medium text-industrial-muted uppercase tracking-wide">Property</span>
-          <span className="text-xs text-industrial-muted truncate">
+          <span className="text-xs text-industrial-muted truncate flex-1">
             {deal.property.name}
           </span>
+          {deal.property.qualification_score != null && (
+            <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded ${
+              deal.property.qualification_score >= 60 ? 'bg-green-500/20 text-green-400' :
+              deal.property.qualification_score >= 30 ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-red-500/20 text-red-400'
+            }`}>
+              {deal.property.qualification_score}
+            </span>
+          )}
         </div>
       )}
 

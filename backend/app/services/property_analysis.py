@@ -275,6 +275,8 @@ async def run_comprehensive_analysis(
     Returns:
         AnalysisResult with all analysis data
     """
+    import asyncio
+
     errors = []
     result = AnalysisResult(property_context=context, errors=[])
 
@@ -283,30 +285,39 @@ async def run_comprehensive_analysis(
     if not context.latitude or not context.longitude:
         errors.append(f"Could not geocode address: {context.full_address}")
 
-    # Step 2: Get demographics
+    # Step 2 & 3: Run demographics and competitors CONCURRENTLY
     demographics = None
-    if include_demographics:
+    competitors = None
+
+    async def _get_demographics():
+        nonlocal demographics
+        if not include_demographics:
+            return
         try:
             demographics = await get_demographics_for_property(context, radius_miles)
-            result.demographics = demographics
             if not demographics:
                 errors.append("Could not retrieve demographics data")
         except Exception as e:
             errors.append(f"Demographics error: {str(e)}")
 
-    # Step 3: Get competitors
-    competitors = None
-    if include_competitors:
+    async def _get_competitors():
+        nonlocal competitors
+        if not include_competitors:
+            return
         try:
             competitors = await get_competitors_for_property(
                 context,
-                radius_meters=int(radius_miles * 1609),  # Convert miles to meters
+                radius_meters=int(radius_miles * 1609),
             )
-            result.competitors = competitors
             if not competitors:
                 errors.append("No competitors found in trade area")
         except Exception as e:
             errors.append(f"Competitor search error: {str(e)}")
+
+    await asyncio.gather(_get_demographics(), _get_competitors())
+
+    result.demographics = demographics
+    result.competitors = competitors
 
     # Step 4: Run void analysis with real data
     if include_void_analysis:

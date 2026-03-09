@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -23,12 +23,15 @@ def uuid_str() -> str:
 
 
 class DealStage(str, Enum):
-    LEAD = "lead"
-    TOUR = "tour"
+    INTAKE = "intake"
+    QUALIFICATION = "qualification"
+    DUE_DILIGENCE = "due_diligence"
+    TENANT_VETTING = "tenant_vetting"
     LOI = "loi"
-    LEASE = "lease"
+    UNDER_CONTRACT = "under_contract"
     CLOSED = "closed"
-    LOST = "lost"
+    PASSED = "passed"
+    DEAD = "dead"
 
 
 class DealType(str, Enum):
@@ -64,8 +67,47 @@ class Property(Base):
     property_type: Mapped[str] = mapped_column(String(50), default="retail")  # retail, office, industrial
     total_sf: Mapped[int | None] = mapped_column(Integer, nullable=True)
     available_sf: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    landlord_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # FK to landlords (Phase 4)
+    landlord_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # FK to landlords
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Market classification
+    market_region: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    metro_area: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    product_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Qualification
+    intersection_quality: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    traffic_count_vpd: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    population_1mi: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    population_3mi: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    population_5mi: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    median_hhi_3mi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    qualification_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    qualification_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Ownership & Zoning
+    owner_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    owner_entity: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    zoning_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    zoning_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Pricing (for comps)
+    asking_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cap_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_psf: Mapped[float | None] = mapped_column(Float, nullable=True)
+    noi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_sale_comp: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Broker contact
+    broker_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    broker_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    broker_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    broker_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Source tracking
+    source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -92,7 +134,7 @@ class Deal(Base):
 
     # Deal info
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    stage: Mapped[str] = mapped_column(String(20), default=DealStage.LEAD.value)
+    stage: Mapped[str] = mapped_column(String(20), default=DealStage.INTAKE.value)
     deal_type: Mapped[str] = mapped_column(String(20), default=DealType.LEASE.value)
 
     # Financials

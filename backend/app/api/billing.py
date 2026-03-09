@@ -12,7 +12,7 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 
 class CreateCheckoutRequest(BaseModel):
-    tier: str  # "pro" or "enterprise"
+    tier: str  # "individual" or "enterprise"
     success_url: str
     cancel_url: str
 
@@ -37,7 +37,7 @@ async def create_checkout_session(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid tier: {request.tier}. Must be 'pro' or 'enterprise'.",
+            detail=f"Invalid tier: {request.tier}. Must be 'individual' or 'enterprise'.",
         )
 
     if tier == SubscriptionTier.FREE:
