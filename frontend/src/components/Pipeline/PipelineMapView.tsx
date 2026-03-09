@@ -16,10 +16,10 @@ export function PipelineMapView({ deals }: PipelineMapViewProps) {
     [deals]
   );
 
-  const dealsWithoutLocation = useMemo(
-    () => deals.filter(d => !d.property?.latitude || !d.property?.longitude),
-    [deals]
-  );
+  // const dealsWithoutLocation = useMemo(
+  //   () => deals.filter(d => !d.property?.latitude || !d.property?.longitude),
+  //   [deals]
+  // );
 
   // Group by state for a summary view until a real map library is added
   const byState = useMemo(() => {

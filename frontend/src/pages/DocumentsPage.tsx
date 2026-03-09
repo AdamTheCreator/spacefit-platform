@@ -25,6 +25,8 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   investment_memo: 'Investment Memo',
   loan_document: 'Loan Document',
   comp_report: 'Comp Report',
+  offering_memorandum: 'Offering Memorandum',
+  loi: 'Letter of Intent',
   other: 'Other',
 };
 
