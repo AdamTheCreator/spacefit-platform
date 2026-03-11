@@ -347,43 +347,43 @@ export function AppLayout({ children }: AppLayoutProps) {
                     <Link
                       to="/profile"
                       onClick={() => setDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 0 ? 'bg-[var(--bg-tertiary)]' : ''}`}
                       role="menuitem"
                       tabIndex={focusedIndex === 0 ? 0 : -1}
-                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors ${focusedIndex === 0 ? 'bg-[var(--hover-overlay)]' : ''}`}
                     >
                       <User size={16} />
                       <span>Profile</span>
                     </Link>
 
-                    <Link
-                      to="/customers"
-                      onClick={() => setDropdownOpen(false)}
-                      role="menuitem"
-                      tabIndex={focusedIndex === 1 ? 0 : -1}
-                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors ${focusedIndex === 1 ? 'bg-[var(--hover-overlay)]' : ''}`}
-                    >
-                      <Users size={16} />
-                      <span>Customers</span>
-                    </Link>
+                  <Link
+                    to="/customers"
+                    onClick={() => setDropdownOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 1 ? 'bg-[var(--bg-tertiary)]' : ''}`}
+                    role="menuitem"
+                    tabIndex={focusedIndex === 1 ? 0 : -1}
+                  >
+                    <Users size={16} />
+                    <span>Customers</span>
+                  </Link>
 
-                    <Link
-                      to="/connections"
-                      onClick={() => setDropdownOpen(false)}
-                      role="menuitem"
-                      tabIndex={focusedIndex === 2 ? 0 : -1}
-                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors ${focusedIndex === 2 ? 'bg-[var(--hover-overlay)]' : ''}`}
-                    >
-                      <Key size={16} />
-                      <span>Connections</span>
-                    </Link>
+                  <Link
+                    to="/connections"
+                    onClick={() => setDropdownOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 2 ? 'bg-[var(--bg-tertiary)]' : ''}`}
+                    role="menuitem"
+                    tabIndex={focusedIndex === 2 ? 0 : -1}
+                  >
+                    <Key size={16} />
+                    <span>Connections</span>
+                  </Link>
 
-                    <Link
-                      to="/settings"
-                      onClick={() => setDropdownOpen(false)}
-                      role="menuitem"
-                      tabIndex={focusedIndex === 3 ? 0 : -1}
-                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--hover-overlay)] transition-colors ${focusedIndex === 3 ? 'bg-[var(--hover-overlay)]' : ''}`}
-                    >
+                  <Link
+                    to="/settings"
+                    onClick={() => setDropdownOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 3 ? 'bg-[var(--bg-tertiary)]' : ''}`}
+                    role="menuitem"
+                    tabIndex={focusedIndex === 3 ? 0 : -1}
+                  >
                       <Settings size={16} />
                       <span>Settings</span>
                     </Link>

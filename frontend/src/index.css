@@ -7,20 +7,20 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme {
-  /* Neutral Palette - Minimalist Grays */
-  --color-neutral-50: #f9f9f9;
-  --color-neutral-100: #f2f2f2;
-  --color-neutral-200: #e5e5e5;
-  --color-neutral-300: #d4d4d4;
-  --color-neutral-400: #a3a3a3;
-  --color-neutral-500: #737373;
-  --color-neutral-600: #525252;
-  --color-neutral-700: #404040;
-  --color-neutral-800: #262626;
-  --color-neutral-900: #171717;
-  --color-neutral-950: #0a0a0a;
+  /* Neutral Palette - Optimized for Contrast */
+  --color-neutral-50: #fcfcfc;
+  --color-neutral-100: #f7f7f8;
+  --color-neutral-200: #ececf1;
+  --color-neutral-300: #d9d9e3;
+  --color-neutral-400: #acacbe;
+  --color-neutral-500: #8e8ea0;
+  --color-neutral-600: #565869;
+  --color-neutral-700: #40414f;
+  --color-neutral-800: #343541;
+  --color-neutral-900: #202123;
+  --color-neutral-950: #050509;
 
-  /* Accent - Restrained SpaceFit Green */
+  /* Accent - SpaceFit Green */
   --color-accent-50: #f0fdf4;
   --color-accent-100: #dcfce7;
   --color-accent-200: #bbf7d0;
@@ -36,12 +36,6 @@
   --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Spacing */
-  --spacing-4: 16px;
-  --spacing-5: 20px;
-  --spacing-6: 24px;
-  --spacing-8: 32px;
-
   /* Radius */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -51,10 +45,11 @@
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 :root {
+  /* Light Mode */
   --bg-primary: #ffffff;
   --bg-secondary: #f9f9fb;
   --bg-tertiary: #f0f0f4;
@@ -62,41 +57,39 @@
   --bg-muted: #f3f3f7;
   
   --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
 
   --border-default: #e5e7eb;
+  --border-strong: #d1d5db;
   --border-subtle: #f3f4f6;
   
   --accent: #10b981;
   --accent-hover: #059669;
   --accent-subtle: #ecfdf5;
 
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
   color-scheme: light;
 }
 
 .dark {
-  --bg-primary: #0d0d0d;
-  --bg-secondary: #171717;
-  --bg-tertiary: #262626;
-  --bg-elevated: #1f1f1f;
-  --bg-muted: #262626;
+  /* Dark Mode - Improved contrast for legibility */
+  --bg-primary: #171717;
+  --bg-secondary: #212121;
+  --bg-tertiary: #2f2f2f;
+  --bg-elevated: #262626;
+  --bg-muted: #2a2a2a;
 
   --text-primary: #f9fafb;
-  --text-secondary: #d1d5db;
-  --text-muted: #6b7280;
+  --text-secondary: #e5e7eb;
+  --text-muted: #9ca3af;
 
-  --border-default: #262626;
-  --border-subtle: #1f1f1f;
+  --border-default: #373737;
+  --border-strong: #4b4b4b;
+  --border-subtle: #262626;
 
   --accent: #10b981;
   --accent-hover: #34d399;
-  --accent-subtle: rgba(16, 185, 129, 0.1);
+  --accent-subtle: rgba(16, 185, 129, 0.15);
 
   color-scheme: dark;
 }
@@ -143,7 +136,7 @@ body {
   justify-content: center;
   gap: 8px;
   padding: 10px 18px;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -163,13 +156,13 @@ body {
 }
 
 .btn-secondary, .btn-industrial-secondary {
-  background: var(--bg-primary);
+  background: var(--bg-elevated);
   border-color: var(--border-default);
   color: var(--text-primary);
 }
 
 .btn-secondary:hover, .btn-industrial-secondary:hover {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border-color: var(--border-strong);
 }
 
@@ -187,12 +180,13 @@ body {
 .input-industrial {
   width: 100%;
   padding: 12px 16px;
-  background: var(--bg-primary);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   outline: none;
   transition: all 0.2s ease;
   font-size: 14px;
+  color: var(--text-primary);
 }
 
 .input-industrial:focus {
@@ -203,7 +197,7 @@ body {
 /* Cards */
 .card-industrial {
   background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   padding: 24px;
   transition: box-shadow 0.2s ease;
@@ -237,12 +231,16 @@ body {
 .text-industrial-muted { color: var(--text-muted); }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: var(--border-default);
   border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
