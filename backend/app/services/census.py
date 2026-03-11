@@ -746,12 +746,16 @@ async def analyze_demographics(location: str) -> str:
 
     # Step 6: Nothing worked - provide helpful error
     record_tool_complete("demographics_analysis", start_time, success=False)
+    suggestion_line = ""
+    if resolved.suggestion_message:
+        suggestion_line = f"\n- **{resolved.suggestion_message}**"
+
     return f"""Unable to find demographics for: {location}
 
 **What I tried:**
 - Location resolved to: {resolved.display_name}
 - Resolution method: {resolved.method.value}
-- Confidence: {resolved.confidence.value}
+- Confidence: {resolved.confidence.value}{suggestion_line}
 
 **Tips for better results:**
 - Include a ZIP code: "Reno, NV 89501"

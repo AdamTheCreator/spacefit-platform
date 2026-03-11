@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 from app.core.config import settings
+from app.services.location_resolver import resolve_location
 
 logger = logging.getLogger(__name__)
 
@@ -328,8 +329,18 @@ async def get_area_businesses(address: str, radius_meters: int = 2000) -> Locati
     Returns:
         LocationData with all businesses found, or None if geocoding fails
     """
-    # First, geocode the address
-    coords = await geocode_address(address)
+    # First, try the improved location resolver for better parsing
+    coords = None
+    try:
+        resolved = await resolve_location(address)
+        if resolved.has_coordinates():
+            coords = (resolved.latitude, resolved.longitude)
+    except Exception:
+        logger.debug("Location resolver failed, falling back to geocode_address")
+
+    # Fall back to direct geocoding
+    if not coords:
+        coords = await geocode_address(address)
     if not coords:
         return None
 
@@ -485,6 +496,13 @@ async def analyze_tenant_roster(address: str) -> str:
     location_data = await get_area_businesses(address)
 
     if not location_data:
+        # Try to get suggestions from location resolver
+        try:
+            resolved = await resolve_location(address)
+            if resolved.suggestion_message:
+                return f"Unable to find location: {address}. {resolved.suggestion_message}"
+        except Exception:
+            pass
         return f"Unable to find location: {address}. Please provide a valid address with city and state."
 
     return format_tenant_report(location_data)

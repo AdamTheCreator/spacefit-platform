@@ -9,6 +9,7 @@ This solves the problem where tools like the Census API require specific identif
 """
 
 import re
+import difflib
 import httpx
 import logging
 from dataclasses import dataclass, field
@@ -71,6 +72,10 @@ class ResolvedLocation:
     used_county_fallback: bool = False
     used_zip_approximation: bool = False
 
+    # Suggestions (when city lookup fails)
+    suggestions: list[str] = field(default_factory=list)
+    suggestion_message: str | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -92,6 +97,8 @@ class ResolvedLocation:
             "original_input": self.original_input,
             "used_county_fallback": self.used_county_fallback,
             "used_zip_approximation": self.used_zip_approximation,
+            "suggestions": self.suggestions,
+            "suggestion_message": self.suggestion_message,
         }
 
     def has_census_identifiers(self) -> bool:
@@ -154,6 +161,66 @@ def _normalize_state(state_input: str) -> str | None:
     return None
 
 
+def _parse_commaless_address(location: str) -> tuple[str | None, str | None, str | None] | None:
+    """
+    Parse an address that has no commas, e.g. "146-154 Main St weston ct".
+
+    Returns (street, city, state_abbrev) or None if parsing fails.
+    """
+    street_suffixes = {
+        'st', 'street', 'ave', 'avenue', 'rd', 'road', 'blvd', 'boulevard',
+        'dr', 'drive', 'ln', 'lane', 'way', 'pkwy', 'parkway', 'ct', 'court',
+        'pl', 'place', 'hwy', 'highway', 'cir', 'circle', 'ter', 'terrace',
+    }
+
+    # Suffixes that are also state abbreviations
+    ambiguous_suffixes = {'ct'}  # "ct" = court or Connecticut
+
+    words = location.split()
+    if len(words) < 2:
+        return None
+
+    # Check if the last word is a valid state abbreviation
+    last_word = words[-1]
+    state_abbrev = _normalize_state(last_word)
+    if not state_abbrev:
+        return None
+
+    remaining = words[:-1]  # everything except the state
+
+    # Handle "ct" ambiguity: if the candidate state is also a street suffix,
+    # only treat as state if a separate street suffix exists OR no street number
+    if last_word.lower() in ambiguous_suffixes:
+        has_street_number = bool(remaining and re.match(r'^\d', remaining[0]))
+        has_other_suffix = any(
+            w.lower() in (street_suffixes - ambiguous_suffixes)
+            for w in remaining
+        )
+        if has_street_number and not has_other_suffix:
+            # e.g. "100 Oak Ct" — "ct" is court, not Connecticut
+            return None
+
+    # Scan remaining words right-to-left for a street suffix
+    suffix_idx = None
+    for i in range(len(remaining) - 1, -1, -1):
+        if remaining[i].lower() in street_suffixes:
+            suffix_idx = i
+            break
+
+    if suffix_idx is not None and suffix_idx < len(remaining) - 1:
+        # Words after the suffix are the city
+        street = ' '.join(remaining[:suffix_idx + 1])
+        city = ' '.join(remaining[suffix_idx + 1:])
+        return street, city, state_abbrev
+
+    # No street suffix found — treat as "city state" (no street)
+    if not re.match(r'^\d', remaining[0]) if remaining else True:
+        city = ' '.join(remaining)
+        return None, city, state_abbrev
+
+    return None
+
+
 def _parse_location_input(location: str) -> tuple[str | None, str | None, str | None]:
     """
     Parse location input into components.
@@ -211,6 +278,11 @@ def _parse_location_input(location: str) -> tuple[str | None, str | None, str | 
                 city = parts[-2].strip() if len(parts) > 2 else None
                 street = parts[0].strip() if len(parts) > 2 else parts[0].strip()
                 return street, city, state_abbrev
+
+    # Try comma-less address parsing as last resort
+    commaless = _parse_commaless_address(location)
+    if commaless is not None:
+        return commaless
 
     return None, location, None
 
@@ -350,14 +422,49 @@ async def _geocode_with_census(location: str) -> ResolvedLocation | None:
             return None
 
 
-async def _lookup_place_fips(city: str, state_abbrev: str) -> dict | None:
+def _find_similar_cities(city: str, place_names: list[str], n: int = 5) -> list[str]:
+    """
+    Find city names similar to the input using fuzzy matching.
+
+    Args:
+        city: The user's input city name
+        place_names: List of known place names (from Census data)
+        n: Max number of suggestions
+
+    Returns:
+        List of similar city name suggestions
+    """
+    city_lower = city.lower().strip()
+
+    # Extract just the city portion from Census names like "Westport city, Connecticut"
+    clean_names = []
+    name_map = {}
+    for full_name in place_names:
+        # Census format: "City name town, State" or "City name city, State"
+        base = full_name.split(',')[0].strip()
+        # Remove suffixes like "city", "town", "village", "CDP", "borough"
+        for suffix in [' city', ' town', ' village', ' CDP', ' borough']:
+            if base.lower().endswith(suffix):
+                base = base[:len(base) - len(suffix)].strip()
+                break
+        clean_names.append(base.lower())
+        name_map[base.lower()] = base  # Preserve original casing
+
+    matches = difflib.get_close_matches(city_lower, clean_names, n=n, cutoff=0.6)
+    return [name_map[m] for m in matches if m != city_lower]
+
+
+async def _lookup_place_fips(city: str, state_abbrev: str) -> tuple[dict | None, list[str]]:
     """
     Look up Census Place FIPS code for a city/state combination.
     Uses Census API to search for incorporated places.
+
+    Returns:
+        Tuple of (place_info dict or None, list of similar city suggestions)
     """
     state_fips = STATE_FIPS.get(state_abbrev)
     if not state_fips:
-        return None
+        return None, []
 
     # Census API for places
     url = f"https://api.census.gov/data/2022/acs/acs5?get=NAME,B01003_001E&for=place:*&in=state:{state_fips}"
@@ -371,7 +478,10 @@ async def _lookup_place_fips(city: str, state_abbrev: str) -> dict | None:
             data = response.json()
 
             if len(data) < 2:
-                return None
+                return None, []
+
+            # Collect all place names for fuzzy matching
+            all_place_names = [row[0] for row in data[1:]]
 
             # Search for matching city
             city_lower = city.lower().strip()
@@ -395,13 +505,15 @@ async def _lookup_place_fips(city: str, state_abbrev: str) -> dict | None:
                             "place_fips": place_code,
                             "state_fips": state_fips,
                             "population": population,
-                        }
+                        }, []
 
-            return None
+            # No exact match — find similar cities
+            suggestions = _find_similar_cities(city, all_place_names)
+            return None, suggestions
 
         except Exception:
             logger.exception("[location_resolver] Place FIPS lookup error")
-            return None
+            return None, []
 
 
 async def _lookup_zip_for_city(city: str, state_abbrev: str) -> list[str]:
@@ -470,8 +582,9 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
             return result
 
     # Strategy 2: City/State - try place FIPS lookup
+    suggestions = []
     if city and state_abbrev:
-        place_info = await _lookup_place_fips(city, state_abbrev)
+        place_info, suggestions = await _lookup_place_fips(city, state_abbrev)
         if place_info:
             # Get coordinates via Google
             google_result = await _geocode_with_google(f"{city}, {state_abbrev}")
@@ -502,7 +615,7 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
     if google_result:
         # Try to also get place FIPS if we have city/state
         if google_result.normalized_city and google_result.state_abbrev:
-            place_info = await _lookup_place_fips(
+            place_info, _ = await _lookup_place_fips(
                 google_result.normalized_city,
                 google_result.state_abbrev
             )
@@ -528,6 +641,9 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
     # Strategy 5: Partial resolution - at least get state
     if state_abbrev:
         state_fips = STATE_FIPS.get(state_abbrev)
+        suggestion_message = None
+        if suggestions and city:
+            suggestion_message = f"Could not find '{city}' in {state_abbrev}. Did you mean: {', '.join(suggestions)}?"
         return ResolvedLocation(
             display_name=input_string,
             normalized_city=city,
@@ -536,6 +652,8 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
             confidence=ResolutionConfidence.LOW,
             method=ResolutionMethod.FALLBACK,
             original_input=input_string,
+            suggestions=suggestions,
+            suggestion_message=suggestion_message,
         )
 
     # Last resort: return minimal info
