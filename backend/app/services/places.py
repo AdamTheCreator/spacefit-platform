@@ -19,6 +19,30 @@ PLACES_NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/jso
 PLACES_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 
+# Conversion constant
+METERS_PER_MILE = 1609.34
+
+# Known-defunct businesses that Google Places sometimes still marks as operational
+DEFUNCT_BUSINESS_NAMES = {
+    "bed bath & beyond", "bed bath and beyond",
+    "buy buy baby",
+    "christmas tree shops",
+    "pier 1 imports", "pier 1",
+    "papyrus",
+    "dressbarn", "dress barn",
+    "charming charlie",
+    "tuesday morning",
+    "stein mart",
+    "destination xl", "destination maternity",
+    "forever 21",  # many locations closed — kept as safety net
+    "radioshack", "radio shack",
+    "toys r us", "toys \"r\" us", "babies r us", "babies \"r\" us",
+    "modell's sporting goods", "modells",
+    "lord & taylor", "lord and taylor",
+    "neiman marcus last call",
+    "sears", "kmart", "k-mart",
+}
+
 
 # Business type categories for commercial real estate analysis
 CATEGORY_MAPPING = {
@@ -94,6 +118,17 @@ CATEGORY_MAPPING = {
 }
 
 
+def miles_to_meters(miles: float) -> int:
+    """Convert miles to meters for Google Places API radius parameter."""
+    return int(miles * METERS_PER_MILE)
+
+
+def _is_defunct_business(name: str) -> bool:
+    """Check if a business name matches the known-defunct blacklist."""
+    name_lower = name.lower().strip()
+    return any(defunct in name_lower for defunct in DEFUNCT_BUSINESS_NAMES)
+
+
 @dataclass
 class Business:
     """Represents a business/tenant."""
@@ -108,6 +143,7 @@ class Business:
     phone: str | None = None
     website: str | None = None
     place_id: str | None = None
+    business_status: str | None = None
 
 
 @dataclass
@@ -230,9 +266,22 @@ async def search_nearby_businesses(
 
             businesses = []
             for place in data.get("results", []):
+                # Filter out closed businesses
+                status = place.get("business_status", "OPERATIONAL")
+                if status in ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY"):
+                    logger.debug("Filtered closed business: %s (status=%s)", place.get("name"), status)
+                    continue
+
+                name = place.get("name", "Unknown")
+
+                # Filter known-defunct businesses
+                if _is_defunct_business(name):
+                    logger.debug("Filtered defunct business: %s", name)
+                    continue
+
                 types = place.get("types", [])
                 business = Business(
-                    name=place.get("name", "Unknown"),
+                    name=name,
                     address=place.get("vicinity", ""),
                     category=_categorize_business(types),
                     types=types,
@@ -243,6 +292,7 @@ async def search_nearby_businesses(
                     phone=None,  # Not available in nearby search
                     website=None,  # Not available in nearby search
                     place_id=place.get("place_id"),
+                    business_status=status,
                 )
                 businesses.append(business)
 
@@ -293,9 +343,22 @@ async def search_businesses_by_text(
 
             businesses = []
             for place in data.get("results", []):
+                # Filter out closed businesses
+                status = place.get("business_status", "OPERATIONAL")
+                if status in ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY"):
+                    logger.debug("Filtered closed business (text): %s (status=%s)", place.get("name"), status)
+                    continue
+
+                name = place.get("name", "Unknown")
+
+                # Filter known-defunct businesses
+                if _is_defunct_business(name):
+                    logger.debug("Filtered defunct business (text): %s", name)
+                    continue
+
                 types = place.get("types", [])
                 business = Business(
-                    name=place.get("name", "Unknown"),
+                    name=name,
                     address=place.get("formatted_address", ""),
                     category=_categorize_business(types),
                     types=types,
@@ -306,6 +369,7 @@ async def search_businesses_by_text(
                     phone=None,
                     website=None,
                     place_id=place.get("place_id"),
+                    business_status=status,
                 )
                 businesses.append(business)
 
@@ -316,7 +380,11 @@ async def search_businesses_by_text(
             return []
 
 
-async def get_area_businesses(address: str, radius_meters: int = 2000) -> LocationData | None:
+async def get_area_businesses(
+    address: str,
+    radius_meters: int | None = None,
+    radius_miles: float | None = None,
+) -> LocationData | None:
     """
     Get all businesses in an area around an address.
 
@@ -324,11 +392,28 @@ async def get_area_businesses(address: str, radius_meters: int = 2000) -> Locati
 
     Args:
         address: Address to search around
-        radius_meters: Search radius (default 2000m = ~1.2 miles)
+        radius_meters: Search radius in meters (legacy parameter)
+        radius_miles: Search radius in miles (preferred — converted to meters internally)
+
+    If both are None, defaults to 3 miles (~4828m).
+    If radius_miles is provided, it takes precedence over radius_meters.
 
     Returns:
         LocationData with all businesses found, or None if geocoding fails
     """
+    # Resolve radius: prefer miles, fall back to meters, default to 3 miles
+    if radius_miles is not None:
+        effective_radius = miles_to_meters(radius_miles)
+    elif radius_meters is not None:
+        effective_radius = radius_meters
+    else:
+        effective_radius = miles_to_meters(3.0)  # default 3-mile trade area
+
+    logger.info(
+        "[places] Searching businesses around '%s' with radius=%dm (%.1f miles)",
+        address, effective_radius, effective_radius / METERS_PER_MILE,
+    )
+
     # First, try the improved location resolver for better parsing
     coords = None
     try:
@@ -345,6 +430,7 @@ async def get_area_businesses(address: str, radius_meters: int = 2000) -> Locati
         return None
 
     lat, lng = coords
+    logger.debug("[places] Search center: lat=%.6f, lng=%.6f", lat, lng)
 
     # Search for different types of businesses
     # Legacy API only supports one type per request
@@ -382,14 +468,14 @@ async def get_area_businesses(address: str, radius_meters: int = 2000) -> Locati
     ]
 
     for place_type in business_types:
-        businesses = await search_nearby_businesses(lat, lng, radius_meters, place_type)
+        businesses = await search_nearby_businesses(lat, lng, effective_radius, place_type)
         for biz in businesses:
             if biz.place_id and biz.place_id not in seen_place_ids:
                 seen_place_ids.add(biz.place_id)
                 all_businesses.append(biz)
 
     # Also do a general nearby search to catch anything we missed
-    general_businesses = await search_nearby_businesses(lat, lng, radius_meters, None)
+    general_businesses = await search_nearby_businesses(lat, lng, effective_radius, None)
     for biz in general_businesses:
         if biz.place_id and biz.place_id not in seen_place_ids:
             seen_place_ids.add(biz.place_id)
@@ -483,17 +569,18 @@ No businesses found within the search radius. This could mean:
     return "\n".join(lines)
 
 
-async def analyze_tenant_roster(address: str) -> str:
+async def analyze_tenant_roster(address: str, radius_miles: float = 3.0) -> str:
     """
     Main entry point for tenant roster analysis.
 
     Args:
         address: Address or location to analyze
+        radius_miles: Trade area radius in miles
 
     Returns:
         Formatted tenant roster report
     """
-    location_data = await get_area_businesses(address)
+    location_data = await get_area_businesses(address, radius_miles=radius_miles)
 
     if not location_data:
         # Try to get suggestions from location resolver
@@ -508,17 +595,18 @@ async def analyze_tenant_roster(address: str) -> str:
     return format_tenant_report(location_data)
 
 
-async def get_tenants_structured(address: str) -> list[dict] | None:
+async def get_tenants_structured(address: str, radius_miles: float = 3.0) -> list[dict] | None:
     """
     Get tenant data as structured list for use by other agents (e.g., void analysis).
 
     Args:
         address: Address to search around
+        radius_miles: Trade area radius in miles
 
     Returns:
         List of tenant dicts with name, category, or None if geocoding fails
     """
-    location_data = await get_area_businesses(address)
+    location_data = await get_area_businesses(address, radius_miles=radius_miles)
 
     if not location_data:
         return None

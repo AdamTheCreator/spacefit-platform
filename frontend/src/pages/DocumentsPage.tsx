@@ -21,7 +21,7 @@ import type { ParsedDocument, DocumentType, ExtractedFlyerData, ExtractedVoidDat
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   leasing_flyer: 'Leasing Flyer',
   site_plan: 'Site Plan',
-  void_analysis: 'Void Analysis',
+  void_analysis: 'Tenant Gap Analysis',
   investment_memo: 'Investment Memo',
   loan_document: 'Loan Document',
   comp_report: 'Comp Report',
@@ -614,7 +614,7 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-2xl font-bold text-[var(--color-error)] tabular-nums">{data.summary?.total_voids || 0}</p>
-            <p className="text-[11px] text-industrial-muted">Total Voids</p>
+            <p className="text-[11px] text-industrial-muted">Total Gaps</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-industrial tabular-nums">
@@ -654,7 +654,7 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
                   <span className="text-sm font-medium text-industrial">{cat.category_name}</span>
                   {cat.is_void ? (
                     <span className="px-2.5 py-0.5 bg-[var(--bg-error)] text-[var(--color-error)] rounded-full text-[10px] font-medium">
-                      Void
+                      Gap
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 bg-[var(--bg-success)] text-[var(--color-success)] rounded-full text-[10px] font-medium">
@@ -969,7 +969,7 @@ export function DocumentsPage() {
           <div className="p-5 border-b border-[var(--border-subtle)]">
             <h1 className="text-lg font-semibold text-industrial mb-1">Documents</h1>
             <p className="text-sm text-industrial-muted">
-              Upload leasing flyers, void analyses, and investment memos
+              Upload leasing flyers, gap analyses, and investment memos
             </p>
           </div>
 
@@ -1031,7 +1031,7 @@ export function DocumentsPage() {
                 Select a document to view details
               </h2>
               <p className="text-sm text-industrial-muted max-w-md leading-relaxed">
-                Upload a leasing flyer, void analysis, or investment memo to extract
+                Upload a leasing flyer, gap analysis, or investment memo to extract
                 property data, available spaces, and tenant information automatically.
               </p>
             </div>

@@ -1,10 +1,11 @@
+import { useState, useEffect } from 'react';
 import type { AgentType, WorkflowStep } from '../../types/chat';
 
 // Agent configuration with softer colors
 const AGENT_CONFIG: Record<string, { name: string; shortName: string; color: string; bgColor: string }> = {
   'demographics': { name: 'Demographics', shortName: 'Demo', color: 'bg-[var(--accent)]', bgColor: 'bg-[var(--accent-subtle)]' },
   'tenant-roster': { name: 'Tenant Roster', shortName: 'Tenants', color: 'bg-[var(--color-success)]', bgColor: 'bg-[var(--bg-success)]' },
-  'void-analysis': { name: 'Void Analysis', shortName: 'Voids', color: 'bg-[var(--color-error)]', bgColor: 'bg-[var(--bg-error)]' },
+  'void-analysis': { name: 'Tenant Gap Analysis', shortName: 'Gaps', color: 'bg-[var(--color-error)]', bgColor: 'bg-[var(--bg-error)]' },
   'tenant-match': { name: 'Tenant Match', shortName: 'Match', color: 'bg-cyan-500', bgColor: 'bg-cyan-50' },
   'notification': { name: 'Notifications', shortName: 'Notify', color: 'bg-teal-500', bgColor: 'bg-teal-50' },
   'orchestrator': { name: 'Assistant', shortName: 'Main', color: 'bg-[var(--accent)]', bgColor: 'bg-[var(--accent-subtle)]' },
@@ -16,6 +17,7 @@ interface AgentStatusStripProps {
   workflowSteps: WorkflowStep[];
   activeAgentType: AgentType | null;
   isProcessing: boolean;
+  analysisTarget?: string | null;
 }
 
 // Horizontal agent status strip - sits above input
@@ -23,7 +25,22 @@ export function AgentStatusStrip({
   workflowSteps,
   activeAgentType,
   isProcessing,
+  analysisTarget,
 }: AgentStatusStripProps) {
+  // Track how long we've been processing for reassurance messages
+  const [processingSeconds, setProcessingSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setProcessingSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setProcessingSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isProcessing]);
+
   // Don't show if no workflow steps and not processing
   if (workflowSteps.length === 0 && !isProcessing) return null;
 
@@ -40,8 +57,17 @@ export function AgentStatusStrip({
         <div className="chat-stage px-1 py-2.5">
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] animate-pulse-soft" />
-            <span className="text-sm text-industrial-secondary">Thinking...</span>
+            <span className="text-sm text-industrial-secondary">
+              {analysisTarget
+                ? `Analyzing ${analysisTarget}...`
+                : 'Thinking...'}
+            </span>
           </div>
+          {processingSeconds >= 10 && (
+            <p className="text-xs text-industrial-muted mt-1 ml-5">
+              Pulling demographics and tenant data — this usually takes 15-30 seconds
+            </p>
+          )}
         </div>
       </div>
     );
@@ -54,6 +80,19 @@ export function AgentStatusStrip({
 
   return (
     <div className="chat-input-shell border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+      {/* Analysis target header */}
+      {analysisTarget && isProcessing && !allComplete && (
+        <div className="chat-stage px-1 pt-2.5 pb-0">
+          <p className="text-xs font-medium text-industrial-secondary">
+            Analyzing {analysisTarget}...
+          </p>
+          {processingSeconds >= 10 && (
+            <p className="text-[11px] text-industrial-muted mt-0.5">
+              Pulling demographics and tenant data — this usually takes 15-30 seconds
+            </p>
+          )}
+        </div>
+      )}
       {/* Progress bar - rounded at top */}
       <div className="chat-stage h-1 bg-[var(--bg-tertiary)] mt-3 rounded-full overflow-hidden">
         <div

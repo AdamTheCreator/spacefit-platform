@@ -440,7 +440,7 @@ function MemorySection() {
                         {prop.address}
                       </p>
                       <p className="text-xs text-industrial-muted">
-                        {prop.asset_type} &bull; {prop.void_count} voids
+                        {prop.asset_type} &bull; {prop.void_count} gaps
                       </p>
                     </div>
                     <span className="text-[10px] text-industrial-muted flex-shrink-0 ml-4">

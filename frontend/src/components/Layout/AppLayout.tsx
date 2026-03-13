@@ -14,6 +14,7 @@ import {
   FileText,
   Mail,
   HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -234,7 +235,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                       : ''
                   }`}
                 >
-                  <MessageSquare size={14} className="text-industrial-muted flex-shrink-0" />
+                  {session.title?.startsWith('Analysis:') ? (
+                    <Sparkles size={14} className="text-[var(--accent)] flex-shrink-0" />
+                  ) : (
+                    <MessageSquare size={14} className="text-industrial-muted flex-shrink-0" />
+                  )}
                   <span className="flex-1 truncate text-sm">
                     {session.title || 'New conversation'}
                   </span>

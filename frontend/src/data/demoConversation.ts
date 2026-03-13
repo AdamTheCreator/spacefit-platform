@@ -48,7 +48,7 @@ I'm initiating the following analyses:
 - **Demographics Agent** - Trade area population and income data
 - **Tenant Roster Agent** - Current tenant mix from Google Places
 - **Foot Traffic Agent** - Visitor patterns and performance metrics
-- **Void Analysis Agent** - Gap identification and opportunities
+- **Tenant Gap Analysis** - Gap identification and opportunities
 - **Tenant Match Agent** - Match your clients to opportunities
 
 This will take a moment as I gather data from multiple sources...`,
@@ -170,7 +170,7 @@ This will take a moment as I gather data from multiple sources...`,
   {
     type: 'agent_result',
     agentType: 'void-analysis',
-    content: `**Void Analysis - Top Opportunities**
+    content: `**Tenant Gap Analysis - Top Opportunities**
 
 **HIGH PRIORITY** (Strong demand, no current presence)
 
@@ -373,7 +373,7 @@ Each email was personalized with the specific data points that match each tenant
 
 This walkthrough demonstrated SpaceFit AI's full pipeline:
 1. **Data Aggregation** - Demographics, tenants, foot traffic
-2. **Void Analysis** - Identified category gaps
+2. **Tenant Gap Analysis** - Identified category gaps
 3. **Tenant Matching** - Matched your clients to opportunities
 4. **Automated Outreach** - Personalized emails with relevant data
 

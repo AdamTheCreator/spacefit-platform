@@ -162,7 +162,7 @@ export function PricingPage() {
                   />
                   <FeatureItem
                     included
-                    label={`${formatLimit(plan.void_analyses_per_month)} void analyses/mo`}
+                    label={`${formatLimit(plan.void_analyses_per_month)} tenant gap analyses/mo`}
                   />
                   <FeatureItem
                     included
@@ -218,7 +218,7 @@ export function PricingPage() {
                 limit={currentSubscription.limits.chat_session}
               />
               <UsageItem
-                label="Void Analyses"
+                label="Tenant Gap Analyses"
                 used={currentSubscription.usage.void_analysis}
                 limit={currentSubscription.limits.void_analysis}
               />

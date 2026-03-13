@@ -57,7 +57,7 @@ export const AGENTS: Record<AgentType, AgentInfo> = {
   },
   'void-analysis': {
     type: 'void-analysis',
-    name: 'Void Analysis Agent',
+    name: 'Tenant Gap Analysis',
     description: 'Identifies gaps and opportunities',
     color: 'bg-red-500',
   },
@@ -76,7 +76,7 @@ export const AGENTS: Record<AgentType, AgentInfo> = {
   placer: {
     type: 'placer',
     name: 'Placer.ai',
-    description: 'Visitor traffic, customer profiles, and void analysis',
+    description: 'Visitor traffic, customer profiles, and gap analysis',
     color: 'bg-emerald-500',
   },
   siteusa: {

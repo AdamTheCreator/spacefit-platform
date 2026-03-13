@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Float
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -98,6 +98,9 @@ class OutreachCampaign(Base):
     # Source data (for reference)
     void_analysis_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # Chat session where this was created
+
+    # File attachments — list of document IDs from parsed_documents table
+    attachment_ids: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
 
     # Relationships
     recipients: Mapped[list["OutreachRecipient"]] = relationship(

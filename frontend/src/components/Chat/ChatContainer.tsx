@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Users, FileText, Mail, Save } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -21,12 +21,27 @@ interface LocationState {
 const VERTICAL_MODES = [
   { id: "MASTER_DEFAULT", emoji: "🏢", label: "General CRE", desc: "All property types" },
   { id: "QSR_FAST_FOOD", emoji: "🍔", label: "Fast Food / QSR", desc: "Site selection for restaurants" },
-  { id: "MALL_RETAIL", emoji: "🛍️", label: "Mall & Retail", desc: "Tenant mix and void analysis" },
+  { id: "MALL_RETAIL", emoji: "🛍️", label: "Mall & Retail", desc: "Tenant mix and gap analysis" },
   { id: "OFFICE_SPACE", emoji: "💼", label: "Office Space", desc: "Leasing and market comps" },
   { id: "INDUSTRIAL", emoji: "🏭", label: "Industrial", desc: "Warehouse and logistics" },
 ] as const;
 
 type VerticalModeId = typeof VERTICAL_MODES[number]['id'];
+
+// CTA configs keyed by the agent type that triggers them
+const NEXT_STEP_ACTIONS: Record<string, { label: string; icon: React.ReactNode; message: string }[]> = {
+  'void-analysis': [
+    { label: 'Match tenants', icon: <Users size={14} />, message: 'Match tenants for the gaps you identified' },
+    { label: 'Export report', icon: <FileText size={14} />, message: 'Export this analysis as a PDF report' },
+  ],
+  'tenant-match': [
+    { label: 'Create outreach campaign', icon: <Mail size={14} />, message: 'Create an outreach campaign for the matched tenants' },
+  ],
+  outreach: [
+    { label: 'Review & send', icon: <Mail size={14} />, message: 'Review and send the outreach campaign' },
+    { label: 'Save as template', icon: <Save size={14} />, message: 'Save this outreach as a reusable template' },
+  ],
+};
 
 export function ChatContainer({ initialSessionId }: ChatContainerProps) {
   const location = useLocation();
@@ -48,6 +63,19 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSentRef = useRef(false);
   const isAnalysisKickoff = !!locationState?.documentId;
+
+  // Determine next-step actions based on the last agent message
+  const nextStepActions = useMemo(() => {
+    if (isProcessing || messages.length === 0) return null;
+    // Find the last agent message
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === 'agent' && msg.agentType && !msg.isStreaming) {
+        return NEXT_STEP_ACTIONS[msg.agentType] || null;
+      }
+    }
+    return null;
+  }, [messages, isProcessing]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -112,7 +140,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
               Starting Analysis
             </h3>
             <p className="text-sm text-industrial-muted">
-              Initializing void analysis with your document data...
+              Initializing tenant gap analysis with your document data...
             </p>
           </div>
         ) : messages.length === 0 && !isLoading ? (
@@ -128,7 +156,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
             {/* Simple Suggestion Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full px-4">
               {[
-                { title: 'Analyze property', desc: 'Run a void analysis on a specific site', icon: '🏢' },
+                { title: 'Analyze property', desc: 'Find tenant gaps at a specific site', icon: '🏢' },
                 { title: 'Match tenants', desc: 'Find the best prospects for your space', icon: '🛍️' },
                 { title: 'Market comps', desc: 'Compare recent leasing data in the area', icon: '📊' },
                 { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
@@ -168,6 +196,26 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
+
+            {/* Next-step action cards */}
+            {nextStepActions && (
+              <div className="chat-stage px-4 py-2 animate-fade-in">
+                <div className="flex flex-wrap gap-2 pl-11 sm:pl-13">
+                  {nextStepActions.map((action) => (
+                    <button
+                      key={action.label}
+                      onClick={() => handleSendMessage(action.message)}
+                      disabled={!isConnected}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-subtle)] hover:bg-[var(--accent)]/15 hover:border-[var(--accent)]/50 text-sm font-medium text-[var(--accent)] transition-all"
+                    >
+                      {action.icon}
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -179,6 +227,11 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
         workflowSteps={workflowSteps}
         activeAgentType={activeAgentType as AgentType | null}
         isProcessing={isProcessing}
+        analysisTarget={
+          isProcessing && messages.length > 0
+            ? messages.find((m) => m.role === 'user')?.content?.slice(0, 60) || null
+            : null
+        }
       />
 
       {/* Input Area */}

@@ -42,7 +42,7 @@ const DEFAULT_SITES: SiteConfig[] = [
   {
     id: 'placer',
     name: 'Placer.ai',
-    description: 'Foot traffic, customer profiles, and void analysis',
+    description: 'Foot traffic, customer profiles, and tenant gap analysis',
     icon: 'users',
     url: 'https://analytics.placer.ai',
     data_types: ['foot_traffic', 'customer_profile', 'void_analysis'],

@@ -47,6 +47,9 @@ dependencies = [
 
     # Date utilities
     "python-dateutil>=2.8.0",
+
+    # PDF generation
+    "reportlab>=4.0.0",
 ]
 
 [project.optional-dependencies]

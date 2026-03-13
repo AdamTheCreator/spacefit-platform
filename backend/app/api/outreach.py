@@ -600,6 +600,74 @@ async def delete_campaign(
     return {"success": True, "message": "Campaign deleted"}
 
 
+# ============= Attachments =============
+
+
+class AttachmentAdd(BaseModel):
+    document_id: str
+
+
+@router.post("/campaigns/{campaign_id}/attachments")
+async def add_attachment(
+    campaign_id: str,
+    body: AttachmentAdd,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Attach a document to a campaign (draft only)."""
+    result = await db.execute(
+        select(OutreachCampaign)
+        .where(
+            OutreachCampaign.id == campaign_id,
+            OutreachCampaign.user_id == current_user.id,
+        )
+    )
+    campaign = result.scalar_one_or_none()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status != CampaignStatus.DRAFT.value:
+        raise HTTPException(status_code=400, detail="Can only modify draft campaigns")
+
+    current_ids = campaign.attachment_ids or []
+    if body.document_id not in current_ids:
+        campaign.attachment_ids = [*current_ids, body.document_id]
+        await db.commit()
+
+    return {"success": True, "attachment_ids": campaign.attachment_ids}
+
+
+@router.delete("/campaigns/{campaign_id}/attachments/{document_id}")
+async def remove_attachment(
+    campaign_id: str,
+    document_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Remove an attachment from a campaign (draft only)."""
+    result = await db.execute(
+        select(OutreachCampaign)
+        .where(
+            OutreachCampaign.id == campaign_id,
+            OutreachCampaign.user_id == current_user.id,
+        )
+    )
+    campaign = result.scalar_one_or_none()
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status != CampaignStatus.DRAFT.value:
+        raise HTTPException(status_code=400, detail="Can only modify draft campaigns")
+
+    current_ids = campaign.attachment_ids or []
+    campaign.attachment_ids = [did for did in current_ids if did != document_id]
+    await db.commit()
+
+    return {"success": True, "attachment_ids": campaign.attachment_ids}
+
+
 # ============= Templates =============
 
 @router.get("/templates", response_model=list[TemplateResponse])

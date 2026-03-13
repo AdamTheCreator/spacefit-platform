@@ -23,7 +23,7 @@ export interface AnalysisOptions {
 const ANALYSIS_TYPES = [
   {
     value: 'void_analysis',
-    label: 'Void Analysis',
+    label: 'Find Tenant Gaps',
     description: 'Identify missing tenant categories and recommend specific tenants for available spaces.',
   },
   {

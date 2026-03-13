@@ -115,13 +115,13 @@ def build_analysis_context(document: ParsedDocument) -> AnalysisContext:
 def generate_session_title(context: AnalysisContext) -> str:
     """Generate a descriptive title for the analysis session."""
     if context.property_name:
-        return f"Void Analysis: {context.property_name}"
+        return f"Analysis: {context.property_name}"
     elif context.full_address:
         # Use first part of address for shorter title
         short_addr = context.property_address or context.full_address.split(",")[0]
-        return f"Void Analysis: {short_addr}"
+        return f"Analysis: {short_addr}"
     else:
-        return "Void Analysis: Property"
+        return "Property Analysis"
 
 
 async def create_analysis_session_from_document(

@@ -11,6 +11,7 @@ import {
   Search,
 } from 'lucide-react';
 import { AppLayout } from '../components/Layout';
+import { EmailComposer } from '../components/Outreach';
 import api from '../lib/axios';
 import type {
   OutreachCampaignListItem,
@@ -49,21 +50,22 @@ export function OutreachPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'all'>('all');
   const [_selectedCampaign, _setSelectedCampaign] = useState<OutreachCampaign | null>(null);
+  const [showComposer, setShowComposer] = useState(false);
 
-  // Fetch campaigns
-  useEffect(() => {
-    async function fetchCampaigns() {
-      try {
-        setIsLoading(true);
-        const response = await api.get<OutreachCampaignListItem[]>('/outreach/campaigns');
-        setCampaigns(response.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load campaigns');
-      } finally {
-        setIsLoading(false);
-      }
+  const fetchCampaigns = async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get<OutreachCampaignListItem[]>('/outreach/campaigns');
+      setCampaigns(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load campaigns');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  // Fetch campaigns on mount
+  useEffect(() => {
     fetchCampaigns();
   }, []);
 
@@ -101,17 +103,17 @@ export function OutreachPage() {
                 Outreach Campaigns
               </h1>
               <p className="font-mono text-xs text-industrial-muted mt-1">
-                Email campaigns created from void analysis results
+                Email campaigns created from tenant gap analysis results
               </p>
             </div>
 
-            <Link
-              to="/chat"
+            <button
+              onClick={() => setShowComposer(true)}
               className="btn-industrial-primary"
             >
               <Plus className="w-4 h-4" />
               New Campaign
-            </Link>
+            </button>
           </div>
 
           {/* Stats Cards */}
@@ -192,15 +194,15 @@ export function OutreachPage() {
               </div>
               <h3 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">No campaigns yet</h3>
               <p className="font-mono text-xs text-industrial-muted mb-6 max-w-md">
-                Create your first outreach campaign from a void analysis. Ask SpaceFit to
-                run a void analysis and then reach out to the identified tenants.
+                Create your first outreach campaign from a tenant gap analysis. Ask SpaceFit to
+                find tenant gaps and then reach out to the identified tenants.
               </p>
               <Link
                 to="/chat"
                 className="btn-industrial-primary"
               >
                 <Plus className="w-4 h-4" />
-                Start a Void Analysis
+                Find Tenant Gaps
               </Link>
             </div>
           ) : (
@@ -306,6 +308,25 @@ export function OutreachPage() {
           )}
         </div>
       </div>
+
+      {/* Email Composer Overlay */}
+      {showComposer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowComposer(false)}
+          />
+          <div className="relative w-full max-w-3xl mx-4">
+            <EmailComposer
+              onClose={() => setShowComposer(false)}
+              onCampaignCreated={() => {
+                setShowComposer(false);
+                fetchCampaigns();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

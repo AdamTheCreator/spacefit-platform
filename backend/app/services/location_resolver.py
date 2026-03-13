@@ -221,6 +221,63 @@ def _parse_commaless_address(location: str) -> tuple[str | None, str | None, str
     return None
 
 
+# Known shopping center / property name patterns
+# These are NOT street addresses — they should be treated as place names for geocoding
+SHOPPING_CENTER_KEYWORDS = {
+    'mall', 'plaza', 'center', 'centre', 'commons', 'crossing', 'crossings',
+    'village', 'square', 'place', 'promenade', 'marketplace', 'market',
+    'outlets', 'outlet', 'pavilion', 'towne', 'town center', 'galleria',
+    'shops', 'shoppes', 'landing', 'walk', 'point', 'pointe', 'terrace',
+    'exchange', 'collection', 'district', 'quarter',
+}
+
+
+def _looks_like_property_name(text: str) -> bool:
+    """
+    Detect if the input looks like a shopping center or property name
+    rather than a street address. Examples:
+      - "The Walk Atlantic City NJ"
+      - "King of Prussia Mall PA"
+      - "Westfield Garden State Plaza NJ"
+    """
+    text_lower = text.lower().strip()
+    # Property names typically don't start with a street number
+    if re.match(r'^\d+\s+', text_lower):
+        return False
+    # Check if any shopping center keyword is present
+    words = set(text_lower.split())
+    return bool(words & SHOPPING_CENTER_KEYWORDS)
+
+
+def _parse_property_name(location: str) -> tuple[str | None, str | None, str | None] | None:
+    """
+    Parse a property/shopping center name with city/state, e.g.:
+      - "The Walk Atlantic City NJ"
+      - "King of Prussia Mall PA"
+      - "Westfield Garden State Plaza Paramus NJ"
+
+    Returns (None, property_name_with_city, state_abbrev) or None.
+    The entire name + city is kept together so Google Geocoding can resolve it as a place.
+    """
+    words = location.split()
+    if len(words) < 2:
+        return None
+
+    # Check last word as state
+    state_abbrev = _normalize_state(words[-1])
+    if not state_abbrev:
+        # Try last two words for full state name
+        if len(words) >= 3:
+            state_abbrev = _normalize_state(" ".join(words[-2:]))
+            if state_abbrev:
+                place_name = " ".join(words[:-2])
+                return None, place_name, state_abbrev
+        return None
+
+    place_name = " ".join(words[:-1])
+    return None, place_name, state_abbrev
+
+
 def _parse_location_input(location: str) -> tuple[str | None, str | None, str | None]:
     """
     Parse location input into components.
@@ -255,6 +312,14 @@ def _parse_location_input(location: str) -> tuple[str | None, str | None, str | 
         normalized = _normalize_state(potential_state)
         if normalized:
             return None, potential_city, normalized
+
+    # Check for property/shopping center names BEFORE street address parsing
+    # e.g. "The Walk Atlantic City NJ", "King of Prussia Mall PA"
+    if _looks_like_property_name(location):
+        result = _parse_property_name(location)
+        if result is not None:
+            logger.debug("[location_resolver] Detected property name: '%s'", location)
+            return result
 
     # Pattern: Full address with street
     # Look for common street suffixes

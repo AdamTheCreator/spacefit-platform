@@ -1049,3 +1049,44 @@ async def calculate_pro_forma_endpoint(
 
     result = calculate_pro_forma(inputs)
     return result.to_dict()
+
+
+# ============= PDF Export =============
+
+
+class ExportReportRequest(BaseModel):
+    property_name: str = ""
+    property_address: str = ""
+    trade_area_miles: float = 3.0
+    current_tenants: list[dict] | None = None
+    tenant_gaps: list[dict] | None = None
+    recommended_tenants: list[dict] | None = None
+    demographics: dict | None = None
+
+
+@router.post("/export-report")
+async def export_tenant_gap_report(
+    request: ExportReportRequest,
+    _current_user: CurrentUser,
+):
+    """Generate a PDF report for tenant gap analysis results."""
+    from fastapi.responses import Response
+    from app.services.report_generator import generate_tenant_gap_report
+
+    pdf_bytes = generate_tenant_gap_report(
+        property_name=request.property_name,
+        property_address=request.property_address,
+        trade_area_miles=request.trade_area_miles,
+        current_tenants=request.current_tenants,
+        tenant_gaps=request.tenant_gaps,
+        recommended_tenants=request.recommended_tenants,
+        demographics=request.demographics,
+    )
+
+    filename = f"SpaceFit_Report_{request.property_name or 'Property'}.pdf".replace(" ", "_")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

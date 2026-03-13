@@ -147,7 +147,7 @@ export function DemoPage() {
 
             <p className="font-mono text-sm text-industrial-secondary max-w-lg mb-6">
               Experience how our multi-agent AI system analyzes commercial real estate properties,
-              identifies void opportunities, and automates client outreach.
+              identifies tenant gaps, and automates client outreach.
             </p>
 
             <div className="bg-[var(--bg-tertiary)] p-6 border border-industrial max-w-md mb-8">
@@ -167,7 +167,7 @@ export function DemoPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-[var(--color-error)]"></span>
-                  Void analysis and opportunity identification
+                  Tenant gap analysis and opportunity identification
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-cyan-500"></span>
