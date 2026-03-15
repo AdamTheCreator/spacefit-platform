@@ -16,7 +16,7 @@ import type { UploadItem, UploadStatus } from '../stores/uploadStore';
 import { StartAnalysisModal } from '../components/Documents/StartAnalysisModal';
 import type { AnalysisOptions } from '../components/Documents/StartAnalysisModal';
 import { Button } from '../components/ui/Button';
-import type { ParsedDocument, DocumentType, ExtractedFlyerData, ExtractedVoidData } from '../types/document';
+import type { ParsedDocument, DocumentType, ExtractedFlyerData, ExtractedVoidData, ExtractedInvestmentData } from '../types/document';
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   leasing_flyer: 'Leasing Flyer',
@@ -675,6 +675,247 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
     </div>
   );
 
+  const renderInvestmentData = (data: ExtractedInvestmentData) => {
+    const info = data.property_info;
+    const fin = data.financials;
+    const demo = data.demographics;
+    const fmt = (n: number | null | undefined) => n != null ? n.toLocaleString() : '—';
+    const fmtCurrency = (n: number | null | undefined) => n != null ? `$${n.toLocaleString()}` : '—';
+    const fmtPct = (n: number | null | undefined) => n != null ? `${n}%` : '—';
+
+    const STATUS_BADGE: Record<string, string> = {
+      'approved/confirmed': 'bg-[var(--bg-success)] text-[var(--color-success)]',
+      'confirmed': 'bg-[var(--bg-success)] text-[var(--color-success)]',
+      'loi': 'bg-[var(--accent)]/10 text-[var(--accent)]',
+      'interested': 'bg-[var(--color-warning)]/10 text-[var(--color-warning)]',
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Property Summary */}
+        {info && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Property Summary</h4>
+            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-3">
+              {info.name && <p className="text-sm font-semibold text-industrial">{info.name}</p>}
+              {info.address && (
+                <p className="text-xs text-industrial-secondary">
+                  {info.address}
+                  {info.city && `, ${info.city}`}
+                  {info.state && `, ${info.state}`}
+                  {info.zip_code && ` ${info.zip_code}`}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {info.property_type && (
+                  <span className="px-2.5 py-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full text-[11px] font-medium text-industrial-secondary capitalize">
+                    {info.property_type}
+                  </span>
+                )}
+                {info.status && (
+                  <span className="px-2.5 py-1 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full text-[11px] font-medium">
+                    {info.status}
+                  </span>
+                )}
+                {info.gla_sf && (
+                  <span className="px-2.5 py-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full text-[11px] font-medium text-industrial-secondary">
+                    {fmt(info.gla_sf)} SF GLA
+                  </span>
+                )}
+                {info.land_area_sf && (
+                  <span className="px-2.5 py-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full text-[11px] font-medium text-industrial-secondary">
+                    {fmt(info.land_area_sf)} SF Land
+                  </span>
+                )}
+                {info.year_built && (
+                  <span className="px-2.5 py-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full text-[11px] font-medium text-industrial-secondary">
+                    Built {info.year_built}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Financial Metrics */}
+        {fin && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Financial Metrics</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {fin.total_investment != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmtCurrency(fin.total_investment)}</p>
+                  <p className="text-[11px] text-industrial-muted">Total Investment</p>
+                </div>
+              )}
+              {fin.noi != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-[var(--color-success)] tabular-nums">{fmtCurrency(fin.noi)}</p>
+                  <p className="text-[11px] text-industrial-muted">Net Operating Income</p>
+                </div>
+              )}
+              {fin.irr != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-[var(--accent)] tabular-nums">{fmtPct(fin.irr)}</p>
+                  <p className="text-[11px] text-industrial-muted">Projected IRR</p>
+                </div>
+              )}
+              {fin.exit_cap_rate != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmtPct(fin.exit_cap_rate)}</p>
+                  <p className="text-[11px] text-industrial-muted">Exit Cap Rate</p>
+                </div>
+              )}
+              {fin.asking_rent_psf != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">${fin.asking_rent_psf}/SF</p>
+                  <p className="text-[11px] text-industrial-muted">Asking Rent{fin.rent_type ? ` (${fin.rent_type})` : ''}</p>
+                </div>
+              )}
+              {fin.land_price != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmtCurrency(fin.land_price)}</p>
+                  <p className="text-[11px] text-industrial-muted">Land Price{fin.land_price_psf ? ` ($${fin.land_price_psf}/SF)` : ''}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Trade Area Demographics */}
+        {demo && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">
+              Trade Area Demographics{demo.radius_miles ? ` (${demo.radius_miles}-mile radius)` : ''}
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {demo.population != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmt(demo.population)}</p>
+                  <p className="text-[11px] text-industrial-muted">Population</p>
+                </div>
+              )}
+              {demo.households != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmt(demo.households)}</p>
+                  <p className="text-[11px] text-industrial-muted">Households</p>
+                </div>
+              )}
+              {demo.median_hh_income != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmtCurrency(demo.median_hh_income)}</p>
+                  <p className="text-[11px] text-industrial-muted">Median HH Income</p>
+                </div>
+              )}
+              {demo.avg_hh_income != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmtCurrency(demo.avg_hh_income)}</p>
+                  <p className="text-[11px] text-industrial-muted">Avg HH Income</p>
+                </div>
+              )}
+              {demo.daytime_employment != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmt(demo.daytime_employment)}</p>
+                  <p className="text-[11px] text-industrial-muted">Daytime Employment</p>
+                </div>
+              )}
+              {demo.traffic_count != null && (
+                <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-3">
+                  <p className="text-lg font-bold text-industrial tabular-nums">{fmt(demo.traffic_count)}</p>
+                  <p className="text-[11px] text-industrial-muted">Daily Traffic Count</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tenant Interest */}
+        {data.tenant_interest && data.tenant_interest.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">
+              Tenant Interest ({data.tenant_interest.length})
+            </h4>
+            <div className="space-y-2">
+              {data.tenant_interest.map((tenant, i) => (
+                <div key={`${tenant.tenant_name}-${i}`} className="flex items-center justify-between bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg p-3">
+                  <div>
+                    <span className="text-sm font-medium text-industrial">{tenant.tenant_name}</span>
+                    {tenant.category && (
+                      <span className="ml-2 text-xs text-industrial-muted">{tenant.category}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {tenant.square_footage && (
+                      <span className="text-xs text-industrial-secondary">{fmt(tenant.square_footage)} SF</span>
+                    )}
+                    {tenant.status && (
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
+                        STATUS_BADGE[tenant.status.toLowerCase()] || 'bg-[var(--bg-secondary)] text-industrial-secondary border border-[var(--border-subtle)]'
+                      }`}>
+                        {tenant.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Highlights */}
+        {data.highlights && data.highlights.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Highlights</h4>
+            <ul className="space-y-1.5">
+              {data.highlights.map((highlight) => (
+                <li key={highlight} className="text-xs text-industrial-secondary flex items-start gap-2">
+                  <span className="text-[var(--color-success)] mt-0.5">•</span>
+                  {highlight}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Timing & Scope */}
+        {data.timing && (data.timing.delivery_date || data.timing.construction_start || data.timing.lease_up_period) && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Timeline</h4>
+            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-2">
+              {data.timing.construction_start && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-industrial-muted">Construction Start</span>
+                  <span className="text-industrial font-medium">{data.timing.construction_start}</span>
+                </div>
+              )}
+              {data.timing.delivery_date && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-industrial-muted">Delivery Date</span>
+                  <span className="text-industrial font-medium">{data.timing.delivery_date}</span>
+                </div>
+              )}
+              {data.timing.lease_up_period && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-industrial-muted">Lease-Up Period</span>
+                  <span className="text-industrial font-medium">{data.timing.lease_up_period}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {data.scope_of_work && (
+          <div>
+            <h4 className="text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">Scope of Work</h4>
+            <p className="text-xs text-industrial-secondary bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-xl p-4">
+              {data.scope_of_work}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Build property address for analysis (memoized)
   const propertyAddress = useMemo(() => {
     if (!document?.extracted_data) return null;
@@ -691,7 +932,7 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
   }, [document?.extracted_data]);
 
   const canStartAnalysis = document.status === 'completed' &&
-    (document.document_type === 'leasing_flyer' || document.document_type === 'site_plan') &&
+    ['leasing_flyer', 'site_plan', 'investment_memo', 'offering_memorandum'].includes(document.document_type) &&
     document.extracted_data;
 
   return (
@@ -859,15 +1100,8 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
             renderFlyerData(document.extracted_data as ExtractedFlyerData)}
           {document.document_type === 'void_analysis' &&
             renderVoidData(document.extracted_data as ExtractedVoidData)}
-          {document.document_type !== 'leasing_flyer' &&
-            document.document_type !== 'void_analysis' && (
-              <div className="bg-[var(--bg-tertiary)] border border-industrial p-4">
-                <h4 className="label-technical mb-2">Raw Extracted Data</h4>
-                <pre className="font-mono text-[10px] text-industrial-secondary overflow-x-auto whitespace-pre-wrap">
-                  {JSON.stringify(document.extracted_data, null, 2)}
-                </pre>
-              </div>
-            )}
+          {(document.document_type === 'investment_memo' || document.document_type === 'offering_memorandum') &&
+            renderInvestmentData(document.extracted_data as ExtractedInvestmentData)}
         </div>
       )}
 
