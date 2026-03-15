@@ -180,7 +180,11 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
           content: string;
           agent_type?: string;
           is_streaming?: boolean;
+          visible?: boolean;
         };
+
+        // Skip intermediate agent messages hidden from UI (e.g., raw tool outputs)
+        if (msgData.visible === false) break;
 
         addMessage({
           role: msgData.role,

@@ -62,8 +62,8 @@ USE THIS TOOL WHEN:
                 },
                 "radius_miles": {
                     "type": "number",
-                    "description": "Trade area radius in miles (default: 5)",
-                    "default": 5
+                    "description": "Trade area radius in miles. Standard options: 1, 3, 5, or 10 miles. Default: 3.",
+                    "default": 3
                 }
             },
             "required": ["address"]

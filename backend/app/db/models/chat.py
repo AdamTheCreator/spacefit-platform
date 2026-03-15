@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -56,6 +56,7 @@ class ChatMessage(Base):
     agent_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     message_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")

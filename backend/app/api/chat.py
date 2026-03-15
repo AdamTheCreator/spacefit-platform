@@ -112,7 +112,7 @@ async def get_session_messages(
 
     result = await db.execute(
         select(ChatMessage)
-        .where(ChatMessage.session_id == session_id)
+        .where(ChatMessage.session_id == session_id, ChatMessage.visible == True)  # noqa: E712
         .order_by(ChatMessage.created_at)
     )
     messages = result.scalars().all()
@@ -313,6 +313,7 @@ async def save_message_to_db(
     role: str,
     content: str,
     agent_type: str | None = None,
+    visible: bool = True,
 ) -> None:
     """Save a message to the database using a new session."""
     from app.core.database import async_session_factory
@@ -323,6 +324,7 @@ async def save_message_to_db(
             role=role,
             agent_type=agent_type,
             content=content,
+            visible=visible,
         )
         db.add(message)
         await db.commit()
@@ -490,12 +492,12 @@ async def handle_tool_calls(
     }
 
     tool_descriptions = {
-        "business_search": "Google Places: Business Search",
-        "demographics_analysis": "Census: Demographics",
-        "tenant_roster": "Google: Tenant Roster",
-        "void_analysis": "AI: Void Analysis",
-        "visitor_traffic": "Placer.ai: Visitor Traffic",
-        "vehicle_traffic": "SiteUSA: Vehicle Traffic",
+        "business_search": "Searching nearby businesses",
+        "demographics_analysis": "Analyzing trade area demographics",
+        "tenant_roster": "Fetching tenant roster",
+        "void_analysis": "Identifying tenant gaps & opportunities",
+        "visitor_traffic": "Pulling foot traffic data",
+        "vehicle_traffic": "Pulling vehicle traffic counts",
     }
 
     # Create workflow steps for UI
@@ -530,6 +532,9 @@ async def handle_tool_calls(
     # Connector statuses that should block execution
     _BLOCKED_STATUSES = {"needs_reauth", "error", "disabled"}
 
+    # Tool execution timeout (seconds)
+    TOOL_TIMEOUT_SECONDS = 45
+
     # Execute tools in parallel
     async def execute_single_tool(tool_call: dict) -> dict:
         tool_name = tool_call["name"]
@@ -549,19 +554,33 @@ async def handle_tool_calls(
                 "result": (
                     f"**{site_label} Connection Issue**\n\n"
                     f"The {site_label} connector needs attention before I can retrieve data. "
-                    "Please open **Connections** from the sidebar and reconnect."
+                    "Please open [Connections](/connections) to reconnect."
                 ),
                 "success": False,
             }
 
         try:
-            result = await execute_tool(tool_name, tool_input, user_id, credential)
+            result = await asyncio.wait_for(
+                execute_tool(tool_name, tool_input, user_id, credential),
+                timeout=TOOL_TIMEOUT_SECONDS,
+            )
             logger.debug("[handle_tools] tool=%s result_chars=%d", tool_name, len(result))
             return {
                 "tool_call_id": tool_call["id"],
                 "tool_name": tool_name,
                 "result": result,
                 "success": True,
+            }
+        except asyncio.TimeoutError:
+            logger.warning("[handle_tools] tool=%s timed out after %ds", tool_name, TOOL_TIMEOUT_SECONDS)
+            return {
+                "tool_call_id": tool_call["id"],
+                "tool_name": tool_name,
+                "result": (
+                    f"This is taking longer than expected. "
+                    f"Try providing a more specific address with ZIP code for faster results."
+                ),
+                "success": False,
             }
         except Exception as e:
             logger.exception("[handle_tools] tool=%s failed", tool_name)
@@ -583,18 +602,20 @@ async def handle_tool_calls(
         result = result_dict["result"]
         tool_call_id = result_dict["tool_call_id"]
 
-        # Send tool result as a message
+        # Send tool result as a message (hidden from UI — orchestrator will summarize)
         agent_type = tool_to_agent_type.get(tool_name, AgentType.ORCHESTRATOR)
+        is_intermediate = agent_type != AgentType.ORCHESTRATOR
         tool_msg = Message(
             role=MessageRole.AGENT,
             agent_type=agent_type,
             content=result,
+            visible=not is_intermediate,
         )
         await send_ws_message(websocket, "message", tool_msg.model_dump(mode="json"))
 
         # Save to database
         if session_id:
-            await save_message_to_db(session_id, "agent", result, tool_name)
+            await save_message_to_db(session_id, "agent", result, tool_name, visible=not is_intermediate)
 
         # Mark step as completed
         await send_ws_message(
@@ -1610,13 +1631,16 @@ async def run_agent_workflow(
         tool = result_dict["agent"]
         result = result_dict["result"]
 
+        agent_type = agent_type_map.get(tool, AgentType.ORCHESTRATOR)
+        is_intermediate = agent_type != AgentType.ORCHESTRATOR
         agent_msg = Message(
             role=MessageRole.AGENT,
-            agent_type=agent_type_map.get(tool, AgentType.ORCHESTRATOR),
+            agent_type=agent_type,
             content=result,
+            visible=not is_intermediate,
         )
         await send_ws_message(websocket, "message", agent_msg.model_dump(mode="json"))
-        await save_message_to_db(session_id, "agent", result, tool)
+        await save_message_to_db(session_id, "agent", result, tool, visible=not is_intermediate)
 
         step = next((s for s in workflow if tool.replace("_", " ").title() in s.description), None)
         if step:
@@ -1652,9 +1676,10 @@ async def run_agent_workflow(
             role=MessageRole.AGENT,
             agent_type=AgentType.VOID_ANALYSIS,
             content=void_result,
+            visible=False,
         )
         await send_ws_message(websocket, "message", void_msg.model_dump(mode="json"))
-        await save_message_to_db(session_id, "agent", void_result, "void_analysis")
+        await save_message_to_db(session_id, "agent", void_result, "void_analysis", visible=False)
 
         if void_step:
             await send_ws_message(

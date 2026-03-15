@@ -165,7 +165,7 @@ class PlacerAIFootTrafficAgent(BrowserBasedAgent):
             lines.append(f"**Trade Area Radius**: {data['visitor_radius_miles']:.1f} miles")
 
         lines.append("")
-        lines.append(f"*Source: {data.get('source', 'Placer.ai')}*")
+        lines.append(f"> **Source:** {data.get('source', 'Placer.ai')}")
 
         return "\n".join(lines)
 
@@ -324,7 +324,7 @@ class PlacerAICustomerProfileAgent(BrowserBasedAgent):
                 lines.append(f"- **{label}**: {pct:.0f}%")
 
         lines.append("")
-        lines.append(f"*Source: {data.get('source', 'Placer.ai')}*")
+        lines.append(f"> **Source:** {data.get('source', 'Placer.ai')}")
 
         return "\n".join(lines)
 
@@ -476,6 +476,6 @@ class PlacerAIVoidAnalysisAgent(BrowserBasedAgent):
 
             lines.append("")
 
-        lines.append(f"*Source: {data.get('source', 'Placer.ai')}*")
+        lines.append(f"> **Source:** {data.get('source', 'Placer.ai')}")
 
         return "\n".join(lines)

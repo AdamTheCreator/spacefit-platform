@@ -179,7 +179,7 @@ class SiteUSADemographicsAgent(BrowserBasedAgent):
             lines.append(f"- **Median Age**: {age}")
 
         lines.append("")
-        lines.append(f"*Source: {data.get('source', 'SiteUSA')}*")
+        lines.append(f"> **Source:** {data.get('source', 'SiteUSA')}")
 
         return "\n".join(lines)
 
@@ -296,6 +296,6 @@ class SiteUSAVehicleTrafficAgent(BrowserBasedAgent):
             lines.append(f"- **Weekend Increase**: {data['weekend_increase']}")
 
         lines.append("")
-        lines.append(f"*Source: {data.get('source', 'SiteUSA')}*")
+        lines.append(f"> **Source:** {data.get('source', 'SiteUSA')}")
 
         return "\n".join(lines)

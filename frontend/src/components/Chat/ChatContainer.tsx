@@ -1,14 +1,16 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Sparkles, Users, FileText, Mail, Save } from 'lucide-react';
+import { Sparkles, Users, FileText, Mail, Save, ArrowRight, MapPin } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
+import { ExportBar } from './ExportBar';
 import type { AgentType } from '../../types/chat';
 
 interface ChatContainerProps {
   initialSessionId?: string;
+  chatContext?: string;
 }
 
 interface LocationState {
@@ -30,6 +32,11 @@ type VerticalModeId = typeof VERTICAL_MODES[number]['id'];
 
 // CTA configs keyed by the agent type that triggers them
 const NEXT_STEP_ACTIONS: Record<string, { label: string; icon: React.ReactNode; message: string }[]> = {
+  orchestrator: [
+    // Shown after demographics summary — let user adjust radius or continue
+    { label: 'Adjust trade area radius', icon: <MapPin size={14} />, message: 'Re-run the demographics with a different radius (1, 3, 5, or 10 miles)' },
+    { label: 'Analyze tenant mix', icon: <Users size={14} />, message: 'Analyze the current tenant mix at this property' },
+  ],
   'void-analysis': [
     { label: 'Match tenants', icon: <Users size={14} />, message: 'Match tenants for the gaps you identified' },
     { label: 'Export report', icon: <FileText size={14} />, message: 'Export this analysis as a PDF report' },
@@ -43,7 +50,30 @@ const NEXT_STEP_ACTIONS: Record<string, { label: string; icon: React.ReactNode; 
   ],
 };
 
-export function ChatContainer({ initialSessionId }: ChatContainerProps) {
+// Context-specific suggestion sets for different entry points
+const CONTEXT_SUGGESTIONS: Record<string, { title: string; desc: string; icon: string }[]> = {
+  outreach: [
+    { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
+    { title: 'Analyze property', desc: 'Find tenant gaps at a specific site', icon: '🏢' },
+    { title: 'Match tenants', desc: 'Find the best prospects for your space', icon: '🛍️' },
+    { title: 'Market comps', desc: 'Compare recent leasing data in the area', icon: '📊' },
+  ],
+  pipeline: [
+    { title: 'Analyze property', desc: 'Run a full analysis on this deal', icon: '🏢' },
+    { title: 'Market comps', desc: 'Compare recent leasing data in the area', icon: '📊' },
+    { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
+    { title: 'Match tenants', desc: 'Find the best prospects for your space', icon: '🛍️' },
+  ],
+};
+
+const DEFAULT_SUGGESTIONS = [
+  { title: 'Analyze property', desc: 'Find tenant gaps at a specific site', icon: '🏢' },
+  { title: 'Match tenants', desc: 'Find the best prospects for your space', icon: '🛍️' },
+  { title: 'Market comps', desc: 'Compare recent leasing data in the area', icon: '📊' },
+  { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
+];
+
+export function ChatContainer({ initialSessionId, chatContext }: ChatContainerProps) {
   const location = useLocation();
   const locationState = location.state as LocationState | null;
   // Track selected vertical mode for new conversations
@@ -58,6 +88,7 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
     isConnected,
     isLoading,
     sendMessage,
+    currentSessionId,
   } = useChat(initialSessionId, selectedMode);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -76,6 +107,25 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
     }
     return null;
   }, [messages, isProcessing]);
+
+  // Detect if a restored session ended with a question (show "Continue" button)
+  const showContinueButton = useMemo(() => {
+    if (isProcessing || messages.length === 0 || !initialSessionId) return false;
+    // Find the last agent/assistant message
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === 'agent') {
+        const content = msg.content.trim();
+        // Check if it ends with a question or an actionable prompt
+        return content.endsWith('?') ||
+          content.toLowerCase().includes('would you like') ||
+          content.toLowerCase().includes('shall i') ||
+          content.toLowerCase().includes('want me to');
+      }
+      if (msg.role === 'user') break; // User already responded — no need for continue button
+    }
+    return false;
+  }, [messages, isProcessing, initialSessionId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -153,14 +203,9 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
               How can I help you today?
             </h2>
 
-            {/* Simple Suggestion Grid */}
+            {/* Context-Aware Suggestion Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full px-4">
-              {[
-                { title: 'Analyze property', desc: 'Find tenant gaps at a specific site', icon: '🏢' },
-                { title: 'Match tenants', desc: 'Find the best prospects for your space', icon: '🛍️' },
-                { title: 'Market comps', desc: 'Compare recent leasing data in the area', icon: '📊' },
-                { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
-              ].map((s) => (
+              {(chatContext ? CONTEXT_SUGGESTIONS[chatContext] || DEFAULT_SUGGESTIONS : DEFAULT_SUGGESTIONS).map((s) => (
                 <button
                   key={s.title}
                   onClick={() => handleSendMessage(s.title)}
@@ -197,6 +242,22 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
               <ChatMessage key={message.id} message={message} />
             ))}
 
+            {/* Continue analysis button for resumed sessions */}
+            {showContinueButton && !nextStepActions && (
+              <div className="chat-stage px-4 py-2 animate-fade-in">
+                <div className="flex pl-11 sm:pl-13">
+                  <button
+                    onClick={() => handleSendMessage('Yes, please continue')}
+                    disabled={!isConnected}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent)]/90 text-white text-sm font-medium transition-all shadow-sm"
+                  >
+                    <ArrowRight size={14} />
+                    Continue this analysis
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Next-step action cards */}
             {nextStepActions && (
               <div className="chat-stage px-4 py-2 animate-fade-in">
@@ -213,6 +274,13 @@ export function ChatContainer({ initialSessionId }: ChatContainerProps) {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Export bar — show when analysis is complete and session exists */}
+            {!isProcessing && messages.length >= 3 && currentSessionId && (
+              <div className="chat-stage px-4 py-2">
+                <ExportBar sessionId={currentSessionId} />
               </div>
             )}
 

@@ -637,12 +637,12 @@ def format_demographics_report(
         else:
             lines.append("- Mixed demographic profile")
 
-    lines.append("\n*Source: U.S. Census Bureau, American Community Survey 5-Year Estimates*")
+    lines.append("\n> **Source:** U.S. Census Bureau, ACS 5-Year Estimates (2022)")
 
     return "\n".join(lines)
 
 
-async def analyze_demographics(location: str) -> str:
+async def analyze_demographics(location: str, radius_miles: float = 3.0) -> str:
     """
     Main entry point for demographics analysis.
 
@@ -660,6 +660,7 @@ async def analyze_demographics(location: str) -> str:
 
     Args:
         location: Address or location string
+        radius_miles: Trade area radius in miles (default: 3.0)
 
     Returns:
         Formatted demographics report string
@@ -687,8 +688,14 @@ async def analyze_demographics(location: str) -> str:
         resolved.method.value if resolved.method else None,
     )
 
-    # Step 2: Try full address geocoding if we have street-level detail
-    geography = await geocode_address(location)
+    # Step 2: Try full address geocoding
+    # Use the resolved/normalized address first (Google-corrected), fall back to raw input
+    geocode_input = resolved.display_name if resolved.confidence != ResolutionConfidence.LOW else location
+    geography = await geocode_address(geocode_input)
+
+    # If resolved address didn't work, try the raw input as fallback
+    if not geography and geocode_input != location:
+        geography = await geocode_address(location)
 
     if geography:
         # Full address worked - get detailed demographics
@@ -696,7 +703,7 @@ async def analyze_demographics(location: str) -> str:
         tract_data = await get_tract_demographics(geography)
         county_data = await get_county_demographics(geography)
         record_tool_complete("demographics_analysis", start_time, success=True)
-        return format_demographics_report(location, tract_data, county_data, subdivision_data)
+        return format_demographics_report(geocode_input, tract_data, county_data, subdivision_data)
 
     # Step 3: Use resolved location data
     # Try place-level demographics if we have place FIPS

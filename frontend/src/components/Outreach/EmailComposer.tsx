@@ -236,10 +236,9 @@ export function EmailComposer({
     );
   }
 
-  // AI mode — redirect to chat
+  // AI mode — redirect to chat with outreach context
   if (mode === 'ai') {
-    // We redirect to chat with a prompt
-    window.location.href = '/chat';
+    window.location.href = '/chat?context=outreach';
     return null;
   }
 

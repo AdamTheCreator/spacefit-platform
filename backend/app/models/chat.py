@@ -48,6 +48,7 @@ class Message(BaseModel):
     agent_type: Optional[AgentType] = None
     timestamp: datetime = Field(default_factory=utc_now)
     is_streaming: bool = False
+    visible: bool = True
 
 
 class WorkflowStep(BaseModel):

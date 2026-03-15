@@ -47,6 +47,10 @@ CRITICAL RULES:
 
 5. **Cite Sources**: When presenting data from tools, mention the source (e.g., "According to Google Places...", "Census data shows...").
 
+6. **Trade Area Radius**: When running demographics_analysis, use the radius_miles parameter. If the user hasn't specified a radius, default to 3 miles but mention the radius used: "Demographics within **3 miles** of [address]". Let users know they can adjust: "You can re-run this with a different radius (1, 3, 5, or 10 miles)."
+
+7. **Verify Tenant Suggestions**: When suggesting specific brands or businesses as gap opportunities, use the `business_search` tool to verify they aren't already in the area. If a similar concept already exists (e.g., suggesting Sweetgreen when it's already nearby), note it: "Similar concept already present: Sweetgreen". Only suggest brands that are genuinely absent.
+
 RESPONSE STYLE:
 - Keep responses concise and conversational
 - Use bullet points for data presentation
@@ -254,6 +258,26 @@ async def get_orchestrator_response(
     if memory_context:
         full_system_prompt = full_system_prompt + "\n\n" + redact_secrets(memory_context)
 
+    # Inject data source connection status so Claude can guide users to connect
+    disconnected_sources = []
+    if not has_costar_credentials:
+        disconnected_sources.append(("CoStar", "lease comps, tenant rosters, and property details"))
+    if not has_placer_credentials:
+        disconnected_sources.append(("Placer.ai", "foot traffic and visitor demographics"))
+    if not has_siteusa_credentials:
+        disconnected_sources.append(("SiteUSA", "vehicle traffic (VPD) and enhanced demographics"))
+
+    if disconnected_sources:
+        lines = ["\n\nDATA SOURCE STATUS:"]
+        for name, features in disconnected_sources:
+            lines.append(
+                f"- **{name}** is NOT connected. If the user asks about {features}, "
+                f'tell them: "I can pull that data from {name}, but your account isn\'t '
+                f'connected yet. Go to [Connections](/connections) to set it up." '
+                f"Do NOT say you lack access — the feature exists, it just needs setup."
+            )
+        full_system_prompt += "\n".join(lines)
+
     # Get available tools based on user credentials
     tools = get_tools_for_context(
         has_placer_credentials=has_placer_credentials,
@@ -382,7 +406,12 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
         address = _get_str(tool_input.get("address"))
         if not address:
             return "Demographics analysis requires an address or location."
-        return await analyze_demographics(address)
+        radius_miles = _clamp_float(
+            _get_float(tool_input.get("radius_miles"), default=3.0),
+            min_value=0.5,
+            max_value=25.0,
+        )
+        return await analyze_demographics(address, radius_miles=radius_miles)
 
     elif tool_name == "tenant_roster":
         from app.services.places import analyze_tenant_roster

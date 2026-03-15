@@ -21,6 +21,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useChatSessions } from '../../hooks/useChatSessions';
 import { usePreferences } from '../../hooks/usePreferences';
 import { ConnectorHealthBanner } from '../ConnectorHealthBanner';
+import { useSetupNotifications } from '../../hooks/useSetupNotifications';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -43,6 +44,7 @@ function useIsMobile() {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const isMobile = useIsMobile();
+  useSetupNotifications();
   // Initialize sidebar state synchronously: open on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' && window.innerWidth >= 768

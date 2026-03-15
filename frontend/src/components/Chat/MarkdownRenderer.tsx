@@ -266,29 +266,54 @@ const markdownComponents: Components = {
     <pre className="my-4">{children}</pre>
   ),
 
-  // Blockquotes
-  blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-[var(--accent)] pl-4 my-4 text-industrial-muted italic bg-[var(--accent-subtle)] py-2 rounded-r-lg">
-      {children}
-    </blockquote>
-  ),
+  // Blockquotes — source badges get special styling
+  blockquote: ({ children }) => {
+    // Check if this is a source badge (starts with "Source:")
+    const text = children?.toString() || '';
+    const isSourceBadge = text.includes('Source:');
+    if (isSourceBadge) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 my-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-xs text-industrial-muted">
+          {children}
+        </div>
+      );
+    }
+    return (
+      <blockquote className="border-l-4 border-[var(--accent)] pl-4 my-4 text-industrial-muted italic bg-[var(--accent-subtle)] py-2 rounded-r-lg">
+        {children}
+      </blockquote>
+    );
+  },
 
   // Horizontal rule
   hr: () => (
     <hr className="my-6 border-[var(--border-subtle)]" />
   ),
 
-  // Links
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      className="text-[var(--accent)] hover:text-[var(--accent-hover)] underline underline-offset-2 transition-colors"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      {children}
-    </a>
-  ),
+  // Links — internal app links render as styled action buttons
+  a: ({ href, children }) => {
+    const isInternal = href?.startsWith('/');
+    if (isInternal) {
+      return (
+        <a
+          href={href}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] hover:bg-[var(--accent)]/15 text-sm font-medium transition-colors border border-[var(--accent)]/30"
+        >
+          {children}
+        </a>
+      );
+    }
+    return (
+      <a
+        href={href}
+        className="text-[var(--accent)] hover:text-[var(--accent-hover)] underline underline-offset-2 transition-colors"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  },
 };
 
 export function MarkdownRenderer({ content, agentType }: MarkdownRendererProps) {

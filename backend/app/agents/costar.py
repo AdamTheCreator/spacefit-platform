@@ -306,7 +306,7 @@ class CoStarPropertyAgent(BrowserBasedAgent):
             if data.get("occupancy"):
                 lines.append(f"\n**Occupancy:** {data['occupancy']}")
 
-            lines.append("\n*Source: CoStar*")
+            lines.append("\n> **Source:** CoStar Group")
 
             self.report_progress("complete", 100, "Property details retrieved")
 
