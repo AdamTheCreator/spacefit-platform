@@ -20,7 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import api from '../../lib/axios';
-import type { CreateCampaignRequest, CreateRecipientRequest, OutreachTemplate } from '../../types/outreach';
+import type { CreateCampaignRequest, CreateRecipientRequest } from '../../types/outreach';
 
 interface EmailComposerProps {
   onClose: () => void;

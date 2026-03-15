@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         'chat_messages',
-        sa.Column('visible', sa.Boolean(), nullable=False, server_default='1'),
+        sa.Column('visible', sa.Boolean(), nullable=False, server_default=sa.text('true')),
     )
 
 
