@@ -174,8 +174,8 @@ async def _background_verify_credential(
                     credential.is_verified = False
                     credential.session_status = "error"
                     credential.session_error_message = result.message
-                credential.last_verified_at = datetime.utcnow()
-                credential.session_last_checked = datetime.utcnow()
+                credential.last_verified_at = datetime.now(timezone.utc)
+                credential.session_last_checked = datetime.now(timezone.utc)
                 await db.commit()
     except Exception as e:
         logger.exception("[bg-verify] Error during background verification (site=%s)", site_name)
@@ -188,7 +188,7 @@ async def _background_verify_credential(
                 if credential:
                     credential.session_status = "error"
                     credential.session_error_message = f"Verification error: {str(e)}"
-                    credential.session_last_checked = datetime.utcnow()
+                    credential.session_last_checked = datetime.now(timezone.utc)
                     await db.commit()
         except Exception:
             pass
@@ -311,7 +311,7 @@ async def verify_credential(
     if site_name not in list_available_scrapers():
         # No scraper available - just mark as verified without testing
         credential.is_verified = True
-        credential.last_verified_at = datetime.utcnow()
+        credential.last_verified_at = datetime.now(timezone.utc)
         credential.session_status = "unknown"
         await db.commit()
 
@@ -347,21 +347,21 @@ async def verify_credential(
         # CAPTCHA detected - credentials may be valid, but we can't verify automatically
         # Store credentials anyway but mark as needing manual session
         credential.is_verified = False  # Not verified yet, but stored
-        credential.last_verified_at = datetime.utcnow()
+        credential.last_verified_at = datetime.now(timezone.utc)
         credential.session_status = "requires_manual_login"
-        credential.session_last_checked = datetime.utcnow()
+        credential.session_last_checked = datetime.now(timezone.utc)
         credential.session_error_message = verification_result.message
     elif verification_result.success:
         credential.is_verified = True
-        credential.last_verified_at = datetime.utcnow()
+        credential.last_verified_at = datetime.now(timezone.utc)
         credential.session_status = "valid"
-        credential.session_last_checked = datetime.utcnow()
+        credential.session_last_checked = datetime.now(timezone.utc)
         credential.session_error_message = None
     else:
         credential.is_verified = False
-        credential.last_verified_at = datetime.utcnow()
+        credential.last_verified_at = datetime.now(timezone.utc)
         credential.session_status = "error"
-        credential.session_last_checked = datetime.utcnow()
+        credential.session_last_checked = datetime.now(timezone.utc)
         credential.session_error_message = verification_result.message
 
     await db.commit()
@@ -418,9 +418,9 @@ async def accept_credential_for_manual_login(
 
     # Accept the credential without login verification
     credential.is_verified = False  # Will be True after manual session refresh
-    credential.last_verified_at = datetime.utcnow()
+    credential.last_verified_at = datetime.now(timezone.utc)
     credential.session_status = "requires_manual_login"
-    credential.session_last_checked = datetime.utcnow()
+    credential.session_last_checked = datetime.now(timezone.utc)
     credential.session_error_message = "Awaiting manual session refresh"
 
     await db.commit()
@@ -558,9 +558,9 @@ async def verify_manual_session(
         if is_logged_in:
             # Session is valid!
             credential.is_verified = True
-            credential.last_verified_at = datetime.utcnow()
+            credential.last_verified_at = datetime.now(timezone.utc)
             credential.session_status = "valid"
-            credential.session_last_checked = datetime.utcnow()
+            credential.session_last_checked = datetime.now(timezone.utc)
             credential.session_error_message = None
 
             await db.commit()
@@ -572,7 +572,7 @@ async def verify_manual_session(
         else:
             # Session file exists but doesn't work
             credential.session_status = "error"
-            credential.session_last_checked = datetime.utcnow()
+            credential.session_last_checked = datetime.now(timezone.utc)
             credential.session_error_message = "Session file exists but login verification failed"
 
             await db.commit()

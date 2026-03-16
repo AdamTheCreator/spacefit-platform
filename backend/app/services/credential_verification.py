@@ -180,7 +180,7 @@ async def validate_existing_session(
         if await scraper.is_logged_in(context):
             # Update session status
             credential.session_status = "valid"
-            credential.session_last_checked = datetime.utcnow()
+            credential.session_last_checked = datetime.now(timezone.utc)
             credential.session_error_message = None
             await db.commit()
             # Update connector health state
@@ -201,7 +201,7 @@ async def validate_existing_session(
                     f"Session expired. {scraper.display_name} requires manual login "
                     "due to CAPTCHA protection."
                 )
-                credential.session_last_checked = datetime.utcnow()
+                credential.session_last_checked = datetime.now(timezone.utc)
                 await db.commit()
 
                 return VerificationResult(
@@ -221,7 +221,7 @@ async def validate_existing_session(
             except Exception as e:
                 credential.session_status = "error"
                 credential.session_error_message = f"Failed to decrypt credentials: {str(e)}"
-                credential.session_last_checked = datetime.utcnow()
+                credential.session_last_checked = datetime.now(timezone.utc)
                 await db.commit()
 
                 return VerificationResult(
@@ -236,10 +236,10 @@ async def validate_existing_session(
 
             if success:
                 credential.session_status = "valid"
-                credential.session_last_checked = datetime.utcnow()
+                credential.session_last_checked = datetime.now(timezone.utc)
                 credential.session_error_message = None
                 credential.is_verified = True
-                credential.last_verified_at = datetime.utcnow()
+                credential.last_verified_at = datetime.now(timezone.utc)
                 await db.commit()
                 # Update connector health state
                 await update_connector_on_success(credential, db)
@@ -253,7 +253,7 @@ async def validate_existing_session(
             else:
                 credential.session_status = "error"
                 credential.session_error_message = "Re-login failed"
-                credential.session_last_checked = datetime.utcnow()
+                credential.session_last_checked = datetime.now(timezone.utc)
                 credential.is_verified = False
                 await db.commit()
 
@@ -281,7 +281,7 @@ async def get_valid_session(
 
     if result.success:
         # Update usage stats
-        credential.last_used_at = datetime.utcnow()
+        credential.last_used_at = datetime.now(timezone.utc)
         credential.total_uses = (credential.total_uses or 0) + 1
         await db.commit()
         return True, None
@@ -310,7 +310,7 @@ async def validate_all_sessions_on_startup(db: AsyncSession) -> dict[str, bool]:
             validation_results[credential.id] = False
             credential.session_status = "error"
             credential.session_error_message = "Validation failed on startup"
-            credential.session_last_checked = datetime.utcnow()
+            credential.session_last_checked = datetime.now(timezone.utc)
 
     await db.commit()
     return validation_results

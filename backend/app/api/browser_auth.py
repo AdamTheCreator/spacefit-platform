@@ -7,7 +7,7 @@ Uses WebSocket for real-time status updates during the login process.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -272,7 +272,7 @@ async def browser_login_websocket(
                             "status": "cancelled",
                             "message": "Login cancelled by user",
                             "progress_pct": 100,
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         },
                     })
                     break
@@ -308,9 +308,9 @@ async def browser_login_websocket(
                 if credential:
                     credential.is_verified = True
                     credential.session_status = "valid"
-                    credential.session_last_checked = datetime.utcnow()
+                    credential.session_last_checked = datetime.now(timezone.utc)
                     credential.session_error_message = None
-                    credential.last_verified_at = datetime.utcnow()
+                    credential.last_verified_at = datetime.now(timezone.utc)
                     await db.commit()
                     # Update connector health state
                     await update_connector_on_success(credential, db)
@@ -330,7 +330,7 @@ async def browser_login_websocket(
                 credential = db_result.scalar_one_or_none()
                 if credential:
                     credential.session_status = "error"
-                    credential.session_last_checked = datetime.utcnow()
+                    credential.session_last_checked = datetime.now(timezone.utc)
                     credential.session_error_message = result.message
                     await db.commit()
 

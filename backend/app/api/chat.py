@@ -558,8 +558,12 @@ async def handle_tool_calls(
             {"step_id": step.id, "status": WorkflowStepStatus.RUNNING.value},
         )
 
-    # Connector statuses that should block execution
-    _BLOCKED_STATUSES = {"needs_reauth", "error", "disabled"}
+    # Only block tools for connectors explicitly disabled by the user.
+    # Other statuses (needs_reauth, error, stale) should still attempt
+    # execution — the browser agents handle login/session management
+    # themselves and the health-probe status does not mean the credential
+    # is unusable.
+    _BLOCKED_STATUSES = {"disabled"}
 
     # Tool execution timeout (seconds)
     TOOL_TIMEOUT_SECONDS = 45
@@ -574,16 +578,16 @@ async def handle_tool_calls(
         # Get credential if needed
         credential = await get_best_credential_for_agent(user_id, tool_name)
 
-        # Preflight: check connector health before expensive browser scrape
+        # Preflight: only block if the user explicitly disabled this connector
         if credential and getattr(credential, "connector_status", None) in _BLOCKED_STATUSES:
             site_label = credential.site_name.replace("_", " ").title()
             return {
                 "tool_call_id": tool_call["id"],
                 "tool_name": tool_name,
                 "result": (
-                    f"**{site_label} Connection Issue**\n\n"
-                    f"The {site_label} connector needs attention before I can retrieve data. "
-                    "Please open [Connections](/connections) to reconnect."
+                    f"**{site_label} Connection Disabled**\n\n"
+                    f"The {site_label} connector is disabled. "
+                    "Please open [Connections](/connections) to re-enable it."
                 ),
                 "success": False,
             }
