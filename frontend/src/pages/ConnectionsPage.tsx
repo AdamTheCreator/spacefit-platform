@@ -469,10 +469,15 @@ export function ConnectionsPage() {
         credentialId = result.id;
       }
 
-      // Auto-verify for non-CAPTCHA sites
+      // Auto-verify for non-CAPTCHA sites (best-effort — don't block save)
       if (!selectedSite.requires_manual_login) {
         setSavePhase('verifying');
-        await api.post(`/credentials/${credentialId}/verify`);
+        try {
+          await api.post(`/credentials/${credentialId}/verify`);
+        } catch {
+          // Verify can fail (e.g. browser not available on server) —
+          // credential is already saved, so just continue.
+        }
         queryClient.invalidateQueries({ queryKey: ['credentials'] });
         queryClient.invalidateQueries({ queryKey: connectorKeys.status() });
       }

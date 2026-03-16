@@ -186,8 +186,8 @@ async def _background_verify_credential(
                 )
                 credential = db_result.scalar_one_or_none()
                 if credential:
-                    credential.session_status = "error"
-                    credential.session_error_message = f"Verification error: {str(e)}"
+                    credential.session_status = "unknown"
+                    credential.session_error_message = f"Browser verification unavailable: {str(e)[:120]}"
                     credential.session_last_checked = datetime.now(timezone.utc)
                     await db.commit()
         except Exception:
@@ -326,13 +326,33 @@ async def verify_credential(
 
     logger.info("[verify] Starting browser verification (site=%s)", site_name)
 
-    # Run actual browser verification
-    verification_result = await verify_credentials(
-        site_name=site_name,
-        username=username,
-        password=password,
-        user_id=current_user.id,
-    )
+    # Run actual browser verification — wrap in try/except because Playwright
+    # may not be available in all environments (e.g. Render without buildpack).
+    try:
+        verification_result = await verify_credentials(
+            site_name=site_name,
+            username=username,
+            password=password,
+            user_id=current_user.id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[verify] Browser verification unavailable (site=%s): %s",
+            site_name,
+            str(exc)[:200],
+        )
+        # Credential is already saved — mark as unverified but don't crash
+        credential.is_verified = False
+        credential.last_verified_at = datetime.now(timezone.utc)
+        credential.session_status = "unknown"
+        credential.session_last_checked = datetime.now(timezone.utc)
+        credential.session_error_message = "Browser verification unavailable on this server"
+        await db.commit()
+
+        return VerifyCredentialResponse(
+            success=False,
+            message="Credentials saved. Browser verification is not available — connection will be tested when first used.",
+        )
 
     logger.info(
         "[verify] Result (site=%s success=%s captcha=%s requires_manual=%s)",
