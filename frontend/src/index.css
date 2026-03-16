@@ -68,6 +68,9 @@
   --accent-hover: #059669;
   --accent-subtle: #ecfdf5;
 
+  --color-error: #ef4444;
+  --bg-error: #fef2f2;
+
   color-scheme: light;
 }
 
@@ -90,6 +93,9 @@
   --accent: #10b981;
   --accent-hover: #34d399;
   --accent-subtle: rgba(16, 185, 129, 0.15);
+
+  --color-error: #f87171;
+  --bg-error: rgba(239, 68, 68, 0.1);
 
   color-scheme: dark;
 }
@@ -130,7 +136,7 @@ body {
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Buttons */
-.btn-industrial, .btn-primary, .btn-secondary, .btn-ghost {
+.btn-industrial, .btn-industrial-primary, .btn-industrial-secondary, .btn-industrial-ghost, .btn-primary, .btn-secondary, .btn-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -142,6 +148,7 @@ body {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
   font-size: 14px;
+  color: var(--text-primary);
 }
 
 .btn-primary, .btn-industrial-primary {
@@ -227,6 +234,7 @@ body {
 /* ─────────────────────────────────────────────────────────────────────────────
    UTILITIES
    ───────────────────────────────────────────────────────────────────────────── */
+.text-industrial { color: var(--text-primary); }
 .text-industrial-secondary { color: var(--text-secondary); }
 .text-industrial-muted { color: var(--text-muted); }
 

@@ -23,12 +23,26 @@ from app.api.memory import router as memory_router
 from app.api.reports import router as reports_router
 from app.api.feedback import router as feedback_router
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import engine, async_session_factory
 from app.llm.client import aclose_llm_client
+from app.services.credential_verification import validate_all_sessions_on_startup
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Validate all stored connector sessions on startup
+    try:
+        async with async_session_factory() as db:
+            results = await validate_all_sessions_on_startup(db)
+            valid = sum(1 for v in results.values() if v)
+            logger.info(f"Startup session validation: {valid}/{len(results)} connectors valid")
+    except Exception as e:
+        logger.warning(f"Startup session validation failed: {e}")
+
     yield
     await aclose_llm_client()
     await engine.dispose()
@@ -37,7 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.app_name,
     description="Commercial Real Estate Intelligence Platform",
-    version="0.2.8",
+    version="0.2.8.1",
     lifespan=lifespan,
 )
 
@@ -74,7 +88,7 @@ app.include_router(feedback_router, prefix=settings.api_prefix)
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "SpaceFit AI API", "version": "0.1.0"}
+    return {"message": "SpaceFit AI API", "version": app.version}
 
 
 @app.get("/health")

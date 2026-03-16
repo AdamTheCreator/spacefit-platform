@@ -53,6 +53,7 @@ export interface VerifyResult {
 export type ConnectorStatus =
   | 'connected'
   | 'stale'
+  | 'unknown'
   | 'needs_reauth'
   | 'degraded'
   | 'error'

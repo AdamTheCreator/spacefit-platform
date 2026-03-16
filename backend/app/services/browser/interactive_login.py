@@ -401,12 +401,12 @@ SITE_LOGIN_CONFIGS = {
     },
     "siteusa": {
         "login_url": "https://regis.sitesusa.com/login",
-        "success_url_patterns": ["/dashboard", "/search", "/reports"],
+        "success_url_patterns": ["/map", "/dashboard", "/search", "/reports", "/home"],
         "display_name": "SitesUSA REGIS",
     },
     "costar": {
-        "login_url": "https://www.costar.com/login",
-        "success_url_patterns": ["/home", "/search", "/property"],
+        "login_url": "https://gateway.costar.com",
+        "success_url_patterns": ["/home", "/search", "/property", "/market", "/dashboard"],
         "display_name": "CoStar",
     },
 }

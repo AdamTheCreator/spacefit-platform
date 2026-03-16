@@ -108,9 +108,10 @@ function getStatusBadge(
           className: 'text-[var(--color-success)]',
         };
       case 'stale':
+      case 'unknown':
         return {
-          icon: <Clock size={14} />,
-          text: 'Checking...',
+          icon: <Loader2 size={14} className="animate-spin" />,
+          text: 'Connecting...',
           className: 'text-industrial-muted',
         };
       case 'needs_reauth':
@@ -254,66 +255,40 @@ function ConnectionCard({
           </span>
 
           <div className="flex gap-2">
-            {/* Show Refresh Session button for manual login sites that need it */}
-            {credential && site.requires_manual_login && statusBadge.needsManualRefresh && !site.coming_soon && (
+            {/* Reconnect: shown when credentials exist but connection is unhealthy */}
+            {credential && !site.coming_soon && statusBadge.needsManualRefresh && site.requires_manual_login && (
               <button
                 onClick={onBrowserLogin}
                 className="btn-industrial bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
-                title="Open browser to refresh session"
               >
-                <ExternalLink size={14} />
-                Refresh Session
+                <RefreshCw size={14} />
+                Reconnect
               </button>
             )}
-
-            {/* Reconnect button for non-CAPTCHA sites that need re-auth */}
-            {credential && !site.requires_manual_login && !site.coming_soon &&
+            {credential && !site.coming_soon && !site.requires_manual_login &&
               connectorHealth?.connector_status &&
-              ['needs_reauth', 'error', 'stale'].includes(connectorHealth.connector_status) && (
+              ['needs_reauth', 'error'].includes(connectorHealth.connector_status) && (
               <button
                 onClick={onVerify}
                 disabled={isVerifying}
                 className="btn-industrial bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
-                title="Re-verify credentials and refresh session"
               >
                 {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                 Reconnect
               </button>
             )}
 
-            {/* Check Health button */}
-            {credential && !site.coming_soon && (
-              <button
-                onClick={onProbe}
-                disabled={isProbing || isVerifying}
-                className="p-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] text-industrial border border-industrial-subtle transition-colors disabled:opacity-50"
-                title="Check connection health"
-              >
-                <RefreshCw size={16} className={isProbing ? 'animate-spin' : ''} />
-              </button>
-            )}
-
-            {/* Connect/Update button */}
-            {site.requires_manual_login ? (
-              // For CAPTCHA sites: save credentials first, then use browser login
-              <button
-                onClick={onConnect}
-                disabled={site.coming_soon}
-                className="btn-industrial disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {credential ? 'Update Credentials' : 'Connect'}
-                {!credential && <Plus size={14} />}
-              </button>
-            ) : (
-              <button
-                onClick={onConnect}
-                disabled={site.coming_soon}
-                className="btn-industrial disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {credential ? 'Update' : 'Connect'}
-                {!credential && <Plus size={14} />}
-              </button>
-            )}
+            {/* Connect / Update credentials */}
+            <button
+              onClick={onConnect}
+              disabled={site.coming_soon}
+              className={credential
+                ? 'btn-industrial-secondary disabled:opacity-50 disabled:cursor-not-allowed'
+                : 'btn-industrial-primary disabled:opacity-50 disabled:cursor-not-allowed'
+              }
+            >
+              {credential ? 'Update' : (<><Plus size={14} /> Connect</>)}
+            </button>
           </div>
         </div>
       </div>
@@ -342,7 +317,7 @@ function ConnectionCard({
 
 export function ConnectionsPage() {
   const queryClient = useQueryClient();
-  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [savePhase, setSavePhase] = useState<'idle' | 'saving' | 'verifying'>('idle');
   const [browserLoginOpen, setBrowserLoginOpen] = useState(false);
@@ -405,15 +380,19 @@ export function ConnectionsPage() {
     },
   });
 
-  // Verify credential mutation
+  // Verify credential mutation (supports parallel verifications)
   const verifyMutation = useMutation({
     mutationFn: async (credentialId: string) => {
       const res = await api.post(`/credentials/${credentialId}/verify`);
       return res.data as VerifyResult;
     },
-    onMutate: (id) => setVerifyingId(id),
-    onSettled: () => {
-      setVerifyingId(null);
+    onMutate: (id) => setVerifyingIds((prev) => new Set(prev).add(id)),
+    onSettled: (_data, _error, id) => {
+      setVerifyingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ['credentials'] });
     },
   });
@@ -515,7 +494,7 @@ export function ConnectionsPage() {
                 onVerify={() => credential && verifyMutation.mutate(credential.id)}
                 onBrowserLogin={() => handleBrowserLogin(site)}
                 onProbe={() => credential && probeMutation.mutate(credential.id)}
-                isVerifying={verifyingId === credential?.id}
+                isVerifying={credential ? verifyingIds.has(credential.id) : false}
                 isProbing={probeMutation.isPending && probeMutation.variables === credential?.id}
               />
             );

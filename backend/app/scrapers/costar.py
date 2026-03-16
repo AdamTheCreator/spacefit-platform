@@ -77,13 +77,11 @@ class CoStarScraper(BaseScraper):
 
             self._report_progress("login", 15, "Entering credentials...")
 
-            # NOTE: These selectors are placeholders - update based on actual CoStar page
-            # CoStar login page structure needs to be verified
-
+            # CoStar login at secure.costargroup.com/login
             # Step 1: Enter username/email
             username_filled = await self._safe_fill(
                 page,
-                'input[type="email"], input[name="username"], input#email',
+                'input#username, input[name="username"], input[type="email"]',
                 username,
                 timeout_ms=10000,
             )

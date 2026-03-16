@@ -28,6 +28,15 @@ export function useConnectorStatus() {
     enabled: isAuthenticated,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    // Auto-poll every 5s while any connector is in a transitional state
+    refetchInterval: (query) => {
+      const statuses = query.state.data;
+      if (!statuses) return false;
+      const hasTransitional = statuses.some(
+        (s) => s.connector_status === 'stale' || s.connector_status === 'unknown',
+      );
+      return hasTransitional ? 5_000 : false;
+    },
   });
 }
 

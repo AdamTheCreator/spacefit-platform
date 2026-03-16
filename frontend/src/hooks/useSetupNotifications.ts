@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useConnectorStatus } from './useConnectorHealth';
 
 const DISMISS_PREFIX = 'sf_notif_dismiss_';
 const TIP_PREFIX = 'sf_tip_seen_';
-const DISMISS_DAYS = 7;
 
 // Connector feature descriptions for user-friendly messages
 const CONNECTOR_FEATURES: Record<string, string> = {
@@ -14,14 +14,11 @@ const CONNECTOR_FEATURES: Record<string, string> = {
 };
 
 function isDismissed(key: string): boolean {
-  const dismissedAt = localStorage.getItem(`${DISMISS_PREFIX}${key}`);
-  if (!dismissedAt) return false;
-  const daysSince = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60 * 24);
-  return daysSince < DISMISS_DAYS;
+  return localStorage.getItem(`${DISMISS_PREFIX}${key}`) === '1';
 }
 
 function dismiss(key: string) {
-  localStorage.setItem(`${DISMISS_PREFIX}${key}`, Date.now().toString());
+  localStorage.setItem(`${DISMISS_PREFIX}${key}`, '1');
 }
 
 function isTipSeen(key: string): boolean {
@@ -35,39 +32,49 @@ function markTipSeen(key: string) {
 /**
  * Shows setup notifications for disconnected integrations
  * and onboarding tips for new users.
+ *
+ * Each notification is shown once per connector, ever.
+ * Not shown when the user is already on the connections page.
  */
 export function useSetupNotifications() {
   const { data: connectors } = useConnectorStatus();
   const hasShownRef = useRef(false);
+  const location = useLocation();
 
-  // Setup notifications for disconnected connectors
   useEffect(() => {
     if (!connectors || hasShownRef.current) return;
     hasShownRef.current = true;
 
-    // Find disconnected or errored connectors
+    // Don't show if user is already on the connections page
+    if (location.pathname === '/connections') return;
+
+    // Find disconnected or errored connectors not yet dismissed
     const disconnected = connectors.filter(
-      (c) => c.connector_status === 'error' || c.connector_status === 'needs_reauth'
+      (c) =>
+        (c.connector_status === 'error' || c.connector_status === 'needs_reauth') &&
+        !isDismissed(c.site_name),
     );
 
-    // Show at most 1 notification to avoid spam
-    const toShow = disconnected.find((c) => !isDismissed(c.site_name));
-    if (toShow) {
-      const feature = CONNECTOR_FEATURES[toShow.site_name.toLowerCase()] || 'premium data';
-      const displayName = toShow.site_display_name || toShow.site_name;
+    if (disconnected.length === 0) return;
 
-      toast.info(`Connect ${displayName} to unlock ${feature}`, {
-        duration: 8000,
-        action: {
-          label: 'Set up',
-          onClick: () => {
-            window.location.href = '/connections';
-          },
+    // Show one notification then permanently dismiss it
+    const toShow = disconnected[0];
+    const feature = CONNECTOR_FEATURES[toShow.site_name.toLowerCase()] || 'premium data';
+    const displayName = toShow.site_display_name || toShow.site_name;
+
+    // Mark dismissed immediately so it never shows again
+    dismiss(toShow.site_name);
+
+    toast.info(`Connect ${displayName} to unlock ${feature}`, {
+      duration: 8000,
+      action: {
+        label: 'Set up',
+        onClick: () => {
+          window.location.href = '/connections';
         },
-        onDismiss: () => dismiss(toShow.site_name),
-      });
-    }
-  }, [connectors]);
+      },
+    });
+  }, [connectors, location.pathname]);
 }
 
 /**
