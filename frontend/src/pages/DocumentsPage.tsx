@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { AppLayout } from '../components/Layout';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import {
@@ -465,6 +466,8 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
       });
     } catch (error) {
       console.error('Failed to start analysis:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to start analysis';
+      toast.error(msg);
     }
   }, [documentId, startAnalysisMutation, navigate]);
 

@@ -491,6 +491,8 @@ async def start_analysis_from_document(
     supported_types = [
         DocumentType.LEASING_FLYER.value,
         DocumentType.SITE_PLAN.value,
+        DocumentType.INVESTMENT_MEMO.value,
+        DocumentType.OFFERING_MEMORANDUM.value,
     ]
     if document.document_type not in supported_types:
         raise HTTPException(
