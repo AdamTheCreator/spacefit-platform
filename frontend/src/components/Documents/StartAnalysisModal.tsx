@@ -208,15 +208,15 @@ export function StartAnalysisModal({
               </div>
             </div>
 
-            {/* Notes */}
+            {/* Custom Instructions */}
             <div>
               <label className="block text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-2">
-                Notes <span className="font-normal">(optional)</span>
+                Custom Instructions <span className="font-normal">(optional)</span>
               </label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any specific focus areas, constraints, or context for the analysis..."
+                placeholder="e.g. Focus on QSR and fast-casual, national credit tenants only..."
                 rows={2}
                 className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] resize-none"
               />
