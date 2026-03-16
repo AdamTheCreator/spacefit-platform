@@ -28,7 +28,7 @@ import type {
 } from '../types/credentials';
 import { CredentialModal } from '../components/Connections/CredentialModal';
 import { BrowserLoginModal } from '../components/Connections/BrowserLoginModal';
-import { useConnectorStatus, useProbeConnector, connectorKeys } from '../hooks/useConnectorHealth';
+import { useConnectorStatus, connectorKeys } from '../hooks/useConnectorHealth';
 
 // Map site IDs to Lucide icons
 const SITE_ICONS: Record<string, React.ReactNode> = {
@@ -198,9 +198,7 @@ interface ConnectionCardProps {
   onConnect: () => void;
   onVerify: () => void;
   onBrowserLogin: () => void;
-  onProbe: () => void;
   isVerifying: boolean;
-  isProbing: boolean;
 }
 
 function ConnectionCard({
@@ -210,11 +208,9 @@ function ConnectionCard({
   onConnect,
   onVerify,
   onBrowserLogin,
-  onProbe,
   isVerifying,
-  isProbing,
 }: ConnectionCardProps) {
-  const statusBadge = getStatusBadge(credential, isVerifying || isProbing, site.requires_manual_login, connectorHealth);
+  const statusBadge = getStatusBadge(credential, isVerifying, site.requires_manual_login, connectorHealth);
 
   return (
     <div className="card-industrial">
@@ -326,7 +322,6 @@ export function ConnectionsPage() {
 
   // Connector health
   const { data: healthStatuses } = useConnectorStatus();
-  const probeMutation = useProbeConnector();
 
   // Fetch available sites from API
   const { data: sites = DEFAULT_SITES } = useQuery({
@@ -493,9 +488,7 @@ export function ConnectionsPage() {
                 onConnect={() => handleConnect(site)}
                 onVerify={() => credential && verifyMutation.mutate(credential.id)}
                 onBrowserLogin={() => handleBrowserLogin(site)}
-                onProbe={() => credential && probeMutation.mutate(credential.id)}
                 isVerifying={credential ? verifyingIds.has(credential.id) : false}
-                isProbing={probeMutation.isPending && probeMutation.variables === credential?.id}
               />
             );
           })}
