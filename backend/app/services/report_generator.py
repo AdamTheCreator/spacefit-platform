@@ -7,6 +7,7 @@ Uses ReportLab for PDF generation.
 
 import io
 import logging
+import re
 from datetime import datetime
 
 from reportlab.lib import colors
@@ -341,7 +342,7 @@ def generate_session_report(
                 elements.append(Paragraph(line[4:], styles.get("subsection", styles["section"])))
             # Bullet points
             elif line.startswith("- ") or line.startswith("* "):
-                text = line[2:].replace("**", "<b>").replace("**", "</b>")
+                text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', line[2:])
                 elements.append(Paragraph(f"&bull; {text}", styles["body"]))
             # Source badges
             elif line.startswith("> **Source:**"):
@@ -350,7 +351,7 @@ def generate_session_report(
                 elements.append(Paragraph(f"<i>{source_text}</i>", styles["muted"]))
             # Regular text
             elif not line.startswith("#"):
-                text = line.replace("**", "<b>").replace("**", "</b>")
+                text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', line)
                 elements.append(Paragraph(text, styles["body"]))
 
     # Methodology footer

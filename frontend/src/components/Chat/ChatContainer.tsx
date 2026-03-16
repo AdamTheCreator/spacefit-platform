@@ -5,6 +5,7 @@ import { useChat } from '../../hooks/useChat';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
+import { AnalysisProcessingView } from './AnalysisProcessingView';
 import { ExportBar } from './ExportBar';
 import type { AgentType } from '../../types/chat';
 
@@ -93,7 +94,6 @@ export function ChatContainer({ initialSessionId, chatContext }: ChatContainerPr
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSentRef = useRef(false);
-  const isAnalysisKickoff = !!locationState?.documentId;
 
   // Determine next-step actions based on the last agent message
   const nextStepActions = useMemo(() => {
@@ -180,19 +180,16 @@ export function ChatContainer({ initialSessionId, chatContext }: ChatContainerPr
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-6 scrollbar-thin">
         <div className="chat-stage">
-        {messages.length === 0 && !isLoading && isAnalysisKickoff ? (
-          /* Analysis kickoff loading state */
-          <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto animate-fade-in pt-20">
-            <div className="w-12 h-12 rounded-xl bg-[var(--accent-subtle)] flex items-center justify-center mb-6">
-               <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
-            </div>
-            <h3 className="text-lg font-semibold text-industrial mb-2">
-              Starting Analysis
-            </h3>
-            <p className="text-sm text-industrial-muted">
-              Initializing tenant gap analysis with your document data...
-            </p>
-          </div>
+        {messages.length === 0 && isProcessing ? (
+          /* Centered analysis processing view */
+          <AnalysisProcessingView
+            workflowSteps={workflowSteps}
+            activeAgentType={activeAgentType as AgentType | null}
+            isProcessing={isProcessing}
+            analysisTarget={
+              messages.find((m) => m.role === 'user')?.content?.slice(0, 60) || null
+            }
+          />
         ) : messages.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-2xl mx-auto animate-fade-in">
             <div className="w-12 h-12 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center mb-8 shadow-lg shadow-[var(--accent)]/20">
@@ -290,17 +287,19 @@ export function ChatContainer({ initialSessionId, chatContext }: ChatContainerPr
         </div>
       </div>
 
-      {/* Agent Status Strip */}
-      <AgentStatusStrip
-        workflowSteps={workflowSteps}
-        activeAgentType={activeAgentType as AgentType | null}
-        isProcessing={isProcessing}
-        analysisTarget={
-          isProcessing && messages.length > 0
-            ? messages.find((m) => m.role === 'user')?.content?.slice(0, 60) || null
-            : null
-        }
-      />
+      {/* Agent Status Strip — hidden when centered processing view is shown */}
+      {!(messages.length === 0 && isProcessing) && (
+        <AgentStatusStrip
+          workflowSteps={workflowSteps}
+          activeAgentType={activeAgentType as AgentType | null}
+          isProcessing={isProcessing}
+          analysisTarget={
+            isProcessing && messages.length > 0
+              ? messages.find((m) => m.role === 'user')?.content?.slice(0, 60) || null
+              : null
+          }
+        />
+      )}
 
       {/* Input Area */}
       <div className="chat-input-shell flex-shrink-0 px-3 sm:px-5 py-4 border-t border-[var(--border-subtle)]">

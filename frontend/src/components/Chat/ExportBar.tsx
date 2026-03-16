@@ -26,8 +26,9 @@ export function ExportBar({ sessionId }: ExportBarProps) {
       a.click();
       URL.revokeObjectURL(url);
       toast.success('PDF downloaded');
-    } catch {
-      toast.error('Failed to generate PDF');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || 'Failed to generate PDF');
     } finally {
       setLoading(null);
     }
@@ -47,8 +48,9 @@ export function ExportBar({ sessionId }: ExportBarProps) {
       a.click();
       URL.revokeObjectURL(url);
       toast.success('CSV downloaded');
-    } catch {
-      toast.error('Failed to export CSV');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || 'Failed to export CSV');
     } finally {
       setLoading(null);
     }
@@ -65,8 +67,9 @@ export function ExportBar({ sessionId }: ExportBarProps) {
       await navigator.clipboard.writeText(fullUrl);
       setShareUrl(fullUrl);
       toast.success('Share link copied to clipboard');
-    } catch {
-      toast.error('Failed to create share link');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || 'Failed to create share link');
     } finally {
       setLoading(null);
     }

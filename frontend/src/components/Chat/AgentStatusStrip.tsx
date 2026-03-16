@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import type { AgentType, WorkflowStep } from '../../types/chat';
 
 // Agent configuration with softer colors
@@ -27,51 +26,8 @@ export function AgentStatusStrip({
   isProcessing,
   analysisTarget,
 }: AgentStatusStripProps) {
-  // Track how long we've been processing for reassurance messages
-  const [processingSeconds, setProcessingSeconds] = useState(0);
-
-  useEffect(() => {
-    if (!isProcessing) {
-      setProcessingSeconds(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setProcessingSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isProcessing]);
-
   // Don't show if no workflow steps and not processing
   if (workflowSteps.length === 0 && !isProcessing) return null;
-
-  // Show simple processing indicator if processing but no workflow steps yet
-  if (workflowSteps.length === 0 && isProcessing) {
-    return (
-      <div className="chat-input-shell border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-        {/* Animated progress bar */}
-        <div className="chat-stage h-1 bg-[var(--bg-tertiary)] overflow-hidden rounded-full mt-3">
-          <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{width: '40%'}} />
-        </div>
-
-        {/* Processing indicator */}
-        <div className="chat-stage px-1 py-2.5">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] animate-pulse-soft" />
-            <span className="text-sm text-industrial-secondary">
-              {analysisTarget
-                ? `Analyzing ${analysisTarget}...`
-                : 'Thinking...'}
-            </span>
-          </div>
-          {processingSeconds >= 10 && (
-            <p className="text-xs text-industrial-muted mt-1 ml-5">
-              Pulling demographics and tenant data — this usually takes 15-30 seconds
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   const completedCount = workflowSteps.filter(s => s.status === 'completed').length;
   const totalCount = workflowSteps.length;
@@ -86,11 +42,6 @@ export function AgentStatusStrip({
           <p className="text-xs font-medium text-industrial-secondary">
             Analyzing {analysisTarget}...
           </p>
-          {processingSeconds >= 10 && (
-            <p className="text-[11px] text-industrial-muted mt-0.5">
-              Pulling demographics and tenant data — this usually takes 15-30 seconds
-            </p>
-          )}
         </div>
       )}
       {/* Progress bar - rounded at top */}
