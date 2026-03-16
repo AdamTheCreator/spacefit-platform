@@ -16,6 +16,7 @@ interface CredentialModalProps {
   onSave: (username: string, password: string) => Promise<void>;
   onDelete?: () => Promise<void>;
   isLoading: boolean;
+  loadingText?: string;
   error: string | null;
 }
 
@@ -27,6 +28,7 @@ export function CredentialModal({
   onSave,
   onDelete,
   isLoading,
+  loadingText,
   error,
 }: CredentialModalProps) {
   const [username, setUsername] = useState('');
@@ -266,7 +268,7 @@ export function CredentialModal({
                 {isLoading ? (
                   <>
                     <div className="w-4 h-4 rounded-full border-2 border-[var(--color-neutral-900)] border-t-transparent animate-spin" />
-                    Saving...
+                    {loadingText || 'Saving...'}
                   </>
                 ) : existingCredential ? (
                   'Update Credentials'

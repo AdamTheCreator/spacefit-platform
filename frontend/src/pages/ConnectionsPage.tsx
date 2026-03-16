@@ -71,7 +71,7 @@ const DEFAULT_SITES: SiteConfig[] = [
     typical_duration_seconds: 60,
     is_browser_based: true,
     requires_manual_login: false,
-    coming_soon: true,
+    coming_soon: false,
   },
 ];
 
@@ -344,6 +344,7 @@ export function ConnectionsPage() {
   const queryClient = useQueryClient();
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [savePhase, setSavePhase] = useState<'idle' | 'saving' | 'verifying'>('idle');
   const [browserLoginOpen, setBrowserLoginOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteConfig | null>(null);
   const [existingCredential, setExistingCredential] = useState<Credential | null>(null);
@@ -379,7 +380,6 @@ export function ConnectionsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credentials'] });
-      setModalOpen(false);
     },
   });
 
@@ -391,7 +391,6 @@ export function ConnectionsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credentials'] });
-      setModalOpen(false);
     },
   });
 
@@ -450,18 +449,37 @@ export function ConnectionsPage() {
   const handleSave = async (username: string, password: string) => {
     if (!selectedSite) return;
 
-    if (existingCredential) {
-      await updateMutation.mutateAsync({
-        id: existingCredential.id,
-        data: { username, password },
-      });
-    } else {
-      await createMutation.mutateAsync({
-        site_name: selectedSite.id,
-        site_url: selectedSite.url,
-        username,
-        password,
-      });
+    try {
+      setSavePhase('saving');
+
+      let credentialId: string;
+      if (existingCredential) {
+        const result = await updateMutation.mutateAsync({
+          id: existingCredential.id,
+          data: { username, password },
+        });
+        credentialId = result.id ?? existingCredential.id;
+      } else {
+        const result = await createMutation.mutateAsync({
+          site_name: selectedSite.id,
+          site_url: selectedSite.url,
+          username,
+          password,
+        });
+        credentialId = result.id;
+      }
+
+      // Auto-verify for non-CAPTCHA sites
+      if (!selectedSite.requires_manual_login) {
+        setSavePhase('verifying');
+        await api.post(`/credentials/${credentialId}/verify`);
+        queryClient.invalidateQueries({ queryKey: ['credentials'] });
+        queryClient.invalidateQueries({ queryKey: connectorKeys.status() });
+      }
+
+      setModalOpen(false);
+    } finally {
+      setSavePhase('idle');
     }
   };
 
@@ -523,12 +541,13 @@ export function ConnectionsPage() {
 
       <CredentialModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { if (savePhase === 'idle') setModalOpen(false); }}
         site={selectedSite}
         existingCredential={existingCredential}
         onSave={handleSave}
         onDelete={handleDelete}
-        isLoading={createMutation.isPending || updateMutation.isPending || deleteMutation.isPending}
+        isLoading={savePhase !== 'idle' || deleteMutation.isPending}
+        loadingText={savePhase === 'verifying' ? 'Verifying connection...' : 'Saving...'}
         error={
           createMutation.error?.message ||
           updateMutation.error?.message ||
