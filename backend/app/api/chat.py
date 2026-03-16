@@ -422,6 +422,27 @@ async def get_user_placer_credential(user_id: str) -> SiteCredential | None:
         return None
 
 
+async def get_user_costar_credential(user_id: str) -> SiteCredential | None:
+    """Get the user's CoStar credential if available.
+
+    Returns the credential regardless of verification status — the browser
+    agents handle login / session management themselves.
+    """
+    from app.core.database import async_session_factory
+
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(SiteCredential).where(
+                SiteCredential.user_id == user_id,
+                SiteCredential.site_name == "costar",
+            )
+        )
+        credential = result.scalar_one_or_none()
+        if credential:
+            return credential
+        return None
+
+
 async def get_best_credential_for_agent(user_id: str, agent_name: str) -> SiteCredential | None:
     """
     Get the best available credential for an agent.
@@ -439,6 +460,9 @@ async def get_best_credential_for_agent(user_id: str, agent_name: str) -> SiteCr
     elif agent_name in ("vehicle_traffic", "demographics"):
         # SiteUSA for vehicle traffic (VPD) and demographics
         return await get_user_siteusa_credential(user_id)
+    elif agent_name in ("costar_tenant_roster", "costar_property_info"):
+        # CoStar for tenant rosters with lease details and property info
+        return await get_user_costar_credential(user_id)
 
     return None
 
@@ -452,6 +476,7 @@ async def handle_tool_calls(
     user_context: str | None,
     has_placer: bool = False,
     has_siteusa: bool = False,
+    has_costar: bool = False,
     document_context: dict | None = None,
     system_prompt_id: str | None = None,
     analysis_type: str | None = None,
@@ -489,6 +514,8 @@ async def handle_tool_calls(
         "void_analysis": AgentType.VOID_ANALYSIS,
         "visitor_traffic": AgentType.PLACER,
         "vehicle_traffic": AgentType.SITEUSA,
+        "costar_tenant_roster": AgentType.COSTAR,
+        "costar_property_info": AgentType.COSTAR,
     }
 
     tool_descriptions = {
@@ -498,6 +525,8 @@ async def handle_tool_calls(
         "void_analysis": "Identifying tenant gaps & opportunities",
         "visitor_traffic": "Pulling foot traffic data",
         "vehicle_traffic": "Pulling vehicle traffic counts",
+        "costar_tenant_roster": "Pulling CoStar tenant roster",
+        "costar_property_info": "Pulling CoStar property details",
     }
 
     # Create workflow steps for UI
@@ -637,6 +666,7 @@ async def handle_tool_calls(
             user_context=user_context,
             has_placer_credentials=has_placer,
             has_siteusa_credentials=has_siteusa,
+            has_costar_credentials=has_costar,
             document_context=document_context,
             system_prompt_id=system_prompt_id,
             analysis_type=analysis_type,
@@ -947,6 +977,7 @@ async def websocket_endpoint(
             # Check user credentials for premium data sources
             has_placer = await get_user_placer_credential(user_id) is not None
             has_siteusa = await get_user_siteusa_credential(user_id) is not None
+            has_costar = await get_user_costar_credential(user_id) is not None
 
             # Get orchestrator response with native tool calling
             try:
@@ -955,6 +986,7 @@ async def websocket_endpoint(
                     user_context=user_context,
                     has_placer_credentials=has_placer,
                     has_siteusa_credentials=has_siteusa,
+                    has_costar_credentials=has_costar,
                     document_context=doc_context,
                     system_prompt_id=session_prompt_id,
                     analysis_type=session_analysis_type,
@@ -998,6 +1030,7 @@ async def websocket_endpoint(
                     user_context=user_context,
                     has_placer=has_placer,
                     has_siteusa=has_siteusa,
+                    has_costar=has_costar,
                     document_context=doc_context,
                     system_prompt_id=session_prompt_id,
                     analysis_type=session_analysis_type,
@@ -1428,6 +1461,7 @@ async def websocket_chat_endpoint(
             # Check user credentials for premium data sources
             has_placer = await get_user_placer_credential(user_id) is not None
             has_siteusa = await get_user_siteusa_credential(user_id) is not None
+            has_costar = await get_user_costar_credential(user_id) is not None
 
             # Get orchestrator response (with document context and prompt ID for analysis sessions)
             try:
@@ -1436,6 +1470,7 @@ async def websocket_chat_endpoint(
                     user_context=user_context,
                     has_placer_credentials=has_placer,
                     has_siteusa_credentials=has_siteusa,
+                    has_costar_credentials=has_costar,
                     document_context=doc_context,
                     system_prompt_id=s_prompt_id,
                     analysis_type=s_analysis_type,
@@ -1469,6 +1504,7 @@ async def websocket_chat_endpoint(
                     user_context=user_context,
                     has_placer=has_placer,
                     has_siteusa=has_siteusa,
+                    has_costar=has_costar,
                     document_context=doc_context,
                     system_prompt_id=s_prompt_id,
                     analysis_type=s_analysis_type,

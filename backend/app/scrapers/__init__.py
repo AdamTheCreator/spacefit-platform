@@ -39,7 +39,7 @@ SITE_CONFIGS = {
         "typical_duration_seconds": 60,
         "is_browser_based": True,
         "requires_manual_login": False,
-        "coming_soon": True,
+        "coming_soon": False,
     },
     "placer": {
         "name": "Placer.ai",

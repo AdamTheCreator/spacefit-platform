@@ -1,0 +1,116 @@
+name: costar_property_data
+description: >
+  Browser workflow to extract tenant roster and property info from CoStar.
+  Navigates to gateway.costar.com, logs in, searches for the property,
+  and extracts structured data.
+
+variables:
+  gateway_url: "https://gateway.costar.com"
+  product_url: "https://product.costar.com"
+
+steps:
+  # 1. Load persisted session (cookies from prior login)
+  - step_type: state_load
+    description: Load saved CoStar browser session
+
+  # 2. Navigate to CoStar gateway
+  - step_type: open
+    url: "{{gateway_url}}"
+    description: Open CoStar gateway
+    timeout_ms: 15000
+
+  # 3. Wait for page to be ready
+  - step_type: wait
+    wait_for: networkidle
+    description: Wait for page load
+    timeout_ms: 10000
+
+  # 4. Check if login is required
+  - step_type: condition
+    check: "selector:#username, selector:input[name='username']"
+    if_true: login
+    if_false: search
+    description: Check if login form is present
+
+  # 5. Login flow
+  - step_type: type
+    label: login
+    selector: "#username, input[name='username']"
+    value: "{{username}}"
+    description: Enter CoStar username
+
+  - step_type: type
+    selector: "#password, input[name='password']"
+    value: "{{password}}"
+    description: Enter CoStar password
+
+  - step_type: click
+    selector: "button[type='submit'], #loginButton, .login-btn"
+    description: Click login button
+    timeout_ms: 5000
+
+  - step_type: wait
+    wait_for: networkidle
+    description: Wait for login to complete
+    timeout_ms: 15000
+
+  # 6. Navigate to property search
+  - step_type: open
+    label: search
+    url: "{{product_url}}/search"
+    description: Open CoStar property search
+    timeout_ms: 15000
+
+  # 7. Enter property address in search
+  - step_type: type
+    selector: "input[placeholder*='Search'], input[type='search'], .search-input"
+    value: "{{address}}"
+    description: Enter property address in search bar
+
+  # 8. Wait for search results
+  - step_type: wait
+    wait_for: "selector:.search-results, .property-results, [data-testid='search-results']"
+    description: Wait for search suggestions
+    timeout_ms: 10000
+
+  # 9. Click the first matching result
+  - step_type: click
+    selector: ".search-results li:first-child, .property-results a:first-child"
+    description: Select first property result
+    timeout_ms: 5000
+
+  # 10. Wait for property page to load
+  - step_type: wait
+    wait_for: networkidle
+    description: Wait for property detail page
+    timeout_ms: 15000
+
+  # 11. Extract property name
+  - step_type: extract
+    extract_type: text
+    extract_selector: "h1, .property-name, .property-header"
+    output_key: property_name
+    description: Extract property name
+
+  # 12. Extract tenant roster data
+  - step_type: extract
+    extract_type: structured
+    extract_selector: ".tenant-table, .tenants-grid, [data-testid='tenant-roster']"
+    output_key: tenant_roster
+    description: Extract tenant roster table
+
+  # 13. Extract property details
+  - step_type: extract
+    extract_type: structured
+    extract_selector: ".property-details, .building-info, [data-testid='property-info']"
+    output_key: property_info
+    description: Extract property details
+
+  # 14. Snapshot the page for provenance
+  - step_type: snapshot
+    description: Capture page state for audit trail
+    save_artifact: true
+
+  # 15. Save session for reuse
+  - step_type: state_save
+    description: Persist browser session

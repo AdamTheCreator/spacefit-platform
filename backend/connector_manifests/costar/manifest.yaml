@@ -1,0 +1,89 @@
+connector_id: costar
+name: CoStar
+version: "1.0.0"
+description: >
+  Retrieves premium tenant rosters with lease details and property
+  information from CoStar.  Browser automation is required — CoStar
+  does not expose a public API.
+
+auth_type: session_state
+auth_config:
+  login_url: https://gateway.costar.com
+  session_cookie_name: CoStarAuth
+  captcha_likely: false
+
+execution_modes:
+  - browser
+default_mode: browser
+
+allowed_domains:
+  - gateway.costar.com
+  - product.costar.com
+  - www.costar.com
+  - costar.com
+
+capabilities:
+  - tenant_data
+  - property_info
+
+rate_limit:
+  requests_per_minute: 6
+  burst: 2
+  cooldown_seconds: 10
+
+runtime_limits:
+  max_runtime_seconds: 120
+  max_navigation_steps: 30
+  max_extracted_bytes: 10000000
+
+required_inputs:
+  - key: address
+    label: Property address
+    type: string
+    required: true
+    description: Full street address of the property to look up.
+
+required_secrets:
+  - key: username
+    description: CoStar login email
+    required: true
+  - key: password
+    description: CoStar login password
+    required: true
+
+output_schema:
+  ref: ""
+  inline:
+    type: object
+    properties:
+      property_name:
+        type: string
+      tenants:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            suite:
+              type: string
+            sqft:
+              type: integer
+            lease_type:
+              type: string
+            rent_psf:
+              type: number
+            expiration:
+              type: string
+      property_info:
+        type: object
+
+workflow_file: workflow.yaml
+
+maintainer: platform-team
+tags:
+  - costar
+  - tenant-data
+  - property-info
+  - real-estate
+  - browser-required

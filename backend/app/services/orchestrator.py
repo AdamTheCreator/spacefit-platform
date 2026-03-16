@@ -482,6 +482,48 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
 
         return "Vehicle traffic (VPD) data requires SiteUSA credentials. Please add your SiteUSA credentials in the Connections settings."
 
+    elif tool_name == "costar_tenant_roster":
+        # Requires CoStar credentials
+        if credential and credential.site_name.lower() == "costar":
+            from app.agents.costar import CoStarTenantAgent
+
+            address = _get_str(tool_input.get("address"))
+            if not address:
+                return "CoStar tenant roster lookup requires an address."
+            agent = CoStarTenantAgent()
+            result = await agent.execute(
+                "costar_tenant_roster",
+                {
+                    "address": address,
+                    "user_id": user_id,
+                    "credential": credential,
+                },
+            )
+            return result.content
+
+        return "CoStar tenant data requires CoStar credentials. Please add your CoStar credentials in the Connections settings."
+
+    elif tool_name == "costar_property_info":
+        # Requires CoStar credentials
+        if credential and credential.site_name.lower() == "costar":
+            from app.agents.costar import CoStarPropertyAgent
+
+            address = _get_str(tool_input.get("address"))
+            if not address:
+                return "CoStar property info lookup requires an address."
+            agent = CoStarPropertyAgent()
+            result = await agent.execute(
+                "costar_property_info",
+                {
+                    "address": address,
+                    "user_id": user_id,
+                    "credential": credential,
+                },
+            )
+            return result.content
+
+        return "CoStar property data requires CoStar credentials. Please add your CoStar credentials in the Connections settings."
+
     else:
         return f"Unknown tool: {tool_name}"
 
@@ -598,6 +640,8 @@ def get_agent_typical_duration(agent_name: str, credential=None) -> int:
         "void_analysis": 8,
         "visitor_traffic": 2,
         "vehicle_traffic": 2,
+        "costar_tenant_roster": 2,
+        "costar_property_info": 2,
     }
 
     if credential:

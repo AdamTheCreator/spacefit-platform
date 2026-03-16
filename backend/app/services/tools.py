@@ -155,6 +155,46 @@ USE THIS TOOL WHEN:
             "required": ["address"]
         }
     },
+    {
+        "name": "costar_tenant_roster",
+        "description": """Get premium tenant roster with lease details (rent PSF, expiration dates, SF) from CoStar. Requires CoStar credentials.
+
+USE THIS TOOL WHEN:
+- User asks for CoStar tenant data or lease details
+- User wants rent per square foot, lease expirations, or tenant square footage
+- User asks about the "CoStar tenant roster" or "lease comps"
+- User mentions CoStar by name and wants tenant information""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "description": "Address of the property to look up in CoStar"
+                }
+            },
+            "required": ["address"]
+        }
+    },
+    {
+        "name": "costar_property_info",
+        "description": """Get property details (building info, ownership, sale history, occupancy) from CoStar. Requires CoStar credentials.
+
+USE THIS TOOL WHEN:
+- User asks for CoStar property details or building information
+- User wants ownership info, sale history, or occupancy data from CoStar
+- User asks about property owner, year built, or lot size
+- User mentions CoStar by name and wants property information""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "description": "Address of the property to look up in CoStar"
+                }
+            },
+            "required": ["address"]
+        }
+    },
 ]
 
 
@@ -186,6 +226,10 @@ def get_tools_for_context(
         elif tool_name == "vehicle_traffic" and has_siteusa_credentials:
             available_tools.append(tool)
 
+        # CoStar tools require CoStar credentials
+        elif tool_name in ("costar_tenant_roster", "costar_property_info") and has_costar_credentials:
+            available_tools.append(tool)
+
     return available_tools
 
 
@@ -199,6 +243,8 @@ FACTUAL_QUERY_PATTERNS = [
     # Property analysis queries
     "tenant", "void", "demographic", "traffic", "population", "income",
     "trade area", "market analysis",
+    # CoStar-specific queries
+    "costar", "lease expiration", "rent psf", "property owner", "sale history",
 ]
 
 
