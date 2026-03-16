@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import {
   useDocuments,
   useDeleteDocument,
@@ -416,8 +417,8 @@ interface DocumentDetailPanelProps {
 
 function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
   const navigate = useNavigate();
-  const { data: document, isLoading } = useDocument(documentId);
-  const { data: fileUrl, isLoading: isFileLoading } = useDocumentFile(documentId);
+  const { data: document, isLoading, isError, error } = useDocument(documentId);
+  const { data: fileUrl, isLoading: isFileLoading, isError: isFileError, error: fileError } = useDocumentFile(documentId);
   const [showPreview, setShowPreview] = useState(false);
 
   const startAnalysisMutation = useStartAnalysis();
@@ -467,6 +468,21 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
     }
   }, [documentId, startAnalysisMutation, navigate]);
 
+  // Build property address for analysis (must be before early returns to respect Rules of Hooks)
+  const propertyAddress = useMemo(() => {
+    if (!document?.extracted_data) return null;
+    const data = document.extracted_data as ExtractedFlyerData;
+    const info = data.property_info;
+    if (!info) return null;
+
+    const parts = [];
+    if (info.address) parts.push(info.address);
+    if (info.city) parts.push(info.city);
+    if (info.state) parts.push(info.state);
+    if (info.zip_code) parts.push(info.zip_code);
+    return parts.length > 0 ? parts.join(', ') : null;
+  }, [document?.extracted_data]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -474,6 +490,28 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
           <div className="w-8 h-8 rounded-full border-2 border-[var(--border-default)]" />
           <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
         </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[DocumentDetailPanel] Query error for document', documentId, error);
+    return (
+      <div className="flex flex-col items-center justify-center h-64 p-6">
+        <div className="w-12 h-12 bg-[var(--bg-error)] border border-[var(--color-error)]/20 rounded-2xl flex items-center justify-center mb-3">
+          <svg className="w-6 h-6 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-industrial mb-1">Failed to load document</p>
+        <p className="text-xs text-[var(--color-error)] text-center break-words max-w-sm">{errMsg}</p>
+        {isFileError && (
+          <p className="text-xs text-[var(--color-error)] text-center break-words max-w-sm mt-1">
+            File error: {fileError instanceof Error ? fileError.message : String(fileError)}
+          </p>
+        )}
       </div>
     );
   }
@@ -916,21 +954,6 @@ function DocumentDetailPanel({ documentId }: DocumentDetailPanelProps) {
     );
   };
 
-  // Build property address for analysis (memoized)
-  const propertyAddress = useMemo(() => {
-    if (!document?.extracted_data) return null;
-    const data = document.extracted_data as ExtractedFlyerData;
-    const info = data.property_info;
-    if (!info) return null;
-
-    const parts = [];
-    if (info.address) parts.push(info.address);
-    if (info.city) parts.push(info.city);
-    if (info.state) parts.push(info.state);
-    if (info.zip_code) parts.push(info.zip_code);
-    return parts.length > 0 ? parts.join(', ') : null;
-  }, [document?.extracted_data]);
-
   const canStartAnalysis = document.status === 'completed' &&
     ['leasing_flyer', 'site_plan', 'investment_memo', 'offering_memorandum'].includes(document.document_type) &&
     document.extracted_data;
@@ -1243,7 +1266,9 @@ export function DocumentsPage() {
         {/* Right Panel - Document Details */}
         <div className="flex-1 bg-[var(--bg-elevated)]">
           {selectedDocumentId ? (
-            <DocumentDetailPanel documentId={selectedDocumentId} />
+            <ErrorBoundary key={selectedDocumentId} inline>
+              <DocumentDetailPanel documentId={selectedDocumentId} />
+            </ErrorBoundary>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-2xl flex items-center justify-center mb-4">
