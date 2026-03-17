@@ -22,6 +22,8 @@ from app.api.connectors import router as connectors_router
 from app.api.memory import router as memory_router
 from app.api.reports import router as reports_router
 from app.api.feedback import router as feedback_router
+from app.api.projects import router as projects_router
+from app.api.ai_config import router as ai_config_router
 from app.core.config import settings
 from app.core.database import engine, async_session_factory
 from app.llm.client import aclose_llm_client
@@ -84,6 +86,8 @@ app.include_router(memory_router, prefix=settings.api_prefix)
 app.include_router(approvals_router, prefix=settings.api_prefix)
 app.include_router(reports_router, prefix=settings.api_prefix)
 app.include_router(feedback_router, prefix=settings.api_prefix)
+app.include_router(projects_router, prefix=settings.api_prefix)
+app.include_router(ai_config_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

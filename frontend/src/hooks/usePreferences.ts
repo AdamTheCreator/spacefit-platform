@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 export interface PreferenceOption {
   value: string;
@@ -45,37 +44,22 @@ export interface PreferencesUpdate {
   custom_notes?: string | null;
 }
 
-async function getAuthHeaders(): Promise<HeadersInit> {
-  const token = localStorage.getItem('access_token');
-  return {
-    'Content-Type': 'application/json',
-    Authorization: token ? `Bearer ${token}` : '',
-  };
-}
-
 async function fetchPreferencesOptions(): Promise<PreferencesOptions> {
-  const headers = await getAuthHeaders();
-  const response = await fetch(`${API_URL}/preferences/options`, { headers });
-  if (!response.ok) throw new Error('Failed to fetch preference options');
-  return response.json();
+  const { data } = await api.get<PreferencesOptions>('/preferences/options');
+  return data;
 }
 
 async function fetchPreferences(): Promise<UserPreferences> {
-  const headers = await getAuthHeaders();
-  const response = await fetch(`${API_URL}/preferences`, { headers });
-  if (!response.ok) throw new Error('Failed to fetch preferences');
-  return response.json();
+  const { data } = await api.get<UserPreferences>('/preferences');
+  return data;
 }
 
 async function updatePreferences(data: PreferencesUpdate): Promise<UserPreferences> {
-  const headers = await getAuthHeaders();
-  const response = await fetch(`${API_URL}/preferences`, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error('Failed to update preferences');
-  return response.json();
+  const { data: responseData } = await api.put<UserPreferences>(
+    '/preferences',
+    data,
+  );
+  return responseData;
 }
 
 export function usePreferencesOptions() {

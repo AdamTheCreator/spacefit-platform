@@ -11,6 +11,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
+from app.services.user_llm import ResolvedLLM
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ async def generate_loi(
     property_info: dict[str, Any],
     deal_terms: LOITerms,
     template_id: str | None = None,
+    resolved_llm: ResolvedLLM | None = None,
 ) -> LOIResult:
     """Generate an LOI document using LLM.
 
@@ -127,8 +129,8 @@ async def generate_loi(
 
 Generate the LOI in the format specified."""
 
-    llm = get_llm_client()
-    model = settings.llm_model or settings.anthropic_model
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
 
     response = await llm.chat(LLMChatRequest(
         model=model,

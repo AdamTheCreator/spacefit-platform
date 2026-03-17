@@ -39,7 +39,13 @@ class ChatSession(Base):
         String(50), nullable=True, default="MASTER_DEFAULT"
     )
 
+    # Project link
+    project_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+
     user: Mapped["User"] = relationship(back_populates="chat_sessions")
+    project: Mapped["Project | None"] = relationship(back_populates="sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
     )
@@ -62,4 +68,5 @@ class ChatMessage(Base):
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
 
 
+from app.db.models.project import Project  # noqa: E402
 from app.db.models.user import User  # noqa: E402

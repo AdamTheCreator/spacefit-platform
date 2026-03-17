@@ -62,6 +62,7 @@ export interface ParsedDocument {
   status: DocumentStatus;
   error_message: string | null;
   extracted_data: ExtractedData | null;
+  is_archived: boolean;
   created_at: string;
   processed_at: string | null;
 }

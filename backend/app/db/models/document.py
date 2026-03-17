@@ -13,6 +13,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.deal import Property
+    from app.db.models.project import Project
     from app.db.models.user import User
 
 
@@ -85,9 +86,16 @@ class ParsedDocument(Base):
         String(36), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Project link
+    project_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Relationships
     user: Mapped["User"] = relationship(back_populates="documents")
     property: Mapped["Property | None"] = relationship(back_populates="documents")
+    project: Mapped["Project | None"] = relationship(back_populates="documents")
     available_spaces: Mapped[list["AvailableSpace"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )

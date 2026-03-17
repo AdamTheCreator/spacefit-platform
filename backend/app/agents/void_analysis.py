@@ -13,6 +13,7 @@ import json
 
 from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
+from app.services.user_llm import ResolvedLLM
 
 # Define retail categories and typical co-tenancy patterns
 RETAIL_CATEGORIES = {
@@ -133,6 +134,7 @@ async def analyze_voids_for_property(
     existing_tenants: list[dict] | None = None,
     demographics: dict | None = None,
     radius_miles: float = 3.0,
+    resolved_llm: ResolvedLLM | None = None,
 ) -> dict:
     """
     Generate a comprehensive void analysis for a property.
@@ -232,10 +234,11 @@ Return a JSON object with this structure:
 
 Analyze comprehensively but return ONLY valid JSON."""
 
-    llm = get_llm_client()
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
     response = await llm.chat(
         LLMChatRequest(
-            model=settings.llm_model or settings.anthropic_model,
+            model=model,
             max_tokens=4096,
             system=system_prompt,
             messages=[

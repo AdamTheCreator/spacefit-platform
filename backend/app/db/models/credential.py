@@ -147,4 +147,39 @@ class UserPreferences(Base):
     user: Mapped["User"] = relationship(back_populates="preferences")
 
 
+class UserAIConfig(Base):
+    """Per-user AI provider configuration for BYOK (Bring Your Own Key)."""
+    __tablename__ = "user_ai_configs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+
+    # Provider selection
+    provider: Mapped[str] = mapped_column(
+        String(30), default="platform_default"
+    )  # platform_default, anthropic, openai, google, deepseek, openai_compatible
+
+    # Model override (e.g. "gpt-4o", "gemini-2.0-flash")
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Encrypted BYOK key
+    api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    encryption_salt: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+
+    # Custom endpoint for DeepSeek, local LLMs, etc.
+    base_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Validation status
+    is_key_valid: Mapped[bool] = mapped_column(Boolean, default=False)
+    key_validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    key_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_config")
+
+
 from app.db.models.user import User  # noqa: E402

@@ -62,6 +62,9 @@ class User(Base):
     documents: Mapped[list["ParsedDocument"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    projects: Mapped[list["Project"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     preferences: Mapped["UserPreferences | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
@@ -72,6 +75,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     memory: Mapped["UserMemory | None"] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    ai_config: Mapped["UserAIConfig | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
 
@@ -144,9 +150,10 @@ class SSOConfiguration(Base):
 # Forward references for relationships
 from app.db.models.chat import ChatSession  # noqa: E402
 from app.db.models.customer import Customer  # noqa: E402
-from app.db.models.credential import SiteCredential, OnboardingProgress, UserPreferences  # noqa: E402
+from app.db.models.credential import SiteCredential, OnboardingProgress, UserPreferences, UserAIConfig  # noqa: E402
 from app.db.models.deal import Deal, Property  # noqa: E402
 from app.db.models.document import ParsedDocument  # noqa: E402
+from app.db.models.project import Project  # noqa: E402
 from app.db.models.subscription import Subscription  # noqa: E402
 from app.db.models.email_token import EmailToken  # noqa: E402
 from app.db.models.user_memory import UserMemory  # noqa: E402

@@ -83,6 +83,7 @@ class ParsedDocumentResponse(BaseModel):
     id: UUID
     user_id: UUID
     property_id: UUID | None = None
+    project_id: UUID | None = None
     filename: str
     file_size: int
     mime_type: str
@@ -92,6 +93,7 @@ class ParsedDocumentResponse(BaseModel):
     status: DocumentStatus
     error_message: str | None = None
     extracted_data: dict | None = None
+    is_archived: bool = False
     created_at: datetime
     processed_at: datetime | None = None
 

@@ -7,11 +7,13 @@ import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
 import { AnalysisProcessingView } from './AnalysisProcessingView';
 import { ExportBar } from './ExportBar';
+import { ThinkingIndicator } from './ThinkingIndicator';
 import type { AgentType } from '../../types/chat';
 
 interface ChatContainerProps {
   initialSessionId?: string;
   chatContext?: string;
+  projectId?: string;
 }
 
 interface LocationState {
@@ -74,7 +76,7 @@ const DEFAULT_SUGGESTIONS = [
   { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
 ];
 
-export function ChatContainer({ initialSessionId, chatContext }: ChatContainerProps) {
+export function ChatContainer({ initialSessionId, chatContext, projectId }: ChatContainerProps) {
   const location = useLocation();
   const locationState = location.state as LocationState | null;
   // Track selected vertical mode for new conversations
@@ -90,10 +92,12 @@ export function ChatContainer({ initialSessionId, chatContext }: ChatContainerPr
     isLoading,
     sendMessage,
     currentSessionId,
-  } = useChat(initialSessionId, selectedMode);
+  } = useChat(initialSessionId, selectedMode, projectId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSentRef = useRef(false);
+  const lastMessage = messages.at(-1);
+  const showThinkingIndicator = isProcessing && lastMessage?.role === 'user';
 
   // Determine next-step actions based on the last agent message
   const nextStepActions = useMemo(() => {
@@ -149,7 +153,7 @@ export function ChatContainer({ initialSessionId, chatContext }: ChatContainerPr
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isProcessing]);
 
   const handleSendMessage = useCallback((content: string) => {
     sendMessage(content);
@@ -238,6 +242,11 @@ export function ChatContainer({ initialSessionId, chatContext }: ChatContainerPr
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
+
+            <ThinkingIndicator
+              isVisible={showThinkingIndicator}
+              activeAgentType={activeAgentType as AgentType | null}
+            />
 
             {/* Continue analysis button for resumed sessions */}
             {showContinueButton && !nextStepActions && (

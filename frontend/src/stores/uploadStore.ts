@@ -11,6 +11,8 @@ export interface UploadItem {
   clientId: string;
   /** Server document ID, set once the upload HTTP response arrives. */
   documentId: string | null;
+  /** Project ID if uploading within a project context. */
+  projectId: string | null;
   fileName: string;
   fileSize: number;
   status: UploadStatus;
@@ -24,6 +26,8 @@ export interface UploadItem {
   file: File;
   /** Timestamp when the item was added. */
   addedAt: number;
+  /** Timestamp when server-side extraction began. */
+  processingStartedAt: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,7 +38,7 @@ interface UploadStoreState {
   items: UploadItem[];
 
   /** Add a new file to the queue in 'uploading' state. Returns the clientId. */
-  addItem: (file: File) => string;
+  addItem: (file: File, projectId?: string) => string;
 
   /** Update upload progress (0–100). */
   setUploadProgress: (clientId: string, progress: number) => void;
@@ -75,11 +79,12 @@ function generateClientId(): string {
 export const useUploadStore = create<UploadStoreState>((set, get) => ({
   items: [],
 
-  addItem: (file: File) => {
+  addItem: (file: File, projectId?: string) => {
     const clientId = generateClientId();
     const item: UploadItem = {
       clientId,
       documentId: null,
+      projectId: projectId || null,
       fileName: file.name,
       fileSize: file.size,
       status: 'uploading',
@@ -88,6 +93,7 @@ export const useUploadStore = create<UploadStoreState>((set, get) => ({
       errorMessage: null,
       file,
       addedAt: Date.now(),
+      processingStartedAt: null,
     };
     set((state) => ({ items: [item, ...state.items] }));
     return clientId;
@@ -112,6 +118,7 @@ export const useUploadStore = create<UploadStoreState>((set, get) => ({
               status: 'processing' as const,
               uploadProgress: 100,
               statusText: 'Extracting property info and spaces…',
+              processingStartedAt: Date.now(),
             }
           : item,
       ),
@@ -146,6 +153,7 @@ export const useUploadStore = create<UploadStoreState>((set, get) => ({
               statusText: 'Uploading…',
               errorMessage: null,
               documentId: null,
+              processingStartedAt: null,
             }
           : item,
       ),

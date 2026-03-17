@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { ProtectedRoute } from './components/Auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -15,8 +15,11 @@ const CustomersPage = lazy(() => import('./pages/CustomersPage').then(m => ({ de
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then(m => ({ default: m.ConnectionsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const PipelinePage = lazy(() => import('./pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
-const DocumentsPage = lazy(() => import('./pages/DocumentsPage').then(m => ({ default: m.DocumentsPage })));
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then(m => ({ default: m.ProjectsPage })));
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then(m => ({ default: m.ProjectDetailPage })));
+const ProjectChatPage = lazy(() => import('./pages/ProjectChatPage').then(m => ({ default: m.ProjectChatPage })));
 const OutreachPage = lazy(() => import('./pages/OutreachPage').then(m => ({ default: m.OutreachPage })));
+const ArchivedProjectsPage = lazy(() => import('./pages/ArchivedProjectsPage').then(m => ({ default: m.ArchivedProjectsPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
@@ -65,7 +68,11 @@ function App() {
             <Route path="/chat/:sessionId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/pipeline/:dealId" element={<PipelinePage />} />
-            <Route path="/documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+            <Route path="/projects/:projectId/chat/:sessionId" element={<ErrorBoundary><ProjectChatPage /></ErrorBoundary>} />
+            <Route path="/documents" element={<Navigate to="/projects" replace />} />
+            <Route path="/archive" element={<ArchivedProjectsPage />} />
             <Route path="/outreach" element={<OutreachPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/customers" element={<CustomersPage />} />

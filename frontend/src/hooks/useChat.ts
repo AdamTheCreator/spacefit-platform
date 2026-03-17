@@ -40,18 +40,24 @@ async function fetchSessionMessages(sessionId: string): Promise<Message[]> {
   }));
 }
 
-export function useChat(sessionId?: string, systemPromptId?: string) {
+export function useChat(sessionId?: string, systemPromptId?: string, projectId?: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const currentSessionRef = useRef<string | null>(null);
+  const pendingUserMessagesRef = useRef<Array<{ id: string; content: string }>>([]);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
   const systemPromptIdRef = useRef<string | undefined>(systemPromptId);
+  const projectIdRef = useRef<string | undefined>(projectId);
   const queryClient = useQueryClient();
 
-  // Keep ref in sync with prop
+  // Keep refs in sync with props
   useEffect(() => {
     systemPromptIdRef.current = systemPromptId;
   }, [systemPromptId]);
+
+  useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
 
   const {
     messages,
@@ -60,6 +66,7 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
     activeAgentType,
     setCurrentSession,
     addMessage,
+    updateMessage,
     setWorkflowSteps,
     updateWorkflowStep,
     setIsProcessing,
@@ -83,13 +90,16 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
 
       if (!sessionId || sessionId === 'new') {
         // New conversation - clear messages
+        pendingUserMessagesRef.current = [];
         setCurrentSession(null, []);
       } else if (historyMessages) {
         // Existing conversation - load history from cache/API
+        pendingUserMessagesRef.current = [];
         setCurrentSession(sessionId, historyMessages);
       }
     } else if (historyMessages && sessionId && sessionId !== 'new') {
       // History loaded for current session
+      pendingUserMessagesRef.current = [];
       setCurrentSession(sessionId, historyMessages);
     }
   }, [sessionId, historyMessages, setCurrentSession]);
@@ -168,7 +178,10 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
         // Update URL and refs for new session
         currentSessionRef.current = data.session_id;
         setCurrentSession(data.session_id, useChatStore.getState().messages);
-        window.history.replaceState(null, '', `/chat/${data.session_id}`);
+        const nextUrl = projectIdRef.current
+          ? `/projects/${projectIdRef.current}/chat/${data.session_id}`
+          : `/chat/${data.session_id}`;
+        window.history.replaceState(null, '', nextUrl);
         queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
         break;
       }
@@ -178,6 +191,7 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
           id: string;
           role: 'user' | 'agent' | 'system';
           content: string;
+          created_at: string;
           agent_type?: string;
           is_streaming?: boolean;
           visible?: boolean;
@@ -186,10 +200,29 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
         // Skip intermediate agent messages hidden from UI (e.g., raw tool outputs)
         if (msgData.visible === false) break;
 
+        if (msgData.role === 'user') {
+          const pendingIndex = pendingUserMessagesRef.current.findIndex(
+            (pendingMessage) => pendingMessage.content === msgData.content
+          );
+
+          if (pendingIndex !== -1) {
+            const [{ id: pendingId }] = pendingUserMessagesRef.current.splice(pendingIndex, 1);
+            updateMessage(pendingId, {
+              id: msgData.id,
+              content: msgData.content,
+              timestamp: new Date(msgData.created_at),
+              pending: false,
+            });
+            break;
+          }
+        }
+
         addMessage({
+          id: msgData.id,
           role: msgData.role,
           content: msgData.content,
           agentType: msgData.agent_type as Message['agentType'],
+          timestamp: new Date(msgData.created_at),
           isStreaming: msgData.is_streaming,
         });
 
@@ -260,7 +293,7 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
         break;
       }
     }
-  }, [addMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, queryClient]);
+  }, [addMessage, updateMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, queryClient]);
 
   // Send a message
   const sendMessage = useCallback((content: string) => {
@@ -269,25 +302,39 @@ export function useChat(sessionId?: string, systemPromptId?: string) {
       return;
     }
 
+    const optimisticMessageId = crypto.randomUUID();
+    pendingUserMessagesRef.current.push({ id: optimisticMessageId, content });
+    addMessage({
+      id: optimisticMessageId,
+      role: 'user',
+      content,
+      pending: true,
+    });
+
     // Clear workflow for new message
     setWorkflowSteps([]);
     setActiveAgentType(null);
     setIsProcessing(true);
 
     // Build message payload
-    const payload: { session_id: string | null; content: string; system_prompt_id?: string } = {
+    const payload: { session_id: string | null; content: string; system_prompt_id?: string; project_id?: string } = {
       session_id: currentSessionRef.current,
       content,
     };
 
-    // Include system_prompt_id for new sessions (when no current session)
-    if (!currentSessionRef.current && systemPromptIdRef.current) {
-      payload.system_prompt_id = systemPromptIdRef.current;
+    // Include system_prompt_id and project_id for new sessions (when no current session)
+    if (!currentSessionRef.current) {
+      if (systemPromptIdRef.current) {
+        payload.system_prompt_id = systemPromptIdRef.current;
+      }
+      if (projectIdRef.current) {
+        payload.project_id = projectIdRef.current;
+      }
     }
 
     // Send message with session ID (null = create new session)
     wsRef.current.send(JSON.stringify(payload));
-  }, [setIsProcessing, setWorkflowSteps, setActiveAgentType]);
+  }, [addMessage, setIsProcessing, setWorkflowSteps, setActiveAgentType]);
 
   // Connect on mount
   useEffect(() => {

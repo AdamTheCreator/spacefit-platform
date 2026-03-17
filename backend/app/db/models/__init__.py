@@ -1,7 +1,8 @@
 from app.db.models.user import User, OAuthAccount, RefreshToken, SSOConfiguration
 from app.db.models.chat import ChatSession, ChatMessage
+from app.db.models.project import Project
 from app.db.models.customer import Customer, CustomerContact
-from app.db.models.credential import SiteCredential, AgentConnection, OnboardingProgress
+from app.db.models.credential import SiteCredential, AgentConnection, OnboardingProgress, UserAIConfig
 from app.db.models.deal import Deal, DealStageHistory, DealActivity, Property
 from app.db.models.document import (
     ParsedDocument,
@@ -34,6 +35,7 @@ __all__ = [
     "SiteCredential",
     "AgentConnection",
     "OnboardingProgress",
+    "UserAIConfig",
     "Deal",
     "DealStageHistory",
     "DealActivity",
@@ -52,4 +54,5 @@ __all__ = [
     "SubscriptionStatus",
     "UsageType",
     "UserMemory",
+    "Project",
 ]

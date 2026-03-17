@@ -11,6 +11,7 @@ import uuid
 from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
 from app.llm.redaction import redact_secrets
+from app.services.user_llm import ResolvedLLM
 from app.services.tools import (
     get_tools_for_context,
     should_force_tool_use,
@@ -18,6 +19,7 @@ from app.services.tools import (
 from app.services.prompt_registry import (
     get_system_prompt_for_session,
     format_document_context_block,
+    format_project_context_block,
     VOID_ANALYSIS_PROMPT_ID,
 )
 
@@ -169,9 +171,11 @@ async def get_orchestrator_response(
     has_siteusa_credentials: bool = False,
     has_costar_credentials: bool = False,
     document_context: dict | None = None,
+    project_context: dict | None = None,
     system_prompt_id: str | None = None,
     analysis_type: str | None = None,
     memory_context: str | None = None,
+    resolved_llm: ResolvedLLM | None = None,
 ) -> dict:
     """
     Get a response from the orchestrator using Claude's native tool calling.
@@ -193,7 +197,9 @@ async def get_orchestrator_response(
         - 'stop_reason': Why Claude stopped (end_turn, tool_use, etc.)
     """
     request_id = uuid.uuid4().hex[:8]
-    llm = get_llm_client()
+    # Use resolved user LLM if provided, otherwise fall back to platform default
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    effective_model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
 
     llm_messages: list[LLMChatMessage] = []
     for msg in messages:
@@ -245,8 +251,12 @@ async def get_orchestrator_response(
         prompt_def.version,
     )
 
-    # Inject document context as a structured block after the system prompt
-    if document_context:
+    # Inject project context (takes precedence) or single-document context
+    if project_context:
+        context_block = format_project_context_block(project_context)
+        if context_block:
+            full_system_prompt = full_system_prompt + "\n\n" + redact_secrets(context_block)
+    elif document_context:
         context_block = format_document_context_block(document_context)
         if context_block:
             full_system_prompt = full_system_prompt + "\n\n" + redact_secrets(context_block)
@@ -301,20 +311,22 @@ async def get_orchestrator_response(
             tool_choice = {"type": "any"}
             logger.debug("[orchestrator:%s] Forcing tool use", request_id)
 
+    effective_provider = resolved_llm.provider if resolved_llm else settings.llm_provider
     logger.debug(
-        "[orchestrator:%s] Calling LLM provider=%s model=%s tools=%d tool_choice=%s",
+        "[orchestrator:%s] Calling LLM provider=%s model=%s tools=%d tool_choice=%s byok=%s",
         request_id,
-        settings.llm_provider,
-        settings.llm_model or settings.anthropic_model,
+        effective_provider,
+        effective_model,
         len(tools),
         tool_choice,
+        resolved_llm.is_byok if resolved_llm else False,
     )
 
     response = await llm.chat(
         LLMChatRequest(
             system=full_system_prompt,
             messages=llm_messages,
-            model=settings.llm_model or settings.anthropic_model,
+            model=effective_model,
             max_tokens=2048,
             tools=tools,
             tool_choice=tool_choice,
@@ -528,19 +540,23 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
         return f"Unknown tool: {tool_name}"
 
 
-async def generate_conversation_title(first_message: str) -> str:
+async def generate_conversation_title(
+    first_message: str,
+    resolved_llm: ResolvedLLM | None = None,
+) -> str:
     """
     Generate a short, descriptive title for a conversation based on the first message.
     Uses Claude to extract the location/property and create a descriptive title.
     """
     request_id = uuid.uuid4().hex[:8]
-    llm = get_llm_client()
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
     safe_first_message = redact_secrets(first_message)
 
     try:
         response = await llm.chat(
             LLMChatRequest(
-                model=settings.llm_model or settings.anthropic_model,
+                model=model,
                 max_tokens=50,
                 system="""Generate a very short title (3-6 words) for a commercial real estate conversation.
 IMPORTANT: If a location, address, property name, mall name, or city is mentioned, INCLUDE IT in the title.

@@ -24,6 +24,9 @@ from app.models.document import (
 # Default vision model (can be overridden with LLM_VISION_MODEL)
 VISION_MODEL = "claude-sonnet-4-20250514"
 
+# Lighter model for classification (fast + cheap, doesn't need Sonnet quality)
+CLASSIFICATION_MODEL = "claude-haiku-4-5-20251001"
+
 
 def encode_file_to_base64(file_path: str) -> str:
     """Read a file and encode it to base64."""
@@ -70,12 +73,11 @@ KEY DISTINCTION: If the document is primarily a visual layout/diagram showing bu
 Respond with JSON only: {"type": "document_type", "confidence": 0.95}"""
 
     llm = get_vision_llm_client()
-    vision_model = settings.llm_vision_model or VISION_MODEL
 
     response_text = (
         await llm.vision_document(
             LLMVisionRequest(
-                model=vision_model,
+                model=CLASSIFICATION_MODEL,
                 max_tokens=200,
                 system=system_prompt,
                 document=LLMVisionDocument(media_type=media_type, data_base64=base64_data),

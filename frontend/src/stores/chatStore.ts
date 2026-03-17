@@ -6,6 +6,7 @@ interface ChatState {
   connectionStatus: 'connected' | 'connecting' | 'disconnected';
   // Current conversation state
   currentSessionId: string | null;
+  currentProjectId: string | null;
   messages: Message[];
   workflowSteps: WorkflowStep[];
   isProcessing: boolean;
@@ -13,7 +14,7 @@ interface ChatState {
 
   // Actions
   setCurrentSession: (sessionId: string | null, messages?: Message[]) => void;
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addMessage: (message: Omit<Message, 'id' | 'timestamp'> & Partial<Pick<Message, 'id' | 'timestamp'>>) => void;
   setMessages: (messages: Message[]) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   setWorkflowSteps: (steps: WorkflowStep[]) => void;
@@ -21,12 +22,14 @@ interface ChatState {
   setIsProcessing: (isProcessing: boolean) => void;
   setActiveAgentType: (agentType: string | null) => void;
   setConnectionStatus: (status: 'connected' | 'connecting' | 'disconnected') => void;
+  setCurrentProjectId: (projectId: string | null) => void;
   clearChat: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   connectionStatus: 'disconnected',
   currentSessionId: null,
+  currentProjectId: null,
   messages: [],
   workflowSteps: [],
   isProcessing: false,
@@ -47,8 +50,8 @@ export const useChatStore = create<ChatState>((set) => ({
         ...state.messages,
         {
           ...message,
-          id: crypto.randomUUID(),
-          timestamp: new Date(),
+          id: message.id ?? crypto.randomUUID(),
+          timestamp: message.timestamp ?? new Date(),
         },
       ],
     })),
@@ -77,9 +80,13 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
 
+  setCurrentProjectId: (projectId: string | null) =>
+    set({ currentProjectId: projectId }),
+
   clearChat: () =>
     set({
       currentSessionId: null,
+      currentProjectId: null,
       messages: [],
       workflowSteps: [],
       isProcessing: false,

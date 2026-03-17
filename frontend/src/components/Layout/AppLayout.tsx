@@ -11,8 +11,9 @@ import {
   Menu,
   X,
   Kanban,
-  FileText,
+  FolderOpen,
   Mail,
+  Archive,
   HelpCircle,
   Sparkles,
 } from 'lucide-react';
@@ -193,12 +194,12 @@ export function AppLayout({ children }: AppLayoutProps) {
               <span>Pipeline</span>
             </Link>
             <Link
-              to="/documents"
+              to="/projects"
               onClick={() => isMobile && setSidebarOpen(false)}
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
             >
-              <FileText size={16} />
-              <span>Documents</span>
+              <FolderOpen size={16} />
+              <span>Projects</span>
             </Link>
             <Link
               to="/outreach"
@@ -207,6 +208,14 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               <Mail size={16} />
               <span>Outreach</span>
+            </Link>
+            <Link
+              to="/archive"
+              onClick={() => isMobile && setSidebarOpen(false)}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
+            >
+              <Archive size={16} />
+              <span>Archive</span>
             </Link>
           </nav>
         </div>

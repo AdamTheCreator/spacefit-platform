@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     llm_vision_provider: str = Field(default="")  # Optional override for vision tasks
     llm_model: str = Field(default="")  # Optional override for provider default model
     llm_vision_model: str = Field(default="")  # Optional override for vision model
-    llm_timeout_seconds: float = Field(default=60.0)
+    llm_timeout_seconds: float = Field(default=120.0)
     llm_max_retries: int = Field(default=2)
     llm_max_concurrency: int = Field(default=4)
     llm_tool_result_max_chars: int = Field(default=12000)
@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     guardrail_classifier_model: str = Field(default="claude-3-haiku-20240307")
     guardrail_free_monthly_token_budget: int = Field(default=500_000)
     guardrail_pro_monthly_token_budget: int = Field(default=-1)
+
+    # Google Gemini (free-tier chat default)
+    google_gemini_api_key: str = Field(default="")
+    google_gemini_model: str = Field(default="gemini-2.0-flash")
+    google_gemini_base_url: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta/openai"
+    )
 
     # OpenAI-compatible settings (optional)
     openai_api_key: str = Field(default="")

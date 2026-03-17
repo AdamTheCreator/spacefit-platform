@@ -20,6 +20,7 @@ export interface Message {
   agentType?: AgentType;
   timestamp: Date;
   isStreaming?: boolean;
+  pending?: boolean;
 }
 
 export interface WorkflowStep {

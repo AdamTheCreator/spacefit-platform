@@ -11,6 +11,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.db.models.customer import Customer
     from app.db.models.document import ParsedDocument
+    from app.db.models.project import Project
     from app.db.models.user import User
 
 
@@ -115,6 +116,7 @@ class Property(Base):
     user: Mapped["User"] = relationship(back_populates="properties")
     deals: Mapped[list["Deal"]] = relationship(back_populates="property")
     documents: Mapped[list["ParsedDocument"]] = relationship(back_populates="property")
+    projects: Mapped[list["Project"]] = relationship(back_populates="property")
 
 
 class Deal(Base):

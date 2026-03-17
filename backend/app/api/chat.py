@@ -23,6 +23,7 @@ from app.models.chat import (
 )
 from app.services.orchestrator import execute_tool
 from app.services.analytics import get_analytics, MetricType, MetricEvent
+from app.services.user_llm import resolve_user_llm, ResolvedLLM
 from app.services.guardrails import (
     validate_message_size,
     rate_limiter,
@@ -478,9 +479,11 @@ async def handle_tool_calls(
     has_siteusa: bool = False,
     has_costar: bool = False,
     document_context: dict | None = None,
+    project_context: dict | None = None,
     system_prompt_id: str | None = None,
     analysis_type: str | None = None,
     depth: int = 0,
+    resolved_llm: ResolvedLLM | None = None,
 ) -> None:
     """
     Handle tool calls from Claude's native tool use.
@@ -672,8 +675,10 @@ async def handle_tool_calls(
             has_siteusa_credentials=has_siteusa,
             has_costar_credentials=has_costar,
             document_context=document_context,
+            project_context=project_context,
             system_prompt_id=system_prompt_id,
             analysis_type=analysis_type,
+            resolved_llm=resolved_llm,
         )
 
         # Record tokens from synthesis call
@@ -696,9 +701,11 @@ async def handle_tool_calls(
                 has_placer=has_placer,
                 has_siteusa=has_siteusa,
                 document_context=document_context,
+                project_context=project_context,
                 system_prompt_id=system_prompt_id,
                 analysis_type=analysis_type,
                 depth=depth + 1,
+                resolved_llm=resolved_llm,
             )
         elif synthesis_response["content"]:
             # Send synthesized response
@@ -769,6 +776,17 @@ async def websocket_endpoint(
         except Exception as e:
             logger.warning("Failed to load memory context for user %s: %s", user_id, e)
 
+        # Resolve user's LLM provider (BYOK or platform default based on tier)
+        user_resolved_llm: ResolvedLLM | None = None
+        try:
+            user_resolved_llm = await resolve_user_llm(db, user_id, user.tier)
+            logger.debug(
+                "Resolved LLM for user %s: provider=%s model=%s byok=%s",
+                user_id, user_resolved_llm.provider, user_resolved_llm.model, user_resolved_llm.is_byok,
+            )
+        except Exception as e:
+            logger.warning("Failed to resolve user LLM for %s, using platform default: %s", user_id, e)
+
         if not is_new_session:
             # Validate existing session
             result = await db.execute(
@@ -794,20 +812,25 @@ async def websocket_endpoint(
         # Load existing conversation history for Claude (only for existing sessions)
         conversation_history: list[dict[str, str]] = []
         doc_context: dict | None = None
+        proj_context: dict | None = None
         session_prompt_id: str | None = None
         session_analysis_type: str | None = None
         if actual_session_id:
             logger.debug("Loading history session=%s", actual_session_id)
             conversation_history = await load_session_history(actual_session_id)
             logger.debug("Loaded messages=%d", len(conversation_history))
-            # Load document context and prompt info for analysis sessions
+            # Load document/project context and prompt info for analysis sessions
             async with async_session_factory() as db:
                 result = await db.execute(
                     select(ChatSession).where(ChatSession.id == actual_session_id)
                 )
                 chat_sess = result.scalar_one_or_none()
                 if chat_sess:
-                    if chat_sess.document_context:
+                    # Project context takes precedence over document context
+                    if chat_sess.project_id:
+                        from app.services.project_context import build_project_context
+                        proj_context = await build_project_context(db, chat_sess.project_id)
+                    elif chat_sess.document_context:
                         doc_context = chat_sess.document_context
                     session_prompt_id = chat_sess.system_prompt_id
                     session_analysis_type = chat_sess.analysis_type
@@ -887,12 +910,13 @@ async def websocket_endpoint(
             if actual_session_id is None and is_new_session:
                 # Get system_prompt_id from message payload (default to MASTER_DEFAULT)
                 requested_prompt_id = message_data.get("system_prompt_id", "MASTER_DEFAULT")
+                requested_project_id = message_data.get("project_id")
 
                 async with async_session_factory() as db:
                     # Generate title from the first message
                     title = None
                     try:
-                        title = await generate_conversation_title(user_content)
+                        title = await generate_conversation_title(user_content, resolved_llm=user_resolved_llm)
                     except Exception:
                         pass  # Title generation is non-critical
 
@@ -900,12 +924,18 @@ async def websocket_endpoint(
                         user_id=user_id,
                         title=title,
                         system_prompt_id=requested_prompt_id,
+                        project_id=requested_project_id,
                     )
                     db.add(chat_session)
                     await db.commit()
                     await db.refresh(chat_session)
                     actual_session_id = chat_session.id
                     session_prompt_id = requested_prompt_id
+
+                    # Load project context if session is in a project
+                    if requested_project_id:
+                        from app.services.project_context import build_project_context
+                        proj_context = await build_project_context(db, requested_project_id)
 
                 # Send session info to frontend now that session exists
                 await websocket.send_json({
@@ -933,7 +963,7 @@ async def websocket_endpoint(
             if is_first_message and actual_session_id:
                 is_first_message = False
                 try:
-                    title = await generate_conversation_title(user_content)
+                    title = await generate_conversation_title(user_content, resolved_llm=user_resolved_llm)
                     # Update session title in database
                     async with async_session_factory() as db:
                         result = await db.execute(
@@ -992,9 +1022,11 @@ async def websocket_endpoint(
                     has_siteusa_credentials=has_siteusa,
                     has_costar_credentials=has_costar,
                     document_context=doc_context,
+                    project_context=proj_context,
                     system_prompt_id=session_prompt_id,
                     analysis_type=session_analysis_type,
                     memory_context=memory_context,
+                    resolved_llm=user_resolved_llm,
                 )
             except Exception as e:
                 error_msg = Message(
@@ -1036,8 +1068,10 @@ async def websocket_endpoint(
                     has_siteusa=has_siteusa,
                     has_costar=has_costar,
                     document_context=doc_context,
+                    project_context=proj_context,
                     system_prompt_id=session_prompt_id,
                     analysis_type=session_analysis_type,
+                    resolved_llm=user_resolved_llm,
                 )
             else:
                 # No tools requested - just send the response
@@ -1250,6 +1284,7 @@ async def websocket_endpoint(
                         user_context=user_context,
                         system_prompt_id=session_prompt_id,
                         analysis_type=session_analysis_type,
+                        resolved_llm=user_resolved_llm,
                     )
 
                     # Send synthesis
@@ -1336,6 +1371,13 @@ async def websocket_chat_endpoint(
         except Exception as e:
             logger.warning("Failed to load memory context for user %s: %s", user_id, e)
 
+        # Resolve user's LLM provider (BYOK or platform default based on tier)
+        user_resolved_llm: ResolvedLLM | None = None
+        try:
+            user_resolved_llm = await resolve_user_llm(db, user_id, user.tier)
+        except Exception as e:
+            logger.warning("Failed to resolve user LLM for %s: %s", user_id, e)
+
     await websocket.accept()
     connection_key = f"chat:{user_id}"
     active_connections[connection_key] = websocket
@@ -1345,6 +1387,7 @@ async def websocket_chat_endpoint(
     conversation_histories: dict[str, list[dict[str, str]]] = {}
     current_addresses: dict[str, str] = {}
     document_contexts: dict[str, dict | None] = {}
+    project_contexts: dict[str, dict | None] = {}
     session_prompt_ids: dict[str, str | None] = {}
     session_analysis_types: dict[str, str | None] = {}
 
@@ -1366,12 +1409,13 @@ async def websocket_chat_endpoint(
             if not session_id:
                 # Get system_prompt_id from message payload (default to MASTER_DEFAULT)
                 requested_prompt_id = message_data.get("system_prompt_id", "MASTER_DEFAULT")
+                requested_project_id = message_data.get("project_id")
 
                 async with async_session_factory() as db:
                     # Generate title from first message
                     title = None
                     try:
-                        title = await generate_conversation_title(user_content)
+                        title = await generate_conversation_title(user_content, resolved_llm=user_resolved_llm)
                     except Exception:
                         pass
 
@@ -1379,6 +1423,7 @@ async def websocket_chat_endpoint(
                         user_id=user_id,
                         title=title,
                         system_prompt_id=requested_prompt_id,
+                        project_id=requested_project_id,
                     )
                     db.add(chat_session)
                     await db.commit()
@@ -1394,13 +1439,21 @@ async def websocket_chat_endpoint(
                 # Initialize conversation history for new session
                 conversation_histories[session_id] = []
                 document_contexts[session_id] = None
+                project_contexts[session_id] = None
                 session_prompt_ids[session_id] = requested_prompt_id
                 session_analysis_types[session_id] = None
+
+                if requested_project_id:
+                    from app.services.project_context import build_project_context
+                    async with async_session_factory() as db:
+                        project_contexts[session_id] = await build_project_context(
+                            db, requested_project_id
+                        )
 
             # Load conversation history and document context if not cached
             if session_id not in conversation_histories:
                 conversation_histories[session_id] = await load_session_history(session_id)
-                # Load document context and prompt info for analysis sessions
+                # Load document/project context and prompt info for analysis sessions
                 async with async_session_factory() as db:
                     result = await db.execute(
                         select(ChatSession).where(ChatSession.id == session_id)
@@ -1409,22 +1462,32 @@ async def websocket_chat_endpoint(
                     if chat_sess:
                         session_prompt_ids[session_id] = chat_sess.system_prompt_id
                         session_analysis_types[session_id] = chat_sess.analysis_type
-                        if chat_sess.document_context:
+                        if chat_sess.project_id:
+                            from app.services.project_context import build_project_context
+                            project_contexts[session_id] = await build_project_context(
+                                db, chat_sess.project_id
+                            )
+                            document_contexts[session_id] = None
+                        elif chat_sess.document_context:
                             document_contexts[session_id] = chat_sess.document_context
+                            project_contexts[session_id] = None
                             # Pre-set address from document context
                             addr = chat_sess.document_context.get("property_address")
                             if addr:
                                 current_addresses[session_id] = addr
                         else:
                             document_contexts[session_id] = None
+                            project_contexts[session_id] = None
                     else:
                         document_contexts[session_id] = None
+                        project_contexts[session_id] = None
                         session_prompt_ids[session_id] = None
                         session_analysis_types[session_id] = None
 
             conversation_history = conversation_histories[session_id]
             current_address = current_addresses.get(session_id)
             doc_context = document_contexts.get(session_id)
+            proj_context = project_contexts.get(session_id)
             s_prompt_id = session_prompt_ids.get(session_id)
             s_analysis_type = session_analysis_types.get(session_id)
 
@@ -1476,9 +1539,11 @@ async def websocket_chat_endpoint(
                     has_siteusa_credentials=has_siteusa,
                     has_costar_credentials=has_costar,
                     document_context=doc_context,
+                    project_context=proj_context,
                     system_prompt_id=s_prompt_id,
                     analysis_type=s_analysis_type,
                     memory_context=memory_context,
+                    resolved_llm=user_resolved_llm,
                 )
             except Exception as e:
                 error_msg = Message(
@@ -1510,8 +1575,10 @@ async def websocket_chat_endpoint(
                     has_siteusa=has_siteusa,
                     has_costar=has_costar,
                     document_context=doc_context,
+                    project_context=proj_context,
                     system_prompt_id=s_prompt_id,
                     analysis_type=s_analysis_type,
+                    resolved_llm=user_resolved_llm,
                 )
             elif response["content"]:
                 # No tools requested - just send the response

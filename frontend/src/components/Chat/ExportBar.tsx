@@ -10,6 +10,8 @@ interface ExportBarProps {
 export function ExportBar({ sessionId }: ExportBarProps) {
   const [loading, setLoading] = useState<'pdf' | 'csv' | 'share' | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const exportButtonClassName =
+    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] hover:bg-[var(--bg-secondary)] text-xs font-medium text-industrial-secondary transition-colors';
 
   const handleExportPDF = async () => {
     setLoading('pdf');
@@ -82,7 +84,7 @@ export function ExportBar({ sessionId }: ExportBarProps) {
       <button
         onClick={handleExportPDF}
         disabled={loading !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] hover:bg-[var(--bg-secondary)] text-xs font-medium text-industrial-secondary transition-colors"
+        className={exportButtonClassName}
       >
         {loading === 'pdf' ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
         PDF
@@ -91,7 +93,7 @@ export function ExportBar({ sessionId }: ExportBarProps) {
       <button
         onClick={handleExportCSV}
         disabled={loading !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] hover:bg-[var(--bg-secondary)] text-xs font-medium text-industrial-secondary transition-colors"
+        className={exportButtonClassName}
       >
         {loading === 'csv' ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
         CSV
@@ -100,7 +102,7 @@ export function ExportBar({ sessionId }: ExportBarProps) {
       <button
         onClick={handleShare}
         disabled={loading !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent-subtle)] hover:bg-[var(--accent)]/15 text-xs font-medium text-[var(--accent)] transition-colors"
+        className={exportButtonClassName}
       >
         {loading === 'share' ? (
           <Loader2 size={12} className="animate-spin" />

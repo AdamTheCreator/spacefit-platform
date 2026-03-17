@@ -83,15 +83,18 @@ export function useUploadDocument() {
     mutationFn: async ({
       file,
       propertyId,
+      projectId,
       documentType,
     }: {
       file: File;
       propertyId?: string;
+      projectId?: string;
       documentType?: DocumentType;
     }) => {
       const formData = new FormData();
       formData.append('file', file);
       if (propertyId) formData.append('property_id', propertyId);
+      if (projectId) formData.append('project_id', projectId);
       if (documentType) formData.append('document_type', documentType);
 
       const response = await api.post<DocumentUploadResponse>('/documents/upload', formData, {
@@ -103,6 +106,22 @@ export function useUploadDocument() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: documentKeys.all });
+    },
+  });
+}
+
+// Archive / restore document
+export function useArchiveDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, is_archived }: { id: string; is_archived: boolean }) => {
+      const response = await api.patch(`/documents/${id}/archive`, { is_archived });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: documentKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 }

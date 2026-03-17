@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '../components/Layout';
-import { Bell, Shield, Palette, Sparkles, Check, Plus, X, Brain, Trash2, Building2, Users, MapPin } from 'lucide-react';
+import { Bell, Shield, Palette, Sparkles, Check, Plus, X, Brain, Trash2, Building2, Users, MapPin, Cpu, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Trash } from 'lucide-react';
 import {
   usePreferences,
   usePreferencesOptions,
@@ -8,6 +8,14 @@ import {
   type PreferencesUpdate,
 } from '../hooks/usePreferences';
 import { useMemory, useClearMemory } from '../hooks/useMemory';
+import {
+  useAIConfig,
+  useUpdateAIConfig,
+  useValidateKey,
+  useRemoveKey,
+  useProviders,
+  type AIConfigUpdate,
+} from '../hooks/useAIConfig';
 
 function MultiSelect({
   options,
@@ -529,6 +537,278 @@ function MemorySection() {
   );
 }
 
+// Provider display names for the effective model badge
+const PROVIDER_LABELS: Record<string, string> = {
+  anthropic: 'Claude',
+  openai: 'OpenAI',
+  google: 'Gemini',
+  deepseek: 'DeepSeek',
+  openai_compatible: 'Custom',
+  platform_default: 'Platform',
+};
+
+function AIModelSection() {
+  const { data: config, isLoading } = useAIConfig();
+  const { data: providers } = useProviders();
+  const updateMutation = useUpdateAIConfig();
+  const validateMutation = useValidateKey();
+  const removeMutation = useRemoveKey();
+
+  const [expanded, setExpanded] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [apiKey, setApiKey] = useState('');
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [validated, setValidated] = useState(false);
+
+  // Initialize form when config loads
+  const initForm = () => {
+    if (config && config.provider !== 'platform_default') {
+      setSelectedProvider(config.provider);
+      setSelectedModel(config.model || '');
+      setBaseUrl(config.base_url || '');
+    }
+  };
+
+  const currentProvider = providers?.find((p) => p.id === selectedProvider);
+  const showBaseUrl = currentProvider?.requires_base_url;
+
+  const handleProviderChange = (providerId: string) => {
+    setSelectedProvider(providerId);
+    setApiKey('');
+    setValidated(false);
+    const provider = providers?.find((p) => p.id === providerId);
+    setSelectedModel(provider?.default_model || '');
+    setBaseUrl('');
+  };
+
+  const handleValidate = async () => {
+    if (!selectedProvider || !apiKey) return;
+    const result = await validateMutation.mutateAsync({
+      provider: selectedProvider,
+      api_key: apiKey,
+      model: selectedModel || undefined,
+      base_url: baseUrl || undefined,
+    });
+    setValidated(result.valid);
+  };
+
+  const handleSave = async () => {
+    const payload: AIConfigUpdate = {
+      provider: selectedProvider,
+      model: selectedModel || null,
+      api_key: apiKey || undefined,
+      base_url: baseUrl || null,
+    };
+    await updateMutation.mutateAsync(payload);
+    setApiKey('');
+    setExpanded(false);
+  };
+
+  const handleRemoveKey = async () => {
+    await removeMutation.mutateAsync();
+    setSelectedProvider('');
+    setApiKey('');
+    setSelectedModel('');
+    setBaseUrl('');
+    setValidated(false);
+    setExpanded(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="card-industrial animate-pulse">
+        <div className="h-4 bg-[var(--bg-tertiary)] rounded w-48 mb-4"></div>
+        <div className="space-y-3">
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-full"></div>
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-3/4"></div>
+        </div>
+      </div>
+    );
+  }
+
+  const effectiveLabel = config
+    ? `${PROVIDER_LABELS[config.effective_provider] || config.effective_provider} — ${config.effective_model}`
+    : 'Loading...';
+
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
+            <Cpu size={16} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-sm font-semibold text-industrial">AI Model</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-industrial-muted px-2.5 py-1 bg-[var(--bg-tertiary)] rounded-full border border-[var(--border-subtle)]">
+            {effectiveLabel}
+          </span>
+          {config?.has_byok_key && config.is_key_valid && (
+            <span className="text-[10px] text-[var(--color-success)] px-2 py-0.5 bg-[var(--bg-success)] rounded-full">
+              BYOK
+            </span>
+          )}
+        </div>
+      </div>
+
+      <p className="text-sm text-industrial-secondary mb-4 leading-relaxed">
+        {config?.has_byok_key
+          ? 'Using your own API key. Chat requests go directly to your provider.'
+          : 'Using SpaceFit\'s built-in AI. Bring your own key to use any provider.'}
+      </p>
+
+      {/* Expand/collapse toggle */}
+      <button
+        onClick={() => {
+          setExpanded(!expanded);
+          if (!expanded) initForm();
+        }}
+        className="flex items-center gap-2 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent)]/80 transition-colors"
+      >
+        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {config?.has_byok_key ? 'Change model configuration' : 'Configure custom model'}
+      </button>
+
+      {expanded && (
+        <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] space-y-4">
+          {/* Provider select */}
+          <div>
+            <label className="text-sm font-medium text-industrial block mb-2">Provider</label>
+            <select
+              value={selectedProvider}
+              onChange={(e) => handleProviderChange(e.target.value)}
+              className="input-industrial"
+            >
+              <option value="">Select a provider...</option>
+              {providers
+                ?.filter((p) => p.id !== 'platform_default')
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* API key */}
+          {selectedProvider && currentProvider?.requires_key && (
+            <div>
+              <label className="text-sm font-medium text-industrial block mb-2">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                  setValidated(false);
+                }}
+                placeholder={config?.has_byok_key ? '••••••••••••••••' : 'Enter your API key'}
+                className="input-industrial"
+              />
+            </div>
+          )}
+
+          {/* Model select */}
+          {selectedProvider && currentProvider && currentProvider.models.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-industrial block mb-2">Model</label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="input-industrial"
+              >
+                {currentProvider.models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Base URL (only for custom) */}
+          {showBaseUrl && (
+            <div>
+              <label className="text-sm font-medium text-industrial block mb-2">Base URL</label>
+              <input
+                type="text"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://api.example.com/v1"
+                className="input-industrial"
+              />
+            </div>
+          )}
+
+          {/* Validation feedback */}
+          {validateMutation.data && (
+            <div
+              className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
+                validateMutation.data.valid
+                  ? 'bg-[var(--bg-success)] text-[var(--color-success)]'
+                  : 'bg-[var(--bg-error)] text-[var(--color-error)]'
+              }`}
+            >
+              {validateMutation.data.valid ? (
+                <CheckCircle2 size={14} />
+              ) : (
+                <AlertCircle size={14} />
+              )}
+              {validateMutation.data.valid
+                ? `Key validated successfully (${validateMutation.data.model_tested})`
+                : validateMutation.data.error}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={handleValidate}
+              disabled={!selectedProvider || !apiKey || validateMutation.isPending}
+              className="btn-industrial"
+            >
+              {validateMutation.isPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                'Validate'
+              )}
+            </button>
+
+            <button
+              onClick={handleSave}
+              disabled={!validated && !config?.has_byok_key || updateMutation.isPending}
+              className="btn-industrial-primary"
+            >
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check size={14} />
+                  Save
+                </>
+              )}
+            </button>
+
+            {config?.has_byok_key && (
+              <button
+                onClick={handleRemoveKey}
+                disabled={removeMutation.isPending}
+                className="btn-industrial text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--bg-error)] ml-auto"
+              >
+                <Trash size={14} />
+                Remove Key
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   return (
     <AppLayout>
@@ -538,6 +818,9 @@ export function SettingsPage() {
         <div className="space-y-6">
           {/* SpaceFit Memory - Featured at top */}
           <MemorySection />
+
+          {/* AI Model Configuration */}
+          <AIModelSection />
 
           {/* AI Preferences */}
           <AIPreferencesSection />

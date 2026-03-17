@@ -1,19 +1,23 @@
 """
 Document API endpoints for uploading and parsing CRE documents.
 """
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Body, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.config import settings
+from app.core.database import async_session_factory
+
+logger = logging.getLogger("document_processing")
 from app.db.models.document import (
     AvailableSpace,
     DocumentStatus,
@@ -44,6 +48,10 @@ from app.agents.investment_memo import generate_investment_memo, generate_memo_t
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
+class DocumentArchiveUpdate(BaseModel):
+    is_archived: bool
+
+
 def ensure_upload_dir() -> Path:
     """Ensure upload directory exists and return path."""
     upload_path = Path(settings.upload_dir)
@@ -54,20 +62,17 @@ def ensure_upload_dir() -> Path:
 async def process_document_task(
     document_id: str,
     file_path: str,
-    db_url: str,
 ) -> None:
     """
     Background task to process an uploaded document.
 
     Note: This runs in a separate context, so we need a new DB session.
+    Uses the shared async_session_factory from database.py.
     """
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
+    logger.info("Starting document processing for %s", document_id)
 
-    engine = create_async_engine(db_url)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with async_session() as session:
+    async with async_session_factory() as session:
+        document = None
         try:
             # Get the document
             result = await session.execute(
@@ -76,11 +81,13 @@ async def process_document_task(
             document = result.scalar_one_or_none()
 
             if not document:
+                logger.error("Document %s not found in database", document_id)
                 return
 
             # Update status to processing
             document.status = DocumentStatus.PROCESSING.value
             await session.commit()
+            logger.info("Classifying and parsing document %s (%s)", document_id, file_path)
 
             # Parse the document
             parse_result = await parse_document(file_path)
@@ -132,16 +139,21 @@ async def process_document_task(
                     session.add(tenant)
 
             await session.commit()
+            logger.info(
+                "Document %s processed successfully: type=%s, confidence=%.2f",
+                document_id,
+                parse_result["document_type"],
+                parse_result["confidence"],
+            )
 
         except Exception as e:
-            # Update document with error
-            document.status = DocumentStatus.FAILED.value
-            document.error_message = str(e)
-            await session.commit()
+            logger.error("Document %s processing failed: %s", document_id, e, exc_info=True)
+            await session.rollback()
+            if document is not None:
+                document.status = DocumentStatus.FAILED.value
+                document.error_message = str(e)[:500]
+                await session.commit()
             raise
-
-        finally:
-            await engine.dispose()
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
@@ -150,8 +162,9 @@ async def upload_document(
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    property_id: str | None = None,
-    document_type: str | None = None,
+    property_id: str | None = Form(None),
+    project_id: str | None = Form(None),
+    document_type: str | None = Form(None),
 ) -> DocumentUploadResponse:
     """
     Upload a document (PDF or image) for parsing.
@@ -201,11 +214,20 @@ async def upload_document(
     }
     mime_type = mime_types.get(file_ext, "application/octet-stream")
 
+    logger.info(
+        "Received upload %s for user=%s project_id=%s property_id=%s",
+        file.filename,
+        current_user.id,
+        project_id,
+        property_id,
+    )
+
     # Create document record
     doc_type = DocumentType(document_type) if document_type else DocumentType.OTHER
     document = ParsedDocument(
         user_id=current_user.id,
         property_id=property_id,
+        project_id=project_id,
         filename=file.filename or "unknown",
         file_path=str(file_path),
         file_size=len(content),
@@ -223,7 +245,6 @@ async def upload_document(
         process_document_task,
         document.id,
         str(file_path),
-        settings.database_url,
     )
 
     return DocumentUploadResponse(
@@ -242,9 +263,13 @@ async def list_documents(
     page_size: int = Query(default=20, ge=1, le=100),
     document_type: str | None = None,
     status: str | None = None,
+    archived: bool = Query(default=False),
 ) -> DocumentListResponse:
     """List all documents for the current user."""
-    query = select(ParsedDocument).where(ParsedDocument.user_id == current_user.id)
+    query = select(ParsedDocument).where(
+        ParsedDocument.user_id == current_user.id,
+        ParsedDocument.is_archived == archived,
+    )
 
     if document_type:
         query = query.where(ParsedDocument.document_type == document_type)
@@ -372,6 +397,34 @@ async def delete_document(
     return {"message": "Document deleted successfully"}
 
 
+@router.patch("/{document_id}/archive", response_model=ParsedDocumentResponse)
+async def archive_document(
+    document_id: str,
+    data: DocumentArchiveUpdate,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ParsedDocumentResponse:
+    """Archive or restore a document."""
+    result = await db.execute(
+        select(ParsedDocument).where(
+            ParsedDocument.id == document_id,
+            ParsedDocument.user_id == current_user.id,
+        )
+    )
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    document.is_archived = data.is_archived
+    await db.commit()
+    await db.refresh(document)
+    return ParsedDocumentResponse.model_validate(document)
+
+
 @router.post("/{document_id}/reprocess")
 async def reprocess_document(
     document_id: str,
@@ -412,7 +465,6 @@ async def reprocess_document(
         process_document_task,
         document.id,
         document.file_path,
-        settings.database_url,
     )
 
     return DocumentUploadResponse(

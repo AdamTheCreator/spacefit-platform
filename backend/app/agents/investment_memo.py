@@ -16,6 +16,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
+from app.services.user_llm import ResolvedLLM
 
 
 async def generate_investment_memo(
@@ -25,6 +26,7 @@ async def generate_investment_memo(
     void_analysis: dict | None = None,
     financials: dict | None = None,
     additional_notes: str | None = None,
+    resolved_llm: ResolvedLLM | None = None,
 ) -> dict:
     """
     Generate a comprehensive investment memo from multiple data sources.
@@ -192,10 +194,11 @@ Return a JSON object:
 
 Write in a professional but engaging tone. Highlight the positives while being honest about the opportunity. Return valid JSON only."""
 
-    llm = get_llm_client()
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
     response = await llm.chat(
         LLMChatRequest(
-            model=settings.llm_model or settings.anthropic_model,
+            model=model,
             max_tokens=4096,
             system=system_prompt,
             messages=[

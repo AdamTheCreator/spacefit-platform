@@ -747,6 +747,139 @@ Use this as the primary source of truth. Do not ask the user to re-enter this in
     return block.strip()
 
 
+def format_project_context_block(project_context: dict) -> str:
+    """
+    Format an aggregated project context dict into a structured text block
+    suitable for injection into the system prompt.
+    """
+    if not project_context:
+        return ""
+
+    name = project_context.get("project_name", "Untitled Project")
+    instructions = project_context.get("instructions")
+    prop = project_context.get("property", {})
+    documents = project_context.get("documents", [])
+    processing_documents = project_context.get("processing_documents", [])
+    failed_documents = project_context.get("failed_documents", [])
+    tenants = project_context.get("tenants", [])
+    spaces = project_context.get("spaces", [])
+
+    lines = [f"<project-context>", f"## Project: {name}"]
+    lines.append(
+        "You have access to the project's attached document context summarized below."
+    )
+    lines.append(
+        "If the user asks whether you have access to a listed completed document, say yes and refer to it by filename."
+    )
+    lines.append(
+        "If a listed document is still pending or processing, say it is attached to the project but not fully processed yet."
+    )
+    lines.append(
+        "A confidence percentage is extraction confidence, not upload or processing progress."
+    )
+    lines.append(
+        "If a listed completed document includes a content summary below, use that summary directly when the user asks about the document."
+    )
+    lines.append(
+        "If earlier assistant messages in this conversation said a project document was unavailable, but the current project context lists it as completed, treat the earlier message as outdated and correct it."
+    )
+
+    # Custom instructions
+    if instructions:
+        lines.append(f"\n### Custom Instructions\n{instructions}")
+
+    # Property info
+    prop_name = prop.get("name") or name
+    prop_addr = prop.get("address", "Unknown")
+    prop_type = prop.get("property_type", "")
+    total_sf = prop.get("total_sf")
+    parts = [p for p in [prop_type, f"{total_sf:,} SF" if total_sf else None] if p]
+    lines.append(f"\n### Property: {prop_name} — {prop_addr}")
+    if parts:
+        lines.append(" | ".join(parts))
+
+    # Documents list
+    if documents:
+        lines.append(f"\n### Documents ({len(documents)})")
+        for i, doc in enumerate(documents, 1):
+            dt = (doc.get("document_type") or "other").replace("_", " ")
+            status = doc.get("status") or "completed"
+            tc = doc.get("tenant_count", 0)
+            sc = doc.get("space_count", 0)
+            conf = doc.get("confidence_score")
+            processed_at = doc.get("processed_at")
+            conf_str = f", extraction confidence {conf:.0%}" if conf else ""
+            processed_str = f", processed at {processed_at}" if processed_at else ""
+            lines.append(
+                f"{i}. {doc['filename']} ({dt}) — status: {status}{conf_str}{processed_str}; {tc} tenants, {sc} spaces"
+            )
+            content_summary = doc.get("content_summary") or []
+            for item in content_summary[:8]:
+                lines.append(f"   - {item}")
+
+    if processing_documents:
+        lines.append(f"\n### Documents Still Processing ({len(processing_documents)})")
+        for i, doc in enumerate(processing_documents, 1):
+            dt = (doc.get("document_type") or "other").replace("_", " ")
+            lines.append(f"{i}. {doc['filename']} ({dt}) — status: {doc.get('status', 'processing')}")
+
+    if failed_documents:
+        lines.append(f"\n### Documents With Errors ({len(failed_documents)})")
+        for i, doc in enumerate(failed_documents, 1):
+            dt = (doc.get("document_type") or "other").replace("_", " ")
+            error_message = doc.get("error_message") or "Unknown error"
+            lines.append(f"{i}. {doc['filename']} ({dt}) — failed: {error_message}")
+
+    # Aggregated tenants
+    if tenants:
+        lines.append(f"\n### All Known Tenants ({len(tenants)})")
+        for t in tenants:
+            name_t = t.get("name", "Unknown")
+            cat = t.get("category", "")
+            sf = t.get("square_footage")
+            source = t.get("source", "")
+            anchor = " (Anchor)" if t.get("is_anchor") else ""
+            line = f"- {name_t}{anchor}"
+            if cat:
+                line += f" [{cat}]"
+            if sf:
+                line += f" — {sf:,} SF"
+            if source:
+                line += f" (from: {source})"
+            lines.append(line)
+
+    # Available spaces
+    if spaces:
+        lines.append(f"\n### Available Spaces ({len(spaces)})")
+        for s in spaces:
+            suite = s.get("suite_number") or "Space"
+            sf = s.get("square_footage")
+            rent = s.get("asking_rent_psf")
+            rent_type = s.get("rent_type", "")
+            source = s.get("source", "")
+            line = f"- Suite {suite}"
+            if sf:
+                line += f" — {sf:,} SF"
+            if rent:
+                line += f" @ ${rent}/SF"
+            if rent_type:
+                line += f" {rent_type}"
+            if source:
+                line += f" (from: {source})"
+            lines.append(line)
+
+    lines.append("</project-context>")
+
+    block = "\n".join(lines)
+
+    # Hard cap to prevent prompt bloat
+    MAX_CHARS = 32000
+    if len(block) > MAX_CHARS:
+        block = block[:MAX_CHARS] + "\n\n[Project context truncated due to size]\n</project-context>"
+
+    return block
+
+
 def list_prompts() -> list[PromptDefinition]:
     """Return all registered prompts (for admin/debug)."""
     return list(_PROMPT_REGISTRY.values())
