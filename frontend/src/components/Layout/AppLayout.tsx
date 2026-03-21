@@ -16,6 +16,7 @@ import {
   Archive,
   HelpCircle,
   Sparkles,
+  Shield,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -217,6 +218,19 @@ export function AppLayout({ children }: AppLayoutProps) {
               <Archive size={16} />
               <span>Archive</span>
             </Link>
+            {user?.is_admin && (
+              <>
+                <div className="my-1.5 mx-3 border-t border-[var(--border-subtle)]" />
+                <Link
+                  to="/admin"
+                  onClick={() => isMobile && setSidebarOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
+                >
+                  <Shield size={16} />
+                  <span>Admin</span>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
 

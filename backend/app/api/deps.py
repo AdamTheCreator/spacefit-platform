@@ -119,6 +119,20 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 
+async def require_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
+
+
+AdminUser = Annotated[User, Depends(require_admin)]
+
+
 async def get_current_user_ws(token: str, db: AsyncSession) -> User | None:
     """
     Get current user from a token for WebSocket connections.

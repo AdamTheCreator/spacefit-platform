@@ -20,6 +20,7 @@ const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then(m 
 const ProjectChatPage = lazy(() => import('./pages/ProjectChatPage').then(m => ({ default: m.ProjectChatPage })));
 const OutreachPage = lazy(() => import('./pages/OutreachPage').then(m => ({ default: m.OutreachPage })));
 const ArchivedProjectsPage = lazy(() => import('./pages/ArchivedProjectsPage').then(m => ({ default: m.ArchivedProjectsPage })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
@@ -78,6 +79,7 @@ function App() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/connections" element={<ConnectionsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
 
           {/* Catch-all 404 route */}
