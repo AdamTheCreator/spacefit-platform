@@ -8,15 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy application code (needed before pip install — hatchling requires app/ package)
+COPY . .
+
 # Install Python dependencies
-COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 
 # Install Playwright browsers for browser automation
 RUN playwright install chromium && playwright install-deps chromium
-
-# Copy application code
-COPY . .
 
 # Create directories for uploads and browser sessions
 RUN mkdir -p /app/uploads /app/browser_sessions
