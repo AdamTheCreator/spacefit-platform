@@ -20,17 +20,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def _table_exists(name: str) -> bool:
     conn = op.get_bind()
-    result = conn.execute(
-        sa.text("SELECT name FROM sqlite_master WHERE type='table' AND name=:n"),
-        {"n": name},
-    )
-    return result.fetchone() is not None
+    insp = sa.inspect(conn)
+    return name in insp.get_table_names()
 
 
 def _column_exists(table: str, column: str) -> bool:
     conn = op.get_bind()
-    result = conn.execute(sa.text(f"PRAGMA table_info({table})"))
-    return any(row[1] == column for row in result.fetchall())
+    insp = sa.inspect(conn)
+    return any(c["name"] == column for c in insp.get_columns(table))
 
 
 def upgrade() -> None:
