@@ -140,6 +140,7 @@ async def create_project(
         name=data.name,
         description=data.description,
         instructions=data.instructions,
+        property_address=data.property_address,
         is_archived=False,
     )
     db.add(project)

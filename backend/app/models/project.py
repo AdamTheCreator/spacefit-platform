@@ -15,6 +15,7 @@ class ProjectCreate(BaseModel):
     property_id: str | None = None
     description: str | None = None
     instructions: str | None = None
+    property_address: str | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -22,6 +23,7 @@ class ProjectUpdate(BaseModel):
     property_id: str | None = None
     description: str | None = None
     instructions: str | None = None
+    property_address: str | None = None
 
 
 class ChatSessionBrief(BaseModel):
@@ -42,6 +44,7 @@ class ProjectResponse(BaseModel):
     name: str
     description: str | None = None
     instructions: str | None = None
+    property_address: str | None = None
     is_archived: bool = False
     document_count: int = 0
     session_count: int = 0

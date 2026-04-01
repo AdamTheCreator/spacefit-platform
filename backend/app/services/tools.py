@@ -85,10 +85,10 @@ USE THIS TOOL WHEN:
                     "type": "string",
                     "description": "Address of the shopping center or commercial property"
                 },
-                "radius_meters": {
-                    "type": "integer",
-                    "description": "Search radius in meters (default: 500 for focused property search)",
-                    "default": 500
+                "radius_miles": {
+                    "type": "number",
+                    "description": "Trade area radius in miles (default: 1.0 for focused property, use 3-5 for broader trade area)",
+                    "default": 1.0
                 }
             },
             "required": ["address"]
@@ -111,6 +111,11 @@ NOTE: This tool works best when demographics and tenant data have already been g
                 "address": {
                     "type": "string",
                     "description": "Address of the property to analyze"
+                },
+                "radius_miles": {
+                    "type": "number",
+                    "description": "Trade area radius in miles (default: 3.0)",
+                    "default": 3.0
                 }
             },
             "required": ["address"]

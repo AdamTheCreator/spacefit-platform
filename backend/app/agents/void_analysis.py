@@ -194,6 +194,12 @@ async def analyze_voids_for_property(
 
     system_prompt = """You are a commercial real estate void/gap analyst. Your job is to identify missing tenant categories at a retail property based on demographics and existing tenant mix.
 
+IMPORTANT DATA CAVEAT: The existing tenant list comes from Google Places API and may NOT be exhaustive. Google Places can miss businesses, especially in dense markets. When identifying voids:
+- Use cautious language like "no [category] found in our data" rather than absolute claims like "there is no [business]"
+- If a common national chain (e.g., Chipotle, Panera, LA Fitness, Crunch) is not in the tenant list, note that it "was not found in our search data" rather than definitively stating it is absent from the market
+- Focus on categories that are clearly underserved relative to the demographics, rather than claiming specific brands don't exist
+- When suggesting brands, note whether similar concepts already appear in the data
+
 For each void opportunity:
 1. Assess the demographic fit (is there demand?)
 2. Check existing competition (is the category underserved?)

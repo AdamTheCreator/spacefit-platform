@@ -9,6 +9,7 @@ interface CreateProjectModalProps {
 
 export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   const [name, setName] = useState('');
+  const [propertyAddress, setPropertyAddress] = useState('');
   const [description, setDescription] = useState('');
   const navigate = useNavigate();
   const createProject = useCreateProject();
@@ -21,6 +22,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
       const project = await createProject.mutateAsync({
         name: name.trim(),
         description: description.trim() || undefined,
+        property_address: propertyAddress.trim() || undefined,
       });
       onClose();
       navigate(`/projects/${project.id}`);
@@ -60,6 +62,22 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               placeholder="e.g. Westfield Shopping Center"
               className="w-full px-3 py-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)]/50 transition-colors"
               autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-industrial mb-1.5">
+              Property address
+              <span className="text-industrial-muted font-normal ml-1">
+                (optional)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={propertyAddress}
+              onChange={(e) => setPropertyAddress(e.target.value)}
+              placeholder="e.g. 12720 Norwalk Blvd, Norwalk, CA 90650"
+              className="w-full px-3 py-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)]/50 transition-colors"
             />
           </div>
 

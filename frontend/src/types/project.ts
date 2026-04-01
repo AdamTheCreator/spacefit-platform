@@ -17,6 +17,7 @@ export interface Project {
   name: string;
   description: string | null;
   instructions: string | null;
+  property_address: string | null;
   is_archived: boolean;
   document_count: number;
   session_count: number;
@@ -42,6 +43,7 @@ export interface ProjectCreate {
   property_id?: string;
   description?: string;
   instructions?: string;
+  property_address?: string;
 }
 
 export interface ProjectUpdate {
@@ -49,4 +51,5 @@ export interface ProjectUpdate {
   property_id?: string;
   description?: string;
   instructions?: string;
+  property_address?: string;
 }

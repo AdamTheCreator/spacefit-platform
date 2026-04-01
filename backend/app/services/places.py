@@ -5,6 +5,7 @@ Provides real business/tenant data for locations using Google Places API.
 Used by the Tenant Roster Agent to get actual businesses at a location.
 """
 
+import asyncio
 import httpx
 import logging
 from dataclasses import dataclass, field
@@ -256,45 +257,62 @@ async def search_nearby_businesses(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.get(PLACES_NEARBY_URL, params=params)
-            response.raise_for_status()
-            data = response.json()
-
-            if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-                logger.warning("Places API error (status=%s)", data.get("status"))
-                return []
-
             businesses = []
-            for place in data.get("results", []):
-                # Filter out closed businesses
-                status = place.get("business_status", "OPERATIONAL")
-                if status in ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY"):
-                    logger.debug("Filtered closed business: %s (status=%s)", place.get("name"), status)
-                    continue
+            page_count = 0
+            max_pages = 3  # Google allows up to 3 pages (60 results)
 
-                name = place.get("name", "Unknown")
+            while page_count < max_pages:
+                response = await client.get(PLACES_NEARBY_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
 
-                # Filter known-defunct businesses
-                if _is_defunct_business(name):
-                    logger.debug("Filtered defunct business: %s", name)
-                    continue
+                if data.get("status") not in ["OK", "ZERO_RESULTS"]:
+                    logger.warning("Places API error (status=%s)", data.get("status"))
+                    break
 
-                types = place.get("types", [])
-                business = Business(
-                    name=name,
-                    address=place.get("vicinity", ""),
-                    category=_categorize_business(types),
-                    types=types,
-                    rating=place.get("rating"),
-                    user_ratings_total=place.get("user_ratings_total"),
-                    price_level=place.get("price_level"),
-                    is_open=place.get("opening_hours", {}).get("open_now"),
-                    phone=None,  # Not available in nearby search
-                    website=None,  # Not available in nearby search
-                    place_id=place.get("place_id"),
-                    business_status=status,
-                )
-                businesses.append(business)
+                for place in data.get("results", []):
+                    # Filter out closed businesses
+                    status = place.get("business_status", "OPERATIONAL")
+                    if status in ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY"):
+                        logger.debug("Filtered closed business: %s (status=%s)", place.get("name"), status)
+                        continue
+
+                    name = place.get("name", "Unknown")
+
+                    # Filter known-defunct businesses
+                    if _is_defunct_business(name):
+                        logger.debug("Filtered defunct business: %s", name)
+                        continue
+
+                    types = place.get("types", [])
+                    business = Business(
+                        name=name,
+                        address=place.get("vicinity", ""),
+                        category=_categorize_business(types),
+                        types=types,
+                        rating=place.get("rating"),
+                        user_ratings_total=place.get("user_ratings_total"),
+                        price_level=place.get("price_level"),
+                        is_open=place.get("opening_hours", {}).get("open_now"),
+                        phone=None,  # Not available in nearby search
+                        website=None,  # Not available in nearby search
+                        place_id=place.get("place_id"),
+                        business_status=status,
+                    )
+                    businesses.append(business)
+
+                # Follow pagination if available
+                next_page_token = data.get("next_page_token")
+                if not next_page_token:
+                    break
+
+                page_count += 1
+                # Google requires a short delay before the next_page_token becomes valid
+                await asyncio.sleep(2)
+                params = {
+                    "pagetoken": next_page_token,
+                    "key": settings.google_places_api_key,
+                }
 
             return businesses
 
@@ -444,6 +462,8 @@ async def get_area_businesses(
         "shopping_mall",
         "clothing_store",
         "grocery_or_supermarket",
+        "supermarket",
+        "department_store",
         "convenience_store",
         "pharmacy",
         "hardware_store",
@@ -451,11 +471,16 @@ async def get_area_businesses(
         "electronics_store",
         "book_store",
         "pet_store",
+        "home_goods_store",
+        "shoe_store",
+        "jewelry_store",
         # Dining
         "restaurant",
         "cafe",
         "bakery",
         "bar",
+        "meal_takeaway",
+        "meal_delivery",
         # Services
         "bank",
         "gym",
@@ -465,6 +490,10 @@ async def get_area_businesses(
         "real_estate_agency",
         "doctor",
         "dentist",
+        "laundry",
+        "car_wash",
+        "gas_station",
+        "veterinary_care",
     ]
 
     for place_type in business_types:
@@ -562,7 +591,7 @@ No businesses found within the search radius. This could mean:
     rated_businesses = [b for b in location_data.businesses if b.rating]
     if rated_businesses:
         avg_rating = sum(b.rating for b in rated_businesses) / len(rated_businesses)
-        lines.append(f"- Average Rating: ★{avg_rating:.1f}")
+        lines.append(f"- Average Rating: ★{avg_rating:.1f} (avg. Google rating across {len(rated_businesses)} businesses)")
 
     lines.append("\n*Source: Google Places API*")
 

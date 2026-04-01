@@ -431,7 +431,12 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
         address = _get_str(tool_input.get("address"))
         if not address:
             return "Tenant roster lookup requires an address."
-        return await analyze_tenant_roster(address)
+        radius_miles = _clamp_float(
+            _get_float(tool_input.get("radius_miles"), default=1.0),
+            min_value=0.5,
+            max_value=25.0,
+        )
+        return await analyze_tenant_roster(address, radius_miles=radius_miles)
 
     elif tool_name == "void_analysis":
         from app.agents.void_analysis import generate_void_report
@@ -441,10 +446,15 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
         address = _get_str(tool_input.get("address"))
         if not address:
             return "Void analysis requires an address."
+        radius_miles = _clamp_float(
+            _get_float(tool_input.get("radius_miles"), default=3.0),
+            min_value=0.5,
+            max_value=25.0,
+        )
 
         # Gather supporting data for void analysis
         demographics_data = await get_demographics_structured(address)
-        tenants_data = await get_tenants_structured(address)
+        tenants_data = await get_tenants_structured(address, radius_miles=radius_miles)
 
         return await generate_void_report(
             property_address=address,

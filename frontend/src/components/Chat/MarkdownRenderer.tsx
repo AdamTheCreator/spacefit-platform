@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useCallback, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
+import { Copy, Check } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -222,12 +223,47 @@ const markdownComponents: Components = {
     </li>
   ),
 
-  // Tables - fully styled with design tokens
-  table: ({ children }) => (
-    <div className="my-4 overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-      <table className="w-full text-sm min-w-[300px]">{children}</table>
-    </div>
-  ),
+  // Tables - fully styled with design tokens, with copy-as-CSV
+  table: ({ children }) => {
+    const tableRef = useRef<HTMLTableElement>(null);
+    const [copied, setCopied] = useState(false);
+
+    const handleCopyCSV = useCallback(() => {
+      const table = tableRef.current;
+      if (!table) return;
+
+      const rows = table.querySelectorAll('tr');
+      const csvLines: string[] = [];
+      rows.forEach((row) => {
+        const cells = row.querySelectorAll('th, td');
+        const values = Array.from(cells).map((cell) => {
+          const text = (cell.textContent || '').replace(/"/g, '""');
+          return text.includes(',') || text.includes('"') ? `"${text}"` : text;
+        });
+        csvLines.push(values.join(','));
+      });
+
+      navigator.clipboard.writeText(csvLines.join('\n')).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }, []);
+
+    return (
+      <div className="my-4 overflow-x-auto rounded-xl border border-[var(--border-subtle)] group/table relative">
+        <button
+          onClick={handleCopyCSV}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)]
+                     text-industrial-muted hover:text-industrial hover:border-industrial transition-all
+                     opacity-0 group-hover/table:opacity-100"
+          title="Copy table as CSV"
+        >
+          {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+        </button>
+        <table ref={tableRef} className="w-full text-sm min-w-[300px]">{children}</table>
+      </div>
+    );
+  },
   thead: ({ children }) => (
     <thead className="bg-[var(--bg-tertiary)] border-b border-[var(--border-subtle)]">{children}</thead>
   ),

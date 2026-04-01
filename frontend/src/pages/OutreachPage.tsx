@@ -11,7 +11,7 @@ import {
   Search,
 } from 'lucide-react';
 import { AppLayout } from '../components/Layout';
-import { EmailComposer } from '../components/Outreach';
+import { EmailComposer, CampaignDetail } from '../components/Outreach';
 import api from '../lib/axios';
 import type {
   OutreachCampaignListItem,
@@ -49,7 +49,7 @@ export function OutreachPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'all'>('all');
-  const [_selectedCampaign, _setSelectedCampaign] = useState<OutreachCampaign | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<OutreachCampaign | null>(null);
   const [showComposer, setShowComposer] = useState(false);
 
   const fetchCampaigns = async () => {
@@ -211,8 +211,13 @@ export function OutreachPage() {
                 <div
                   key={campaign.id}
                   className="card-industrial hover:border-industrial cursor-pointer transition-colors"
-                  onClick={() => {
-                    // TODO: Open campaign detail modal
+                  onClick={async () => {
+                    try {
+                      const response = await api.get<OutreachCampaign>(`/outreach/campaigns/${campaign.id}`);
+                      setSelectedCampaign(response.data);
+                    } catch (err) {
+                      console.error('Failed to load campaign:', err);
+                    }
                   }}
                 >
                   <div className="flex items-start justify-between">
@@ -321,6 +326,25 @@ export function OutreachPage() {
               onClose={() => setShowComposer(false)}
               onCampaignCreated={() => {
                 setShowComposer(false);
+                fetchCampaigns();
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Campaign Detail Modal */}
+      {selectedCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedCampaign(null)}
+          />
+          <div className="relative w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <CampaignDetail
+              campaign={selectedCampaign}
+              onClose={() => {
+                setSelectedCampaign(null);
                 fetchCampaigns();
               }}
             />

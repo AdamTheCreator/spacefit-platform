@@ -318,7 +318,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   className="w-8 h-8 rounded-lg object-cover"
                 />
                 <span
-                  className={`absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg-secondary)] ${
+                  className={`absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg-secondary)] pointer-events-none ${
                     connectionStatus === 'connected'
                       ? 'bg-emerald-500 animate-pulse-slow'
                       : connectionStatus === 'connecting'

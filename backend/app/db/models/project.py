@@ -42,6 +42,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    property_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
