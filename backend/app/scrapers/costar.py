@@ -38,6 +38,11 @@ class CoStarScraper(BaseScraper):
         return "https://gateway.costar.com"
 
     @property
+    def product_url(self) -> str:
+        """CoStar redirects to product.costar.com after login for all searches."""
+        return "https://product.costar.com"
+
+    @property
     def supported_data_types(self) -> list[DataType]:
         return [DataType.TENANT_DATA, DataType.PROPERTY_INFO]
 
@@ -190,15 +195,15 @@ class CoStarScraper(BaseScraper):
         """Check if the current session is logged in."""
         page = await context.new_page()
         try:
-            # Navigate to a protected page
-            await page.goto(f"{self.site_url}/property/search", timeout=30000)
-            await asyncio.sleep(2)
+            # Navigate to a protected page on the product domain (not gateway)
+            await page.goto(f"{self.product_url}/search", timeout=30000)
+            await asyncio.sleep(3)
 
             # Check if we're still logged in or redirected to login
             current_url = page.url.lower()
 
-            # If we're on login page, not logged in
-            if "login" in current_url or "signin" in current_url or "gateway" in current_url:
+            # If we ended up on the gateway/login page, not logged in
+            if "login" in current_url or "signin" in current_url or "gateway.costar.com" in current_url:
                 return False
 
             # Check for logged-in indicators
@@ -261,7 +266,7 @@ class CoStarScraper(BaseScraper):
 
             # Navigate to property search
             # NOTE: URL pattern needs to be verified with actual CoStar
-            await page.goto(f"{self.site_url}/search?q={address}", timeout=30000)
+            await page.goto(f"{self.product_url}/search?q={address}", timeout=30000)
             await self._wait_for_navigation(page, timeout_ms=15000)
 
             self._report_progress("scrape", 25, "Selecting property...")
@@ -393,7 +398,7 @@ class CoStarScraper(BaseScraper):
         try:
             self._report_progress("scrape", 10, "Searching for property...")
 
-            await page.goto(f"{self.site_url}/search?q={address}", timeout=30000)
+            await page.goto(f"{self.product_url}/search?q={address}", timeout=30000)
             await self._wait_for_navigation(page, timeout_ms=15000)
 
             self._report_progress("scrape", 25, "Selecting property...")

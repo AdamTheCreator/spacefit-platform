@@ -60,19 +60,25 @@ class SiteUSAScraper(BaseScraper):
             self._report_progress("login", 10, "Navigating to login page...")
             await page.goto(f"{self.site_url}/login", wait_until="networkidle")
 
-            # SitesUSA REGIS uses Angular Material components
+            # SitesUSA REGIS uses Angular Material components.
+            # Avoid #mat-input-N IDs — they are auto-generated and change on redeploy.
+            # Prefer attribute-based and type-based selectors for stability.
             email_selectors = [
-                '#mat-input-0',  # REGIS username field
-                'input[type="text"]',
+                'input[formcontrolname="email"]',
+                'input[formcontrolname="username"]',
+                'input[data-cy="email-input"]',
+                'input[data-cy="username-input"]',
                 'input[name="email"]',
-                'input[type="email"]',
                 'input[name="username"]',
+                'input[type="email"]',
+                'input[type="text"]',
             ]
 
             password_selectors = [
-                '#mat-input-1',  # REGIS password field
-                'input[type="password"]',
+                'input[formcontrolname="password"]',
+                'input[data-cy="password-input"]',
                 'input[name="password"]',
+                'input[type="password"]',
             ]
 
             submit_selectors = [

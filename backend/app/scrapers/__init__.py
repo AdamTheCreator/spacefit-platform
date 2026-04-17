@@ -24,7 +24,7 @@ SITE_CONFIGS = {
         "name": "SitesUSA",
         "description": "Demographics, foot traffic, and tenant data",
         "icon": "chart-bar",
-        "url": "https://sitesusa.com",
+        "url": "https://regis.sitesusa.com",
         "data_types": ["demographics", "foot_traffic", "tenant_data", "trade_area"],
         "typical_duration_seconds": 45,
         "is_browser_based": True,

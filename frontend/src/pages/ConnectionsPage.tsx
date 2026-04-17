@@ -55,7 +55,7 @@ const DEFAULT_SITES: SiteConfig[] = [
     name: 'SiteUSA',
     description: 'Demographics, foot traffic, and tenant data',
     icon: 'chart-bar',
-    url: 'https://www.siteusa.com',
+    url: 'https://regis.sitesusa.com',
     data_types: ['demographics', 'foot_traffic', 'tenant_data'],
     typical_duration_seconds: 45,
     is_browser_based: true,
@@ -70,7 +70,7 @@ const DEFAULT_SITES: SiteConfig[] = [
     data_types: ['property_info', 'tenant_data'],
     typical_duration_seconds: 60,
     is_browser_based: true,
-    requires_manual_login: false,
+    requires_manual_login: true, // CoStar blocks headless browsers
     coming_soon: false,
   },
 ];

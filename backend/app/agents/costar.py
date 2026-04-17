@@ -91,48 +91,47 @@ class CoStarTenantAgent(BrowserBasedAgent):
         try:
             self.report_progress("init", 5, "Initializing CoStar connection...")
 
-            # Get browser manager
-            browser_manager = BrowserManager()
+            # Get browser manager singleton
+            manager = await BrowserManager.get_instance()
 
             # Get CoStar scraper
             scraper = get_scraper("costar", progress_callback=self._scraper_progress_adapter)
 
             self.report_progress("browser", 10, "Starting browser session...")
 
-            # Get browser context
-            browser_context = await browser_manager.get_context(user_id)
+            # Get browser context with site name for correct session loading
+            async with manager.get_context(user_id, "costar") as browser_context:
+                # Check if already logged in
+                self.report_progress("login", 15, "Checking login status...")
+                is_logged_in = await scraper.is_logged_in(browser_context)
 
-            # Check if already logged in
-            self.report_progress("login", 15, "Checking login status...")
-            is_logged_in = await scraper.is_logged_in(browser_context)
+                if not is_logged_in:
+                    self.report_progress("login", 20, "Logging into CoStar...")
 
-            if not is_logged_in:
-                self.report_progress("login", 20, "Logging into CoStar...")
+                    # Decrypt credentials
+                    username = decrypt_credential(credential.username_encrypted)
+                    password = decrypt_credential(credential.password_encrypted)
 
-                # Decrypt credentials
-                username = decrypt_credential(credential.username_encrypted)
-                password = decrypt_credential(credential.password_encrypted)
+                    login_success = await scraper.login(browser_context, username, password)
 
-                login_success = await scraper.login(browser_context, username, password)
+                    if not login_success:
+                        return Message(
+                            role=MessageRole.AGENT,
+                            content=(
+                                "Unable to log into CoStar. Please check your credentials "
+                                "in Settings > Connections and try again."
+                            ),
+                            agent_type=self.agent_type,
+                        )
 
-                if not login_success:
-                    return Message(
-                        role=MessageRole.AGENT,
-                        content=(
-                            "Unable to log into CoStar. Please check your credentials "
-                            "in Settings > Connections and try again."
-                        ),
-                        agent_type=self.agent_type,
-                    )
+                self.report_progress("scrape", 40, f"Searching for {address}...")
 
-            self.report_progress("scrape", 40, f"Searching for {address}...")
-
-            # Scrape tenant data
-            result = await scraper.scrape(
-                browser_context,
-                DataType.TENANT_DATA,
-                {"address": address},
-            )
+                # Scrape tenant data
+                result = await scraper.scrape(
+                    browser_context,
+                    DataType.TENANT_DATA,
+                    {"address": address},
+                )
 
             if not result.success:
                 return Message(
@@ -231,38 +230,37 @@ class CoStarPropertyAgent(BrowserBasedAgent):
         try:
             self.report_progress("init", 5, "Initializing CoStar connection...")
 
-            browser_manager = BrowserManager()
+            manager = await BrowserManager.get_instance()
             scraper = get_scraper("costar", progress_callback=self._scraper_progress_adapter)
 
             self.report_progress("browser", 10, "Starting browser session...")
 
-            browser_context = await browser_manager.get_context(user_id)
+            async with manager.get_context(user_id, "costar") as browser_context:
+                self.report_progress("login", 15, "Checking login status...")
+                is_logged_in = await scraper.is_logged_in(browser_context)
 
-            self.report_progress("login", 15, "Checking login status...")
-            is_logged_in = await scraper.is_logged_in(browser_context)
+                if not is_logged_in:
+                    self.report_progress("login", 20, "Logging into CoStar...")
 
-            if not is_logged_in:
-                self.report_progress("login", 20, "Logging into CoStar...")
+                    username = decrypt_credential(credential.username_encrypted)
+                    password = decrypt_credential(credential.password_encrypted)
 
-                username = decrypt_credential(credential.username_encrypted)
-                password = decrypt_credential(credential.password_encrypted)
+                    login_success = await scraper.login(browser_context, username, password)
 
-                login_success = await scraper.login(browser_context, username, password)
+                    if not login_success:
+                        return Message(
+                            role=MessageRole.AGENT,
+                            content="Unable to log into CoStar. Please check your credentials.",
+                            agent_type=self.agent_type,
+                        )
 
-                if not login_success:
-                    return Message(
-                        role=MessageRole.AGENT,
-                        content="Unable to log into CoStar. Please check your credentials.",
-                        agent_type=self.agent_type,
-                    )
+                self.report_progress("scrape", 40, f"Looking up property: {address}...")
 
-            self.report_progress("scrape", 40, f"Looking up property: {address}...")
-
-            result = await scraper.scrape(
-                browser_context,
-                DataType.PROPERTY_INFO,
-                {"address": address},
-            )
+                result = await scraper.scrape(
+                    browser_context,
+                    DataType.PROPERTY_INFO,
+                    {"address": address},
+                )
 
             if not result.success:
                 return Message(
