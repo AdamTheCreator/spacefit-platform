@@ -444,30 +444,6 @@ async def get_user_costar_credential(user_id: str) -> SiteCredential | None:
         return None
 
 
-async def get_best_credential_for_agent(user_id: str, agent_name: str) -> SiteCredential | None:
-    """
-    Get the best available credential for an agent.
-
-    Priority order:
-    - visitor_traffic: Placer.ai (people visiting)
-    - vehicle_traffic: SiteUSA (VPD - cars)
-    - customer_profile: Placer.ai
-    - void_analysis: Placer.ai
-    - demographics: SiteUSA
-    """
-    if agent_name in ("visitor_traffic", "customer_profile", "void_analysis"):
-        # Placer.ai for visitor traffic, customer profiles, void analysis
-        return await get_user_placer_credential(user_id)
-    elif agent_name in ("vehicle_traffic", "demographics"):
-        # SiteUSA for vehicle traffic (VPD) and demographics
-        return await get_user_siteusa_credential(user_id)
-    elif agent_name in ("costar_tenant_roster", "costar_property_info"):
-        # CoStar for tenant rosters with lease details and property info
-        return await get_user_costar_credential(user_id)
-
-    return None
-
-
 async def handle_tool_calls(
     websocket: WebSocket,
     tool_calls: list[dict],
@@ -475,9 +451,7 @@ async def handle_tool_calls(
     user_id: str,
     conversation_history: list[dict[str, str]],
     user_context: str | None,
-    has_placer: bool = False,
-    has_siteusa: bool = False,
-    has_costar: bool = False,
+    has_imported_data: dict[str, bool] | None = None,
     document_context: dict | None = None,
     project_context: dict | None = None,
     system_prompt_id: str | None = None,
@@ -511,14 +485,10 @@ async def handle_tool_calls(
 
     # Map tool names to AgentType for UI
     tool_to_agent_type = {
-        "business_search": AgentType.TENANT_ROSTER,  # Use tenant roster icon for business search
+        "business_search": AgentType.TENANT_ROSTER,
         "demographics_analysis": AgentType.DEMOGRAPHICS,
         "tenant_roster": AgentType.TENANT_ROSTER,
         "void_analysis": AgentType.VOID_ANALYSIS,
-        "visitor_traffic": AgentType.PLACER,
-        "vehicle_traffic": AgentType.SITEUSA,
-        "costar_tenant_roster": AgentType.COSTAR,
-        "costar_property_info": AgentType.COSTAR,
     }
 
     tool_descriptions = {
@@ -526,10 +496,6 @@ async def handle_tool_calls(
         "demographics_analysis": "Analyzing trade area demographics",
         "tenant_roster": "Fetching tenant roster",
         "void_analysis": "Identifying tenant gaps & opportunities",
-        "visitor_traffic": "Pulling foot traffic data",
-        "vehicle_traffic": "Pulling vehicle traffic counts",
-        "costar_tenant_roster": "Pulling CoStar tenant roster",
-        "costar_property_info": "Pulling CoStar property details",
     }
 
     # Create workflow steps for UI
@@ -578,26 +544,9 @@ async def handle_tool_calls(
         tool_input_keys = list(tool_input.keys()) if isinstance(tool_input, dict) else []
         logger.debug("[handle_tools] execute tool=%s input_keys=%s", tool_name, tool_input_keys)
 
-        # Get credential if needed
-        credential = await get_best_credential_for_agent(user_id, tool_name)
-
-        # Preflight: only block if the user explicitly disabled this connector
-        if credential and getattr(credential, "connector_status", None) in _BLOCKED_STATUSES:
-            site_label = credential.site_name.replace("_", " ").title()
-            return {
-                "tool_call_id": tool_call["id"],
-                "tool_name": tool_name,
-                "result": (
-                    f"**{site_label} Connection Disabled**\n\n"
-                    f"The {site_label} connector is disabled. "
-                    "Please open [Connections](/connections) to re-enable it."
-                ),
-                "success": False,
-            }
-
         try:
             result = await asyncio.wait_for(
-                execute_tool(tool_name, tool_input, user_id, credential),
+                execute_tool(tool_name, tool_input, user_id),
                 timeout=TOOL_TIMEOUT_SECONDS,
             )
             logger.debug("[handle_tools] tool=%s result_chars=%d", tool_name, len(result))
@@ -671,9 +620,7 @@ async def handle_tool_calls(
             conversation_history,
             pending_tool_results=pending_results,
             user_context=user_context,
-            has_placer_credentials=has_placer,
-            has_siteusa_credentials=has_siteusa,
-            has_costar_credentials=has_costar,
+            has_imported_data=has_imported_data,
             document_context=document_context,
             project_context=project_context,
             system_prompt_id=system_prompt_id,
@@ -698,8 +645,7 @@ async def handle_tool_calls(
                 user_id=user_id,
                 conversation_history=conversation_history,
                 user_context=user_context,
-                has_placer=has_placer,
-                has_siteusa=has_siteusa,
+                has_imported_data=has_imported_data,
                 document_context=document_context,
                 project_context=project_context,
                 system_prompt_id=system_prompt_id,
@@ -737,7 +683,7 @@ async def websocket_endpoint(
 ) -> None:
     """WebSocket endpoint for real-time chat with Claude orchestrator."""
     from app.core.database import async_session_factory
-    from app.services.orchestrator import get_orchestrator_response, run_agent_async, generate_conversation_title
+    from app.services.orchestrator import get_orchestrator_response, generate_conversation_title
     from app.services.places import resolve_business_to_address, extract_business_query_from_message
     from app.api.preferences import build_personalized_context
     from app.services.memory_service import get_memory_service
@@ -1008,19 +954,15 @@ async def websocket_endpoint(
                             current_address = resolved_address
                             logger.debug("Resolved business query to address")
 
-            # Check user credentials for premium data sources
-            has_placer = await get_user_placer_credential(user_id) is not None
-            has_siteusa = await get_user_siteusa_credential(user_id) is not None
-            has_costar = await get_user_costar_credential(user_id) is not None
+            # Phase 1: hardcoded — Phase 2 wires up real import detection
+            has_imported_data = {"costar": False, "placer": False}
 
             # Get orchestrator response with native tool calling
             try:
                 response = await get_orchestrator_response(
                     conversation_history,
                     user_context=user_context,
-                    has_placer_credentials=has_placer,
-                    has_siteusa_credentials=has_siteusa,
-                    has_costar_credentials=has_costar,
+                    has_imported_data=has_imported_data,
                     document_context=doc_context,
                     project_context=proj_context,
                     system_prompt_id=session_prompt_id,
@@ -1064,9 +1006,7 @@ async def websocket_endpoint(
                     user_id=user_id,
                     conversation_history=conversation_history,
                     user_context=user_context,
-                    has_placer=has_placer,
-                    has_siteusa=has_siteusa,
-                    has_costar=has_costar,
+                    has_imported_data=has_imported_data,
                     document_context=doc_context,
                     project_context=proj_context,
                     system_prompt_id=session_prompt_id,
@@ -1094,217 +1034,17 @@ async def websocket_endpoint(
                     # Add assistant response to history
                     conversation_history.append({"role": "assistant", "content": response["content"]})
 
-            # Legacy: If orchestrator wants to run agents (backward compatibility)
+            # Legacy agent workflow path (browser-based agents removed in Phase 1)
             tools_to_run = response.get("tools_to_run", [])
             if tools_to_run and current_address and not tool_calls:
-                # Create workflow steps
-                workflow: list[WorkflowStep] = []
-                agent_type_map = {
-                    "demographics": AgentType.DEMOGRAPHICS,
-                    "tenant_roster": AgentType.TENANT_ROSTER,
-                    "visitor_traffic": AgentType.PLACER,  # Placer.ai for visitor/foot traffic
-                    "vehicle_traffic": AgentType.SITEUSA,  # SiteUSA for VPD (vehicles per day)
-                    "customer_profile": AgentType.PLACER,  # Placer.ai for customer profiles
-                    "void_analysis": AgentType.VOID_ANALYSIS,
-                }
-
-                # Descriptive labels showing data source and task
-                tool_descriptions = {
-                    "demographics": "Census: Demographics",
-                    "tenant_roster": "Google: Tenant Roster",
-                    "visitor_traffic": "Placer.ai: Visitor Traffic",
-                    "vehicle_traffic": "SiteUSA: Vehicle Traffic (VPD)",
-                    "customer_profile": "Placer.ai: Customer Profile",
-                    "void_analysis": "AI: Void Analysis",
-                }
-
-                for tool in tools_to_run:
-                    if tool in agent_type_map:
-                        workflow.append(
-                            WorkflowStep(
-                                id=str(uuid.uuid4()),
-                                agent_type=agent_type_map[tool],
-                                description=tool_descriptions.get(tool, tool.replace('_', ' ').title()),
-                            )
-                        )
-
-                if workflow:
-                    # Send workflow init
-                    await send_ws_message(
-                        websocket,
-                        "workflow_init",
-                        [step.model_dump(mode="json") for step in workflow],
-                    )
-
-                    await asyncio.sleep(0.3)
-
-                    # Check if void_analysis needs data from other agents
-                    needs_chaining = "void_analysis" in tools_to_run
-                    demographics_data: dict | None = None
-                    tenants_data: list[dict] | None = None
-
-                    # Get credentials for browser-based agents
-                    browser_agents = ["visitor_traffic", "vehicle_traffic", "demographics", "customer_profile", "void_analysis"]
-                    agent_credentials: dict[str, SiteCredential | None] = {}
-
-                    for tool in tools_to_run:
-                        if tool in browser_agents:
-                            agent_credentials[tool] = await get_best_credential_for_agent(user_id, tool)
-                            if agent_credentials[tool]:
-                                logger.debug("Found browser credential tool=%s site=%s", tool, agent_credentials[tool].site_name)
-                            else:
-                                logger.debug("No browser credential tool=%s; using API fallback", tool)
-
-                    # If void analysis is requested, gather supporting data first
-                    if needs_chaining:
-                        from app.services.census import get_demographics_structured
-                        from app.services.places import get_tenants_structured
-
-                        # Gather demographics data
-                        demographics_data = await get_demographics_structured(current_address)
-
-                        # Gather tenant data
-                        tenants_data = await get_tenants_structured(current_address)
-
-                    # Separate agents into parallel-safe and sequential
-                    # void_analysis needs to run last (depends on other data)
-                    parallel_agents = [t for t in tools_to_run if t != "void_analysis"]
-                    has_void_analysis = "void_analysis" in tools_to_run
-
-                    # Mark all parallel agents as running
-                    for tool in parallel_agents:
-                        step = next((s for s in workflow if s.description.lower().replace(" ", "_").replace("running_", "") == tool), None)
-                        if step:
-                            await send_ws_message(
-                                websocket,
-                                "workflow_update",
-                                {"step_id": step.id, "status": WorkflowStepStatus.RUNNING.value, "agent_type": tool},
-                            )
-
-                    # Create tasks for parallel execution
-                    async def run_single_agent(tool: str) -> dict:
-                        credential = agent_credentials.get(tool)
-                        if credential:
-                            result = await run_agent_async(
-                                tool,
-                                current_address,
-                                user_id=user_id,
-                                credential=credential,
-                            )
-                        else:
-                            result = await run_agent_async(tool, current_address)
-                        return {"agent": tool, "result": result}
-
-                    # Run parallel agents concurrently
-                    agent_results = []
-                    if parallel_agents:
-                        parallel_results = await asyncio.gather(
-                            *[run_single_agent(tool) for tool in parallel_agents]
-                        )
-                        agent_results.extend(parallel_results)
-
-                    # Send results for parallel agents
-                    for result_dict in agent_results:
-                        tool = result_dict["agent"]
-                        result = result_dict["result"]
-
-                        # Send agent message
-                        agent_msg = Message(
-                            role=MessageRole.AGENT,
-                            agent_type=agent_type_map.get(tool, AgentType.ORCHESTRATOR),
-                            content=result,
-                        )
-                        await send_ws_message(
-                            websocket, "message", agent_msg.model_dump(mode="json")
-                        )
-
-                        # Save agent message to database
-                        if actual_session_id:
-                            await save_message_to_db(
-                                actual_session_id, "agent", result, tool
-                            )
-
-                        # Mark step as completed
-                        step = next((s for s in workflow if s.description.lower().replace(" ", "_").replace("running_", "") == tool), None)
-                        if step:
-                            await send_ws_message(
-                                websocket,
-                                "workflow_update",
-                                {"step_id": step.id, "status": WorkflowStepStatus.COMPLETED.value},
-                            )
-
-                    # Run void_analysis last if requested (depends on other data)
-                    if has_void_analysis:
-                        void_step = next((s for s in workflow if "void" in s.description.lower()), None)
-                        if void_step:
-                            await send_ws_message(
-                                websocket,
-                                "workflow_update",
-                                {"step_id": void_step.id, "status": WorkflowStepStatus.RUNNING.value, "agent_type": "void_analysis"},
-                            )
-
-                        # Get credential for void analysis (Placer.ai preferred)
-                        void_credential = agent_credentials.get("void_analysis")
-                        void_result = await run_agent_async(
-                            "void_analysis",
-                            current_address,
-                            user_id=user_id,
-                            credential=void_credential,
-                            demographics_data=demographics_data,
-                            tenants_data=tenants_data,
-                        )
-                        agent_results.append({"agent": "void_analysis", "result": void_result})
-
-                        # Send void analysis message
-                        void_msg = Message(
-                            role=MessageRole.AGENT,
-                            agent_type=AgentType.VOID_ANALYSIS,
-                            content=void_result,
-                        )
-                        await send_ws_message(
-                            websocket, "message", void_msg.model_dump(mode="json")
-                        )
-
-                        if actual_session_id:
-                            await save_message_to_db(
-                                actual_session_id, "agent", void_result, "void_analysis"
-                            )
-
-                        if void_step:
-                            await send_ws_message(
-                                websocket,
-                                "workflow_update",
-                                {"step_id": void_step.id, "status": WorkflowStepStatus.COMPLETED.value},
-                            )
-
-                    # Get orchestrator to synthesize results with personalized context
-                    synthesis_response = await get_orchestrator_response(
-                        conversation_history,
-                        pending_tool_results=agent_results,
-                        user_context=user_context,
-                        system_prompt_id=session_prompt_id,
-                        analysis_type=session_analysis_type,
-                        resolved_llm=user_resolved_llm,
-                    )
-
-                    # Send synthesis
-                    synthesis_msg = Message(
-                        role=MessageRole.AGENT,
-                        agent_type=AgentType.ORCHESTRATOR,
-                        content=synthesis_response["content"],
-                    )
-                    await send_ws_message(
-                        websocket, "message", synthesis_msg.model_dump(mode="json")
-                    )
-
-                    # Save synthesis to database
-                    if actual_session_id:
-                        await save_message_to_db(
-                            actual_session_id, "agent", synthesis_response["content"], "orchestrator"
-                        )
-
-                    # Add synthesis to history
-                    conversation_history.append({"role": "assistant", "content": synthesis_response["content"]})
+                legacy_msg = Message(
+                    role=MessageRole.AGENT,
+                    agent_type=AgentType.ORCHESTRATOR,
+                    content="Browser-based agent execution has been removed. Use CSV/PDF imports instead.",
+                )
+                await send_ws_message(websocket, "message", legacy_msg.model_dump(mode="json"))
+                if actual_session_id:
+                    await save_message_to_db(actual_session_id, "agent", legacy_msg.content, "orchestrator")
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected session=%s", session_id)
@@ -1338,7 +1078,7 @@ async def websocket_chat_endpoint(
     - Session created lazily on first message
     """
     from app.core.database import async_session_factory
-    from app.services.orchestrator import get_orchestrator_response, run_agent_async, generate_conversation_title
+    from app.services.orchestrator import get_orchestrator_response, generate_conversation_title
     from app.services.places import resolve_business_to_address, extract_business_query_from_message
     from app.api.preferences import build_personalized_context
     from app.services.memory_service import get_memory_service
@@ -1525,19 +1265,15 @@ async def websocket_chat_endpoint(
                 if current_address:
                     current_addresses[session_id] = current_address
 
-            # Check user credentials for premium data sources
-            has_placer = await get_user_placer_credential(user_id) is not None
-            has_siteusa = await get_user_siteusa_credential(user_id) is not None
-            has_costar = await get_user_costar_credential(user_id) is not None
+            # Phase 1: hardcoded — Phase 2 wires up real import detection
+            has_imported_data = {"costar": False, "placer": False}
 
             # Get orchestrator response (with document context and prompt ID for analysis sessions)
             try:
                 response = await get_orchestrator_response(
                     conversation_history,
                     user_context=user_context,
-                    has_placer_credentials=has_placer,
-                    has_siteusa_credentials=has_siteusa,
-                    has_costar_credentials=has_costar,
+                    has_imported_data=has_imported_data,
                     document_context=doc_context,
                     project_context=proj_context,
                     system_prompt_id=s_prompt_id,
@@ -1571,9 +1307,7 @@ async def websocket_chat_endpoint(
                     user_id=user_id,
                     conversation_history=conversation_history,
                     user_context=user_context,
-                    has_placer=has_placer,
-                    has_siteusa=has_siteusa,
-                    has_costar=has_costar,
+                    has_imported_data=has_imported_data,
                     document_context=doc_context,
                     project_context=proj_context,
                     system_prompt_id=s_prompt_id,
@@ -1591,20 +1325,16 @@ async def websocket_chat_endpoint(
                 await save_message_to_db(session_id, "agent", response["content"], "orchestrator")
                 conversation_history.append({"role": "assistant", "content": response["content"]})
 
-            # Legacy: Run agents if needed (backward compatibility)
+            # Legacy agent workflow path (browser-based agents removed in Phase 1)
             tools_to_run = response.get("tools_to_run", [])
             if tools_to_run and current_address and not tool_calls:
-                await run_agent_workflow(
-                    websocket=websocket,
-                    session_id=session_id,
-                    tools_to_run=tools_to_run,
-                    current_address=current_address,
-                    user_id=user_id,
-                    conversation_history=conversation_history,
-                    user_context=user_context,
-                    system_prompt_id=s_prompt_id,
-                    analysis_type=s_analysis_type,
+                legacy_msg = Message(
+                    role=MessageRole.AGENT,
+                    agent_type=AgentType.ORCHESTRATOR,
+                    content="Browser-based agent execution has been removed. Use CSV/PDF imports instead.",
                 )
+                await send_ws_message(websocket, "message", legacy_msg.model_dump(mode="json"))
+                await save_message_to_db(session_id, "agent", legacy_msg.content, "orchestrator")
 
     except WebSocketDisconnect:
         logger.info("Chat WebSocket disconnected")
@@ -1623,192 +1353,4 @@ async def websocket_chat_endpoint(
         logger.debug("Chat WebSocket cleanup")
 
 
-async def run_agent_workflow(
-    websocket: WebSocket,
-    session_id: str,
-    tools_to_run: list[str],
-    current_address: str,
-    user_id: str,
-    conversation_history: list[dict[str, str]],
-    user_context: str | None,
-    system_prompt_id: str | None = None,
-    analysis_type: str | None = None,
-) -> None:
-    """Run agent workflow and send updates to WebSocket."""
-    from app.services.orchestrator import run_agent_async, get_orchestrator_response
-
-    # Create workflow steps
-    workflow: list[WorkflowStep] = []
-    agent_type_map = {
-        "demographics": AgentType.DEMOGRAPHICS,
-        "tenant_roster": AgentType.TENANT_ROSTER,
-        "visitor_traffic": AgentType.PLACER,  # Placer.ai for visitor/foot traffic
-        "vehicle_traffic": AgentType.SITEUSA,  # SiteUSA for VPD (vehicles per day)
-        "customer_profile": AgentType.PLACER,  # Placer.ai for customer profiles
-        "void_analysis": AgentType.VOID_ANALYSIS,
-    }
-
-    # Descriptive labels showing data source and task
-    tool_descriptions = {
-        "demographics": "Census: Demographics",
-        "tenant_roster": "Google: Tenant Roster",
-        "visitor_traffic": "Placer.ai: Visitor Traffic",
-        "vehicle_traffic": "SiteUSA: Vehicle Traffic (VPD)",
-        "customer_profile": "Placer.ai: Customer Profile",
-        "void_analysis": "AI: Void Analysis",
-    }
-
-    for tool in tools_to_run:
-        if tool in agent_type_map:
-            workflow.append(
-                WorkflowStep(
-                    id=str(uuid.uuid4()),
-                    agent_type=agent_type_map[tool],
-                    description=tool_descriptions.get(tool, tool.replace('_', ' ').title()),
-                )
-            )
-
-    if not workflow:
-        return
-
-    # Send workflow init
-    await send_ws_message(
-        websocket,
-        "workflow_init",
-        [step.model_dump(mode="json") for step in workflow],
-    )
-
-    await asyncio.sleep(0.3)
-
-    # Check for void analysis chaining
-    needs_chaining = "void_analysis" in tools_to_run
-    demographics_data: dict | None = None
-    tenants_data: list[dict] | None = None
-
-    # Get credentials for browser-based agents
-    # Each agent type may have different credential preferences
-    browser_agents = ["foot_traffic", "demographics", "customer_profile", "void_analysis"]
-    agent_credentials: dict[str, SiteCredential | None] = {}
-
-    for tool in tools_to_run:
-        if tool in browser_agents:
-            agent_credentials[tool] = await get_best_credential_for_agent(user_id, tool)
-            if agent_credentials[tool]:
-                logger.debug("Found browser credential tool=%s site=%s", tool, agent_credentials[tool].site_name)
-            else:
-                logger.debug("No browser credential tool=%s; using API fallback", tool)
-
-    # Gather supporting data for void analysis
-    if needs_chaining:
-        from app.services.census import get_demographics_structured
-        from app.services.places import get_tenants_structured
-        demographics_data = await get_demographics_structured(current_address)
-        tenants_data = await get_tenants_structured(current_address)
-
-    # Run parallel agents
-    parallel_agents = [t for t in tools_to_run if t != "void_analysis"]
-    has_void_analysis = "void_analysis" in tools_to_run
-
-    # Mark parallel agents as running
-    for tool in parallel_agents:
-        step = next((s for s in workflow if tool.replace("_", " ").title() in s.description), None)
-        if step:
-            await send_ws_message(
-                websocket,
-                "workflow_update",
-                {"step_id": step.id, "status": WorkflowStepStatus.RUNNING.value, "agent_type": tool},
-            )
-
-    # Run agents
-    async def run_single_agent(tool: str) -> dict:
-        credential = agent_credentials.get(tool)
-        if credential:
-            result = await run_agent_async(tool, current_address, user_id=user_id, credential=credential)
-        else:
-            result = await run_agent_async(tool, current_address)
-        return {"agent": tool, "result": result}
-
-    agent_results = []
-    if parallel_agents:
-        parallel_results = await asyncio.gather(*[run_single_agent(tool) for tool in parallel_agents])
-        agent_results.extend(parallel_results)
-
-    # Send results for parallel agents
-    for result_dict in agent_results:
-        tool = result_dict["agent"]
-        result = result_dict["result"]
-
-        agent_type = agent_type_map.get(tool, AgentType.ORCHESTRATOR)
-        is_intermediate = agent_type != AgentType.ORCHESTRATOR
-        agent_msg = Message(
-            role=MessageRole.AGENT,
-            agent_type=agent_type,
-            content=result,
-            visible=not is_intermediate,
-        )
-        await send_ws_message(websocket, "message", agent_msg.model_dump(mode="json"))
-        await save_message_to_db(session_id, "agent", result, tool, visible=not is_intermediate)
-
-        step = next((s for s in workflow if tool.replace("_", " ").title() in s.description), None)
-        if step:
-            await send_ws_message(
-                websocket,
-                "workflow_update",
-                {"step_id": step.id, "status": WorkflowStepStatus.COMPLETED.value},
-            )
-
-    # Run void analysis last
-    if has_void_analysis:
-        void_step = next((s for s in workflow if "void" in s.description.lower()), None)
-        if void_step:
-            await send_ws_message(
-                websocket,
-                "workflow_update",
-                {"step_id": void_step.id, "status": WorkflowStepStatus.RUNNING.value, "agent_type": "void_analysis"},
-            )
-
-        # Get credential for void analysis (Placer.ai preferred)
-        void_credential = agent_credentials.get("void_analysis")
-        void_result = await run_agent_async(
-            "void_analysis",
-            current_address,
-            user_id=user_id,
-            credential=void_credential,
-            demographics_data=demographics_data,
-            tenants_data=tenants_data,
-        )
-        agent_results.append({"agent": "void_analysis", "result": void_result})
-
-        void_msg = Message(
-            role=MessageRole.AGENT,
-            agent_type=AgentType.VOID_ANALYSIS,
-            content=void_result,
-            visible=False,
-        )
-        await send_ws_message(websocket, "message", void_msg.model_dump(mode="json"))
-        await save_message_to_db(session_id, "agent", void_result, "void_analysis", visible=False)
-
-        if void_step:
-            await send_ws_message(
-                websocket,
-                "workflow_update",
-                {"step_id": void_step.id, "status": WorkflowStepStatus.COMPLETED.value},
-            )
-
-    # Synthesize results
-    synthesis_response = await get_orchestrator_response(
-        conversation_history,
-        pending_tool_results=agent_results,
-        user_context=user_context,
-        system_prompt_id=system_prompt_id,
-        analysis_type=analysis_type,
-    )
-
-    synthesis_msg = Message(
-        role=MessageRole.AGENT,
-        agent_type=AgentType.ORCHESTRATOR,
-        content=synthesis_response["content"],
-    )
-    await send_ws_message(websocket, "message", synthesis_msg.model_dump(mode="json"))
-    await save_message_to_db(session_id, "agent", synthesis_response["content"], "orchestrator")
-    conversation_history.append({"role": "assistant", "content": synthesis_response["content"]})
+# run_agent_workflow removed in Phase 1 rearchitecture -- browser-based agents deleted

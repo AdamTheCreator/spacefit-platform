@@ -1,5 +1,5 @@
 """
-SpaceFit AI Tools Definition
+Perigee AI Tools Definition
 
 Defines all available tools for Claude's native tool calling.
 This replaces the keyword-matching approach with structured tool use.
@@ -8,7 +8,7 @@ This replaces the keyword-matching approach with structured tool use.
 from typing import Any
 
 # Tool definitions following Anthropic's tool_use schema
-SPACEFIT_TOOLS: list[dict[str, Any]] = [
+PERIGEE_TOOLS: list[dict[str, Any]] = [
     {
         "name": "business_search",
         "description": """Search for businesses by type and location using real-time data from Google Places.
@@ -121,121 +121,20 @@ NOTE: This tool works best when demographics and tenant data have already been g
             "required": ["address"]
         }
     },
-    {
-        "name": "visitor_traffic",
-        "description": """Get foot traffic and visitor data for a location (requires Placer.ai credentials).
-
-USE THIS TOOL WHEN:
-- User asks about foot traffic or visitor counts
-- User wants to know how many people visit a location
-- User asks about peak hours or busy times
-- User wants visitor demographics (age, gender, income of visitors)""",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "description": "Address of the location to analyze"
-                }
-            },
-            "required": ["address"]
-        }
-    },
-    {
-        "name": "vehicle_traffic",
-        "description": """Get vehicle traffic counts (VPD - Vehicles Per Day) for a location (requires SiteUSA credentials).
-
-USE THIS TOOL WHEN:
-- User asks about traffic counts or VPD
-- User wants to know vehicle traffic on nearby roads
-- User asks about accessibility or drive-by traffic""",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "description": "Address of the location to analyze"
-                }
-            },
-            "required": ["address"]
-        }
-    },
-    {
-        "name": "costar_tenant_roster",
-        "description": """Get premium tenant roster with lease details (rent PSF, expiration dates, SF) from CoStar. Requires CoStar credentials.
-
-USE THIS TOOL WHEN:
-- User asks for CoStar tenant data or lease details
-- User wants rent per square foot, lease expirations, or tenant square footage
-- User asks about the "CoStar tenant roster" or "lease comps"
-- User mentions CoStar by name and wants tenant information""",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "description": "Address of the property to look up in CoStar"
-                }
-            },
-            "required": ["address"]
-        }
-    },
-    {
-        "name": "costar_property_info",
-        "description": """Get property details (building info, ownership, sale history, occupancy) from CoStar. Requires CoStar credentials.
-
-USE THIS TOOL WHEN:
-- User asks for CoStar property details or building information
-- User wants ownership info, sale history, or occupancy data from CoStar
-- User asks about property owner, year built, or lot size
-- User mentions CoStar by name and wants property information""",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "description": "Address of the property to look up in CoStar"
-                }
-            },
-            "required": ["address"]
-        }
-    },
+    # TODO: costar_import, placer_import, draft_outreach tools will be added in Phase 2
 ]
 
 
 def get_tools_for_context(
-    has_placer_credentials: bool = False,
-    has_siteusa_credentials: bool = False,
-    has_costar_credentials: bool = False,
+    has_imported_data: dict[str, bool] | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Get the list of tools available based on user's credentials.
+    Get the list of tools available based on user's imported data.
 
-    Some tools require premium data source credentials to function.
-    This allows us to only show tools the user can actually use.
+    Phase 2 will add import-gated tools (costar_import, placer_import, draft_outreach).
+    For now, all remaining tools are always available.
     """
-    available_tools = []
-
-    for tool in SPACEFIT_TOOLS:
-        tool_name = tool["name"]
-
-        # These tools are always available (use free APIs)
-        if tool_name in ("business_search", "demographics_analysis", "tenant_roster", "void_analysis"):
-            available_tools.append(tool)
-
-        # Visitor traffic requires Placer.ai
-        elif tool_name == "visitor_traffic" and has_placer_credentials:
-            available_tools.append(tool)
-
-        # Vehicle traffic requires SiteUSA
-        elif tool_name == "vehicle_traffic" and has_siteusa_credentials:
-            available_tools.append(tool)
-
-        # CoStar tools require CoStar credentials
-        elif tool_name in ("costar_tenant_roster", "costar_property_info") and has_costar_credentials:
-            available_tools.append(tool)
-
-    return available_tools
+    return list(PERIGEE_TOOLS)
 
 
 # Query classification to determine if tools should be forced

@@ -287,12 +287,8 @@ async def get_orchestrator_response(
             )
         full_system_prompt += "\n".join(lines)
 
-    # Get available tools based on user credentials
-    tools = get_tools_for_context(
-        has_placer_credentials=_imported.get("placer", False),
-        has_siteusa_credentials=_imported.get("siteusa", False),
-        has_costar_credentials=_imported.get("costar", False),
-    )
+    # Get available tools based on user's imported data
+    tools = get_tools_for_context(has_imported_data=_imported)
 
     # Determine if we should force tool use for this query
     # Don't force tool use if we already have tool results (synthesis phase)
