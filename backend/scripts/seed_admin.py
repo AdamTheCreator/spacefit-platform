@@ -42,7 +42,7 @@ from app.db.models.user import User
 from app.db.models.credential import SiteCredential, OnboardingProgress
 
 
-ADMIN_EMAIL = "admin@spacefit.com"
+ADMIN_EMAIL = "admin@perigee.com"
 ADMIN_FIRST_NAME = "Admin"
 ADMIN_LAST_NAME = "Tester"
 
@@ -231,94 +231,10 @@ async def verify_admin_login():
 
 
 async def verify_connectors():
-    """Verify connector credentials by attempting browser login."""
-    print("Verifying connector credentials...")
-    print("(This uses browser automation and may take 30-60 seconds per connector)")
-    print()
-
-    # Import here to avoid loading browser deps unless needed
-    from app.services.credential_verification import verify_credentials
-
-    async with async_session_factory() as db:
-        # Find admin user
-        result = await db.execute(
-            select(User).where(User.email == ADMIN_EMAIL)
-        )
-        user = result.scalar_one_or_none()
-
-        if not user:
-            print(f"ERROR: Admin user {ADMIN_EMAIL} not found")
-            print("Run 'python -m scripts.seed_admin' first")
-            sys.exit(1)
-
-        # Get all credentials for admin
-        result = await db.execute(
-            select(SiteCredential).where(SiteCredential.user_id == user.id)
-        )
-        credentials = result.scalars().all()
-
-        if not credentials:
-            print("No connector credentials found for admin user")
-            print("Run 'python -m scripts.seed_admin' with connector env vars set")
-            sys.exit(1)
-
-        results = {}
-        for cred in credentials:
-            print(f"Testing {cred.site_name}...", end=" ", flush=True)
-
-            try:
-                username = decrypt_credential(cred.username_encrypted)
-                password = decrypt_credential(cred.password_encrypted)
-
-                def progress_cb(update):
-                    # Simple progress indicator
-                    print(".", end="", flush=True)
-
-                verification = await verify_credentials(
-                    site_name=cred.site_name,
-                    username=username,
-                    password=password,
-                    user_id=user.id,
-                    progress_callback=progress_cb,
-                )
-
-                if verification.success:
-                    print(" SUCCESS")
-                    cred.is_verified = True
-                    cred.session_status = "valid"
-                    cred.last_verified_at = datetime.now(timezone.utc)
-                    results[cred.site_name] = True
-                else:
-                    print(f" FAILED: {verification.message}")
-                    cred.is_verified = False
-                    cred.session_status = "error"
-                    cred.session_error_message = verification.message
-                    results[cred.site_name] = False
-
-            except Exception as e:
-                print(f" ERROR: {str(e)}")
-                cred.session_status = "error"
-                cred.session_error_message = str(e)
-                results[cred.site_name] = False
-
-        await db.commit()
-
-        # Summary
-        print()
-        print("=" * 50)
-        print("Connector Verification Results")
-        print("=" * 50)
-        for site, success in results.items():
-            status = "VERIFIED" if success else "FAILED"
-            print(f"  {site}: {status}")
-
-        all_passed = all(results.values())
-        print()
-        if all_passed:
-            print("All connectors verified successfully!")
-        else:
-            print("Some connectors failed verification. Check credentials and try again.")
-            sys.exit(1)
+    """Verify connector credentials. Browser automation has been removed."""
+    print("Browser-based connector verification has been removed.")
+    print("Data sources now use CSV/PDF imports (Phase 2).")
+    sys.exit(0)
 
 
 def main():

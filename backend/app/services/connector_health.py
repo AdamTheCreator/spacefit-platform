@@ -34,8 +34,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.credential import SiteCredential
 from app.models.credential import ConnectorProbeResponse, ConnectorStatusResponse
-from app.scrapers import SITE_CONFIGS, get_scraper
-from app.services.browser.manager import BrowserManager
 
 logger = logging.getLogger(__name__)
 
@@ -264,54 +262,10 @@ async def run_health_probe(
     new_status = credential.connector_status or "stale"
     message = ""
 
-    async with _probe_semaphore:
-        try:
-            manager = await BrowserManager.get_instance()
-
-            # Only probe if a session file exists — no point opening Playwright
-            # for a connector that has never been logged into.
-            if not manager.has_session(credential.user_id, credential.site_name):
-                new_status = "needs_reauth"
-                message = "No browser session found. Please log in."
-                meta.probe.consecutive_failures += 1
-                meta.probe.last_failure_at = _now_iso()
-            else:
-                scraper = get_scraper(credential.site_name)
-
-                async with manager.get_context(
-                    credential.user_id, credential.site_name
-                ) as browser_context:
-                    logged_in = await asyncio.wait_for(
-                        scraper.is_logged_in(browser_context),
-                        timeout=PROBE_TIMEOUT_SECONDS,
-                    )
-
-                if logged_in:
-                    new_status = "connected"
-                    message = "Session is active."
-                    meta.probe.consecutive_failures = 0
-                    meta.probe.last_success_at = _now_iso()
-                    meta.circuit_breaker = CircuitBreakerState()  # reset
-                else:
-                    new_status = "needs_reauth"
-                    message = "Session expired. Please reconnect."
-                    meta.probe.consecutive_failures += 1
-                    meta.probe.last_failure_at = _now_iso()
-
-        except asyncio.TimeoutError:
-            message = "Probe timed out."
-            meta.probe.consecutive_failures += 1
-            meta.probe.last_failure_at = _now_iso()
-            if meta.probe.consecutive_failures >= CIRCUIT_BREAKER_FAILURE_THRESHOLD:
-                new_status = "error"
-            else:
-                new_status = "needs_reauth"
-
-        except Exception as exc:
-            message = f"Probe error: {str(exc)[:120]}"
-            meta.probe.consecutive_failures += 1
-            meta.probe.last_failure_at = _now_iso()
-            new_status = "needs_reauth"
+    # TODO: Re-implement in Phase 2 (browser/scraper modules were removed)
+    # Browser-based probing is disabled. Mark as stale until re-implemented.
+    new_status = "stale"
+    message = "Browser-based health probes are not available — pending re-implementation."
 
     # Circuit breaker logic
     if meta.probe.consecutive_failures >= CIRCUIT_BREAKER_FAILURE_THRESHOLD:
@@ -361,13 +315,13 @@ async def run_health_probe(
 # ---------------------------------------------------------------------------
 
 def _site_display_name(site_name: str) -> str:
-    config = SITE_CONFIGS.get(site_name, {})
-    return config.get("name", site_name.title())
+    # TODO: Re-implement when scraper configs are restored
+    return site_name.title()
 
 
 def _site_requires_manual_login(site_name: str) -> bool:
-    config = SITE_CONFIGS.get(site_name, {})
-    return config.get("requires_manual_login", False)
+    # TODO: Re-implement when scraper configs are restored
+    return False
 
 
 async def get_all_connector_statuses(

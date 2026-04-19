@@ -98,30 +98,16 @@ def format_property_info(data: dict, address: str) -> str:
 async def get_tenant_roster(address: str, *, user_id: str | None = None, credential=None) -> str:
     """Retrieve a CoStar tenant roster for *address*.
 
-    Currently delegates to the browser-based CoStarTenantAgent.
-    When/if CoStar exposes an API, this function can be swapped to
-    an API-based implementation without touching callers.
+    Previously delegated to browser-based CoStarTenantAgent (now removed).
     """
-    from app.agents.costar import CoStarTenantAgent
-
-    agent = CoStarTenantAgent()
-    result = await agent.execute(
-        "costar_tenant_roster",
-        {"address": address, "user_id": user_id, "credential": credential},
-    )
-    return result.content
+    # TODO: Re-implement in Phase 2 (CoStar agents were removed)
+    raise NotImplementedError("CoStar tenant roster agent is not available — pending re-implementation.")
 
 
 async def get_property_info(address: str, *, user_id: str | None = None, credential=None) -> str:
     """Retrieve CoStar property info for *address*.
 
-    Currently delegates to the browser-based CoStarPropertyAgent.
+    Previously delegated to browser-based CoStarPropertyAgent (now removed).
     """
-    from app.agents.costar import CoStarPropertyAgent
-
-    agent = CoStarPropertyAgent()
-    result = await agent.execute(
-        "costar_property_info",
-        {"address": address, "user_id": user_id, "credential": credential},
-    )
-    return result.content
+    # TODO: Re-implement in Phase 2 (CoStar agents were removed)
+    raise NotImplementedError("CoStar property info agent is not available — pending re-implementation.")

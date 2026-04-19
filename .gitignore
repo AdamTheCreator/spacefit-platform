@@ -68,6 +68,16 @@ Thumbs.db
 # Playwright
 playwright/.cache/
 
+# Browser sessions (legacy)
+backend/browser_sessions/
+
+# Uploads
+backend/uploads/*.pdf
+
+# SQLite databases
+*.db
+!*.db.example
+
 # Misc
 *.bak
 .cache/

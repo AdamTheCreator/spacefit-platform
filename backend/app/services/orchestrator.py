@@ -1,5 +1,5 @@
 """
-SpaceFit AI Orchestrator Service
+Perigee AI Orchestrator Service
 
 Uses Claude's native tool calling to coordinate specialized agents.
 This replaces keyword-matching with structured tool use for reliable data retrieval.
@@ -25,7 +25,7 @@ from app.services.prompt_registry import (
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are the SpaceFit AI assistant, an expert in commercial real estate analysis for shopping malls and retail centers.
+SYSTEM_PROMPT = """You are the Perigee AI assistant, an expert in commercial real estate analysis for shopping malls and retail centers.
 
 Your role is to help users analyze properties and find business information by:
 1. Understanding what property or location they want to analyze
@@ -108,7 +108,7 @@ def build_void_analysis_system_prompt(document_context: dict) -> str:
     total_sf = property_info.get("total_sf", "")
     prop_type = property_info.get("property_type", "")
 
-    prompt = f"""You are the SpaceFit AI Void Analysis Agent, an expert in commercial real estate tenant mix optimization.
+    prompt = f"""You are the Perigee AI Void Analysis Agent, an expert in commercial real estate tenant mix optimization.
 
 You are analyzing a property based on data extracted from an uploaded {doc_type.replace('_', ' ')}. Your goal is to perform a comprehensive void analysis and identify the best tenant categories and specific tenants to fill available spaces.
 
@@ -167,9 +167,7 @@ async def get_orchestrator_response(
     messages: list[dict[str, str]],
     pending_tool_results: list[dict] | None = None,
     user_context: str | None = None,
-    has_placer_credentials: bool = False,
-    has_siteusa_credentials: bool = False,
-    has_costar_credentials: bool = False,
+    has_imported_data: dict[str, bool] | None = None,
     document_context: dict | None = None,
     project_context: dict | None = None,
     system_prompt_id: str | None = None,
@@ -184,7 +182,7 @@ async def get_orchestrator_response(
         messages: Conversation history in Claude format
         pending_tool_results: Results from previously executed tools
         user_context: Personalized context string from user preferences
-        has_*_credentials: Flags indicating which premium data sources are available
+        has_imported_data: Dict mapping data source keys (e.g. "placer", "siteusa", "costar") to connection status
         document_context: Extracted document data for analysis sessions
         system_prompt_id: Explicit prompt ID from the session's system_prompt_id field
         analysis_type: Session analysis_type for fallback prompt resolution
@@ -269,12 +267,13 @@ async def get_orchestrator_response(
         full_system_prompt = full_system_prompt + "\n\n" + redact_secrets(memory_context)
 
     # Inject data source connection status so Claude can guide users to connect
+    _imported = has_imported_data or {}
     disconnected_sources = []
-    if not has_costar_credentials:
+    if not _imported.get("costar"):
         disconnected_sources.append(("CoStar", "lease comps, tenant rosters, and property details"))
-    if not has_placer_credentials:
+    if not _imported.get("placer"):
         disconnected_sources.append(("Placer.ai", "foot traffic and visitor demographics"))
-    if not has_siteusa_credentials:
+    if not _imported.get("siteusa"):
         disconnected_sources.append(("SiteUSA", "vehicle traffic (VPD) and enhanced demographics"))
 
     if disconnected_sources:
@@ -288,12 +287,8 @@ async def get_orchestrator_response(
             )
         full_system_prompt += "\n".join(lines)
 
-    # Get available tools based on user credentials
-    tools = get_tools_for_context(
-        has_placer_credentials=has_placer_credentials,
-        has_siteusa_credentials=has_siteusa_credentials,
-        has_costar_credentials=has_costar_credentials,
-    )
+    # Get available tools based on user's imported data
+    tools = get_tools_for_context(has_imported_data=_imported)
 
     # Determine if we should force tool use for this query
     # Don't force tool use if we already have tool results (synthesis phase)
@@ -439,7 +434,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
         return await analyze_tenant_roster(address, radius_miles=radius_miles)
 
     elif tool_name == "void_analysis":
-        from app.agents.void_analysis import generate_void_report
+        from app.services.void_analysis import generate_void_report
         from app.services.census import get_demographics_structured
         from app.services.places import get_tenants_structured
 
@@ -462,89 +457,9 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
             demographics=demographics_data,
         )
 
-    elif tool_name == "visitor_traffic":
-        # Requires Placer.ai credentials
-        if credential and credential.site_name.lower() == "placer":
-            from app.agents.placer_ai import PlacerAIFootTrafficAgent
-
-            address = _get_str(tool_input.get("address"))
-            if not address:
-                return "Visitor traffic lookup requires an address."
-            agent = PlacerAIFootTrafficAgent()
-            result = await agent.execute(
-                "visitor_traffic",
-                {
-                    "address": address,
-                    "user_id": user_id,
-                    "credential": credential,
-                },
-            )
-            return result.content
-
-        return "Visitor traffic data requires Placer.ai credentials. Please add your Placer.ai credentials in the Connections settings."
-
-    elif tool_name == "vehicle_traffic":
-        # Requires SiteUSA credentials
-        if credential and credential.site_name.lower() == "siteusa":
-            from app.agents.siteusa_demographics import SiteUSAVehicleTrafficAgent
-
-            address = _get_str(tool_input.get("address"))
-            if not address:
-                return "Vehicle traffic lookup requires an address."
-            agent = SiteUSAVehicleTrafficAgent()
-            result = await agent.execute(
-                "vehicle_traffic",
-                {
-                    "address": address,
-                    "user_id": user_id,
-                    "credential": credential,
-                },
-            )
-            return result.content
-
-        return "Vehicle traffic (VPD) data requires SiteUSA credentials. Please add your SiteUSA credentials in the Connections settings."
-
-    elif tool_name == "costar_tenant_roster":
-        # Requires CoStar credentials
-        if credential and credential.site_name.lower() == "costar":
-            from app.agents.costar import CoStarTenantAgent
-
-            address = _get_str(tool_input.get("address"))
-            if not address:
-                return "CoStar tenant roster lookup requires an address."
-            agent = CoStarTenantAgent()
-            result = await agent.execute(
-                "costar_tenant_roster",
-                {
-                    "address": address,
-                    "user_id": user_id,
-                    "credential": credential,
-                },
-            )
-            return result.content
-
-        return "CoStar tenant data requires CoStar credentials. Please add your CoStar credentials in the Connections settings."
-
-    elif tool_name == "costar_property_info":
-        # Requires CoStar credentials
-        if credential and credential.site_name.lower() == "costar":
-            from app.agents.costar import CoStarPropertyAgent
-
-            address = _get_str(tool_input.get("address"))
-            if not address:
-                return "CoStar property info lookup requires an address."
-            agent = CoStarPropertyAgent()
-            result = await agent.execute(
-                "costar_property_info",
-                {
-                    "address": address,
-                    "user_id": user_id,
-                    "credential": credential,
-                },
-            )
-            return result.content
-
-        return "CoStar property data requires CoStar credentials. Please add your CoStar credentials in the Connections settings."
+    # TODO: visitor_traffic, vehicle_traffic, costar_tenant_roster, costar_property_info
+    # branches removed — backing agents (placer_ai, siteusa_demographics, costar) have been
+    # deleted. Re-implement when new data-source integrations land.
 
     else:
         return f"Unknown tool: {tool_name}"
@@ -592,86 +507,3 @@ Reply with only the title, no quotes or punctuation.""",
         return " ".join(words) + ("..." if len(first_message.split()) > 6 else "")
 
 
-# === Legacy functions for backward compatibility ===
-# These will be removed once chat.py is fully migrated
-
-AGENT_SIMULATIONS = {
-    "demographics": lambda address: f"Demographics data for {address} - use new tool calling instead",
-    "tenant_roster": lambda address: f"Tenant data for {address} - use new tool calling instead",
-    "visitor_traffic": lambda address: f"Visitor traffic for {address} - use new tool calling instead",
-    "vehicle_traffic": lambda address: f"Vehicle traffic for {address} - use new tool calling instead",
-    "void_analysis": lambda address: f"Void analysis for {address} - use new tool calling instead",
-}
-
-
-def run_agent(agent_name: str, address: str) -> str:
-    """Legacy sync function - use execute_tool instead."""
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(
-        execute_tool(agent_name, {"address": address})
-    )
-
-
-async def run_agent_async(
-    agent_name: str,
-    address: str,
-    user_id: str | None = None,
-    credential=None,
-    progress_callback=None,
-    demographics_data: dict | None = None,
-    tenants_data: list[dict] | None = None,
-) -> str:
-    """Legacy async function - use execute_tool instead."""
-    # Map old agent names to new tool names
-    tool_mapping = {
-        "demographics": "demographics_analysis",
-        "tenant_roster": "tenant_roster",
-        "visitor_traffic": "visitor_traffic",
-        "vehicle_traffic": "vehicle_traffic",
-        "void_analysis": "void_analysis",
-        "customer_profile": "visitor_traffic",  # Map to visitor_traffic
-    }
-
-    tool_name = tool_mapping.get(agent_name, agent_name)
-    tool_input = {"address": address}
-
-    # Special handling for void_analysis with pre-fetched data
-    if agent_name == "void_analysis" and (demographics_data or tenants_data):
-        from app.agents.void_analysis import generate_void_report
-        return await generate_void_report(
-            property_address=address,
-            existing_tenants=tenants_data,
-            demographics=demographics_data,
-        )
-
-    return await execute_tool(tool_name, tool_input, user_id, credential)
-
-
-def is_browser_based_agent(agent_name: str, credential=None) -> bool:
-    """Check if an agent requires browser automation."""
-    if credential:
-        site = credential.site_name.lower()
-        if site in ("placer", "siteusa", "costar"):
-            return True
-    return False
-
-
-def get_agent_typical_duration(agent_name: str, credential=None) -> int:
-    """Get the typical duration in seconds for an agent."""
-    base_durations = {
-        "demographics_analysis": 5,
-        "demographics": 5,
-        "tenant_roster": 3,
-        "business_search": 3,
-        "void_analysis": 8,
-        "visitor_traffic": 2,
-        "vehicle_traffic": 2,
-        "costar_tenant_roster": 2,
-        "costar_property_info": 2,
-    }
-
-    if credential:
-        # Browser-based agents take longer
-        return 45
-
-    return base_durations.get(agent_name, 5)

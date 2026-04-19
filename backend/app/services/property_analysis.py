@@ -29,8 +29,6 @@ from app.services.places import (
     get_area_businesses,
     Business,
 )
-from app.agents.void_analysis import analyze_voids_for_property
-from app.agents.investment_memo import generate_investment_memo
 
 
 @dataclass
@@ -321,38 +319,13 @@ async def run_comprehensive_analysis(
 
     # Step 4: Run void analysis with real data
     if include_void_analysis:
-        try:
-            void_analysis = await analyze_voids_for_property(
-                address=context.full_address,
-                existing_tenants=context.existing_tenants,
-                demographics=demographics,
-                radius_miles=radius_miles,
-            )
-            result.void_analysis = void_analysis
-        except Exception as e:
-            errors.append(f"Void analysis error: {str(e)}")
+        # TODO: Re-implement in Phase 2 (void_analysis agent was removed)
+        errors.append("Void analysis not available — agent pending re-implementation")
 
     # Step 5: Generate investment memo
     if include_memo:
-        try:
-            memo = await generate_investment_memo(
-                property_info={
-                    "name": context.property_name,
-                    "address": context.address,
-                    "city": context.city,
-                    "state": context.state,
-                    "zip_code": context.zip_code,
-                    "total_sf": context.total_sf,
-                    "available_sf": context.available_sf,
-                    "property_type": context.property_type,
-                },
-                demographics=demographics,
-                tenant_roster=context.existing_tenants,
-                void_analysis=result.void_analysis,
-            )
-            result.investment_memo = memo
-        except Exception as e:
-            errors.append(f"Investment memo error: {str(e)}")
+        # TODO: Re-implement in Phase 2 (investment_memo agent was removed)
+        errors.append("Investment memo not available — agent pending re-implementation")
 
     result.errors = errors if errors else None
     return result
