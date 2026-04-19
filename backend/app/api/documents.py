@@ -42,8 +42,6 @@ from app.services.document_workflow import (
     create_analysis_session_from_document,
     get_or_create_analysis_session,
 )
-from app.agents.void_analysis import analyze_voids_for_property, generate_void_report
-from app.agents.investment_memo import generate_investment_memo, generate_memo_text
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -617,45 +615,11 @@ async def run_void_analysis(
     Returns identified gaps in tenant categories based on demographics
     and existing tenant mix.
     """
-    try:
-        results = await analyze_voids_for_property(
-            address=request.address,
-            existing_tenants=request.existing_tenants,
-            demographics=request.demographics,
-            radius_miles=request.radius_miles,
-        )
-
-        # Calculate summary metrics
-        summary = results.get("summary", {})
-        total_voids = summary.get("total_voids", 0)
-        high_priority = summary.get("high_priority", [])
-
-        # Save to database
-        void_result = VoidAnalysisResult(
-            user_id=current_user.id,
-            radius_miles=request.radius_miles,
-            results=results,
-            total_voids=total_voids,
-            high_priority_voids=len(high_priority),
-        )
-        db.add(void_result)
-        await db.commit()
-        await db.refresh(void_result)
-
-        return VoidAnalysisResponse(
-            id=void_result.id,
-            address=request.address,
-            radius_miles=request.radius_miles,
-            total_voids=total_voids,
-            high_priority_voids=high_priority,
-            results=results,
-        )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to run void analysis: {str(e)}",
-        )
+    # TODO: Re-implement in Phase 2 (void_analysis agent was removed)
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Void analysis agent is not available — pending re-implementation.",
+    )
 
 
 @router.get("/analyze/voids/{address:path}")
@@ -667,17 +631,11 @@ async def get_void_analysis_quick(
     """
     Quick void analysis endpoint - returns formatted text report.
     """
-    try:
-        report = await generate_void_report(
-            property_address=address,
-            radius_miles=radius_miles,
-        )
-        return {"address": address, "report": report}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate void report: {str(e)}",
-        )
+    # TODO: Re-implement in Phase 2 (void_analysis agent was removed)
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Void report generation is not available — pending re-implementation.",
+    )
 
 
 # ============================================================================
@@ -713,55 +671,11 @@ async def generate_investment_memo_endpoint(
 
     Returns structured memo content and formatted text.
     """
-    try:
-        # Generate memo content
-        memo_content = await generate_investment_memo(
-            property_info=request.property_info,
-            demographics=request.demographics,
-            tenant_roster=request.tenant_roster,
-            void_analysis=request.void_analysis,
-            financials=request.financials,
-            additional_notes=request.additional_notes,
-        )
-
-        # Generate text format
-        text_format = await generate_memo_text(
-            property_info=request.property_info,
-            demographics=request.demographics,
-            tenant_roster=request.tenant_roster,
-            void_analysis=request.void_analysis,
-            financials=request.financials,
-            additional_notes=request.additional_notes,
-        )
-
-        # Save to database
-        memo = InvestmentMemoDB(
-            user_id=current_user.id,
-            title=request.title,
-            summary=memo_content.get("executive_summary"),
-            location_highlights={"highlights": memo_content.get("location_highlights", [])},
-            financials=memo_content.get("investment_highlights"),
-            demographics=memo_content.get("demographics_summary"),
-            tenant_interest=memo_content.get("tenant_summary"),
-            scope_of_work=memo_content.get("opportunity_analysis"),
-            is_draft=True,
-        )
-        db.add(memo)
-        await db.commit()
-        await db.refresh(memo)
-
-        return InvestmentMemoCreateResponse(
-            id=memo.id,
-            title=request.title,
-            content=memo_content,
-            text_format=text_format,
-        )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate investment memo: {str(e)}",
-        )
+    # TODO: Re-implement in Phase 2 (investment_memo agent was removed)
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Investment memo generation is not available — pending re-implementation.",
+    )
 
 
 @router.get("/memos")
@@ -1009,49 +923,11 @@ async def generate_loi_endpoint(
     current_user: CurrentUser,
 ) -> dict:
     """Generate a Letter of Intent document."""
-    from app.agents.loi_generator import LOITerms, generate_loi
-    from app.db.models.deal import Property
-
-    property_info: dict = {}
-    if request.property_id:
-        result = await db.execute(
-            select(Property).where(
-                Property.id == request.property_id,
-                Property.user_id == current_user.id,
-            )
-        )
-        prop = result.scalar_one_or_none()
-        if prop:
-            property_info = {
-                "address": prop.address,
-                "city": prop.city,
-                "state": prop.state,
-                "zip_code": prop.zip_code,
-                "property_type": prop.property_type,
-                "total_sf": prop.total_sf,
-                "asking_price": prop.asking_price,
-                "cap_rate": prop.cap_rate,
-                "noi": prop.noi,
-            }
-
-    terms = LOITerms(
-        purchase_price=request.purchase_price,
-        earnest_money=request.earnest_money,
-        earnest_money_type=request.earnest_money_type,
-        due_diligence_days=request.due_diligence_days,
-        closing_days=request.closing_days,
-        financing_contingency=request.financing_contingency,
-        financing_days=request.financing_days,
-        inspection_contingency=request.inspection_contingency,
-        title_contingency=request.title_contingency,
-        buyer_entity=request.buyer_entity,
-        buyer_contact_name=request.buyer_contact_name,
-        buyer_contact_email=request.buyer_contact_email,
-        additional_terms=request.additional_terms,
+    # TODO: Re-implement in Phase 2 (loi_generator agent was removed)
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="LOI generation is not available — pending re-implementation.",
     )
-
-    loi_result = await generate_loi(property_info, terms)
-    return loi_result.to_dict()
 
 
 # ============ PRO FORMA CALCULATOR ============
@@ -1137,7 +1013,7 @@ async def export_tenant_gap_report(
         demographics=request.demographics,
     )
 
-    filename = f"SpaceFit_Report_{request.property_name or 'Property'}.pdf".replace(" ", "_")
+    filename = f"Perigee_Report_{request.property_name or 'Property'}.pdf".replace(" ", "_")
 
     return Response(
         content=pdf_bytes,

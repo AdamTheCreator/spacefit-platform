@@ -9,7 +9,6 @@ from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.customers import router as customers_router
 from app.api.credentials import router as credentials_router
-from app.api.browser_auth import router as browser_auth_router
 from app.api.onboarding import router as onboarding_router
 from app.api.deals import router as deals_router, properties_router, approvals_router
 from app.api.documents import router as documents_router
@@ -26,9 +25,8 @@ from app.api.projects import router as projects_router
 from app.api.ai_config import router as ai_config_router
 from app.api.admin import router as admin_router
 from app.core.config import settings
-from app.core.database import engine, async_session_factory
+from app.core.database import engine
 from app.llm.client import aclose_llm_client
-from app.services.credential_verification import validate_all_sessions_on_startup
 
 import logging
 
@@ -37,15 +35,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Validate all stored connector sessions on startup
-    try:
-        async with async_session_factory() as db:
-            results = await validate_all_sessions_on_startup(db)
-            valid = sum(1 for v in results.values() if v)
-            logger.info(f"Startup session validation: {valid}/{len(results)} connectors valid")
-    except Exception as e:
-        logger.warning(f"Startup session validation failed: {e}")
-
     yield
     await aclose_llm_client()
     await engine.dispose()
@@ -72,7 +61,6 @@ app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(customers_router, prefix=settings.api_prefix)
 app.include_router(credentials_router, prefix=settings.api_prefix)
-app.include_router(browser_auth_router, prefix=settings.api_prefix)
 app.include_router(onboarding_router, prefix=settings.api_prefix)
 app.include_router(deals_router, prefix=settings.api_prefix)
 app.include_router(properties_router, prefix=settings.api_prefix)
@@ -94,7 +82,7 @@ app.include_router(admin_router, prefix=settings.api_prefix)
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "SpaceFit AI API", "version": app.version}
+    return {"message": "Perigee API", "version": app.version}
 
 
 @app.get("/health")
