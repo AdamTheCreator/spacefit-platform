@@ -970,9 +970,12 @@ async def websocket_endpoint(
 
                 try:
                     # Step 1: Plan which specialists to call
+                    planning_context = dict(proj_context) if proj_context else {}
+                    if doc_context:
+                        planning_context["document_context"] = doc_context
                     specialist_plan = await plan_workflow(
                         user_content,
-                        context=proj_context,
+                        context=planning_context or None,
                         resolved_llm=user_resolved_llm,
                     )
                     logger.info("[chat] specialist plan: %s", specialist_plan)
@@ -1025,6 +1028,7 @@ async def websocket_endpoint(
                             context=proj_context,
                             resolved_llm=user_resolved_llm,
                             project_context=proj_context,
+                            document_context=doc_context,
                         )
                         total_input_tokens += spec_result.get("input_tokens", 0)
                         total_output_tokens += spec_result.get("output_tokens", 0)

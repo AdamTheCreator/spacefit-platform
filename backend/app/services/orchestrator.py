@@ -403,6 +403,15 @@ async def plan_workflow(
             context_hint += f"\nUser has {len(context['imports'])} data imports attached."
         if context.get("documents"):
             context_hint += f"\nUser has {len(context['documents'])} documents attached."
+        if context.get("document_context"):
+            doc = context["document_context"]
+            addr = doc.get("property_address", "")
+            spaces = doc.get("available_spaces", [])
+            if addr:
+                context_hint += f"\nProperty already identified: {addr} (from uploaded flyer)."
+            if spaces:
+                context_hint += f"\n{len(spaces)} available spaces extracted from document."
+            context_hint += "\nSkip Scout for property discovery — go straight to Analyst + Matchmaker."
 
     planning_prompt = f"""Given the user's message, decide which specialists to call and in what order.
 
@@ -416,6 +425,8 @@ Common patterns:
 - Find candidates + draft outreach -> scout, analyst, matchmaker, outreach
 - Draft outreach (candidates already known) -> outreach
 - Simple demographic question -> scout
+- Property already uploaded (flyer/document) + find candidates -> analyst, matchmaker
+- Property already uploaded + find candidates + draft outreach -> analyst, matchmaker, outreach
 {context_hint}
 
 Respond with ONLY a comma-separated list of specialist names, in execution order. No explanation.
@@ -449,6 +460,7 @@ async def call_specialist(
     context: dict | None = None,
     resolved_llm: ResolvedLLM | None = None,
     project_context: dict | None = None,
+    document_context: dict | None = None,
 ) -> dict:
     """Run a single specialist pass with its scoped prompt + tool subset.
 
@@ -483,13 +495,19 @@ async def call_specialist(
             continue
         llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
 
-    # Build system prompt with project context
+    # Build system prompt with project context and/or document context
     system_prompt = spec.system_prompt
     if project_context:
         from app.services.prompt_registry import format_project_context_block
         context_block = format_project_context_block(project_context)
         if context_block:
             system_prompt = system_prompt + "\n\n" + redact_secrets(context_block)
+
+    if document_context:
+        from app.services.prompt_registry import format_document_context_block
+        doc_block = format_document_context_block(document_context)
+        if doc_block:
+            system_prompt = system_prompt + "\n\n" + redact_secrets(doc_block)
 
     # Filter tools to only what this specialist is allowed
     all_tools = get_tools_for_context()
