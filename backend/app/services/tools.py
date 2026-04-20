@@ -121,7 +121,101 @@ NOTE: This tool works best when demographics and tenant data have already been g
             "required": ["address"]
         }
     },
-    # TODO: costar_import, placer_import, draft_outreach tools will be added in Phase 2
+    {
+        "name": "costar_import",
+        "description": """Parse a user-uploaded CoStar CSV export (lease comps, tenant roster, or property lookup) into structured property + tenant data.
+
+USE THIS TOOL WHEN:
+- User asks about their CoStar data or uploaded CoStar CSV
+- User references lease comps, tenant rosters, or property data they've imported
+- User says they've uploaded a CoStar file""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "import_job_id": {
+                    "type": "string",
+                    "description": "ID of the user's uploaded CoStar CSV import job"
+                },
+            },
+            "required": ["import_job_id"],
+        },
+    },
+    {
+        "name": "placer_import",
+        "description": """Parse a user-uploaded Placer.ai property report PDF into trade area metrics (visits, demographics, home ZIPs).
+
+USE THIS TOOL WHEN:
+- User asks about their Placer data or uploaded Placer report
+- User references foot traffic, visitor demographics, or trade area data they've imported
+- User says they've uploaded a Placer file""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "import_job_id": {
+                    "type": "string",
+                    "description": "ID of the user's uploaded Placer PDF import job"
+                },
+            },
+            "required": ["import_job_id"],
+        },
+    },
+    {
+        "name": "siteusa_import",
+        "description": """Parse a user-uploaded SiteUSA CSV export into vehicle traffic and demographics data.
+
+USE THIS TOOL WHEN:
+- User asks about their SiteUSA data or uploaded SiteUSA CSV
+- User references vehicle traffic counts (VPD) they've imported
+- User says they've uploaded a SiteUSA file""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "import_job_id": {
+                    "type": "string",
+                    "description": "ID of the user's uploaded SiteUSA CSV import job"
+                },
+            },
+            "required": ["import_job_id"],
+        },
+    },
+    {
+        "name": "draft_outreach",
+        "description": """Draft personalized outreach emails to a list of target tenants for a specific property vacancy. Returns drafts for user review — does NOT send.
+
+USE THIS TOOL WHEN:
+- User asks to draft outreach, emails, or reach out to tenants
+- User wants to contact tenants about a vacancy
+- User says "draft emails" or "create outreach" for a property""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "property_address": {
+                    "type": "string",
+                    "description": "Address of the property with the vacancy"
+                },
+                "vacancy_description": {
+                    "type": "string",
+                    "description": "Suite/SF/use type of the vacancy (e.g. '4,200 SF endcap with drive-thru')"
+                },
+                "target_tenants": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "contact_email": {"type": "string"},
+                            "rationale": {
+                                "type": "string",
+                                "description": "Why this tenant is a fit"
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            "required": ["property_address", "target_tenants"],
+        },
+    },
 ]
 
 

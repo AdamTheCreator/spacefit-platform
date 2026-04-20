@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import { X, Upload, BarChart3, Building2, Users } from 'lucide-react';
+import { X, BarChart3, Building2, Users } from 'lucide-react';
+import { ImportUploadCard } from '../Imports/ImportUploadCard';
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   costar: <Building2 size={20} className="text-purple-400" />,
@@ -44,7 +45,7 @@ export function CredentialModal({ isOpen, onClose, sourceId }: DataSourceModalPr
             </div>
             <div>
               <h2 className="text-base font-semibold text-industrial">Import from {info.name}</h2>
-              <p className="text-xs text-industrial-muted mt-0.5">{info.importType} upload</p>
+              <p className="text-xs text-industrial-muted mt-0.5">{info.importType} upload — saved to library</p>
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg text-industrial-muted hover:text-industrial hover:bg-[var(--hover-overlay)] transition-colors">
@@ -52,16 +53,8 @@ export function CredentialModal({ isOpen, onClose, sourceId }: DataSourceModalPr
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          <p className="text-sm text-industrial-secondary">{info.description}</p>
-
-          <div className="flex items-center justify-center p-8 border-2 border-dashed border-[var(--border-subtle)] rounded-lg bg-[var(--bg-tertiary)]">
-            <div className="text-center">
-              <Upload size={32} className="mx-auto text-industrial-muted mb-2" />
-              <p className="text-sm font-medium text-industrial">Import coming in Phase 2</p>
-              <p className="text-xs text-industrial-muted mt-1">CSV and PDF upload will be available soon</p>
-            </div>
-          </div>
+        <div className="p-5">
+          <ImportUploadCard source={sourceId} onUploadComplete={onClose} />
         </div>
 
         <div className="flex gap-3 p-5 border-t border-[var(--border-subtle)]">

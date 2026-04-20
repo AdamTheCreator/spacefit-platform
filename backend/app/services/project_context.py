@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.document import DocumentStatus, ParsedDocument
+from app.db.models.import_job import ImportJob
 from app.db.models.project import Project
 
 logger = logging.getLogger(__name__)
@@ -237,7 +238,24 @@ async def build_project_context(
         # Fall back to first completed document's property info
         property_info = doc_summaries[0].get("property_info", {})
 
-    if not property_info and not all_documents and not project.instructions:
+    # Load attached imports
+    import_result = await db.execute(
+        select(ImportJob).where(
+            ImportJob.project_id == project_id,
+            ImportJob.status == "ready",
+        ).order_by(ImportJob.created_at.desc())
+    )
+    project_imports = [
+        {
+            "id": j.id,
+            "source": j.source,
+            "filename": j.original_filename,
+            "record_count": j.record_count,
+        }
+        for j in import_result.scalars()
+    ]
+
+    if not property_info and not all_documents and not project.instructions and not project_imports:
         return None
 
     context = {
@@ -277,6 +295,7 @@ async def build_project_context(
         ],
         "tenants": list(seen_tenants.values()),
         "spaces": all_spaces,
+        "imports": project_imports,
     }
 
     return context

@@ -22,6 +22,7 @@ from app.db.models.subscription import (
     UsageType,
 )
 from app.db.models.user_memory import UserMemory
+from app.db.models.import_job import ImportJob
 
 __all__ = [
     "User",
@@ -55,4 +56,5 @@ __all__ = [
     "UsageType",
     "UserMemory",
     "Project",
+    "ImportJob",
 ]

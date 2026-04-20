@@ -457,9 +457,118 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
             demographics=demographics_data,
         )
 
-    # TODO: visitor_traffic, vehicle_traffic, costar_tenant_roster, costar_property_info
-    # branches removed — backing agents (placer_ai, siteusa_demographics, costar) have been
-    # deleted. Re-implement when new data-source integrations land.
+    elif tool_name == "costar_import":
+        import json
+        from app.core.database import async_session_factory
+        from app.db.models.import_job import ImportJob
+
+        job_id = _get_str(tool_input.get("import_job_id"))
+        if not job_id:
+            return "costar_import requires an import_job_id."
+
+        async with async_session_factory() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(ImportJob).where(
+                    ImportJob.id == job_id,
+                    ImportJob.source == "costar",
+                )
+            )
+            job = result.scalar_one_or_none()
+
+        if not job:
+            return f"CoStar import job {job_id} not found."
+        if job.status != "ready":
+            return f"CoStar import job {job_id} is still {job.status}."
+        if not job.parsed_payload_json:
+            return "CoStar import has no parsed data."
+
+        return f"CoStar Import Data ({job.original_filename}):\n{job.parsed_payload_json}"
+
+    elif tool_name == "placer_import":
+        import json
+        from app.core.database import async_session_factory
+        from app.db.models.import_job import ImportJob
+
+        job_id = _get_str(tool_input.get("import_job_id"))
+        if not job_id:
+            return "placer_import requires an import_job_id."
+
+        async with async_session_factory() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(ImportJob).where(
+                    ImportJob.id == job_id,
+                    ImportJob.source == "placer",
+                )
+            )
+            job = result.scalar_one_or_none()
+
+        if not job:
+            return f"Placer import job {job_id} not found."
+        if job.status != "ready":
+            return f"Placer import job {job_id} is still {job.status}."
+        if not job.parsed_payload_json:
+            return "Placer import has no parsed data."
+
+        return f"Placer Trade Area Data ({job.original_filename}):\n{job.parsed_payload_json}"
+
+    elif tool_name == "siteusa_import":
+        import json
+        from app.core.database import async_session_factory
+        from app.db.models.import_job import ImportJob
+
+        job_id = _get_str(tool_input.get("import_job_id"))
+        if not job_id:
+            return "siteusa_import requires an import_job_id."
+
+        async with async_session_factory() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(ImportJob).where(
+                    ImportJob.id == job_id,
+                    ImportJob.source == "siteusa",
+                )
+            )
+            job = result.scalar_one_or_none()
+
+        if not job:
+            return f"SiteUSA import job {job_id} not found."
+        if job.status != "ready":
+            return f"SiteUSA import job {job_id} is still {job.status}."
+        if not job.parsed_payload_json:
+            return "SiteUSA import has no parsed data."
+
+        return f"SiteUSA Traffic Data ({job.original_filename}):\n{job.parsed_payload_json}"
+
+    elif tool_name == "draft_outreach":
+        from app.services.outreach_drafts import draft_outreach_emails
+
+        address = _get_str(tool_input.get("property_address"))
+        if not address:
+            return "draft_outreach requires a property_address."
+
+        vacancy = _get_str(tool_input.get("vacancy_description")) or "Available space"
+        tenants = tool_input.get("target_tenants", [])
+        if not isinstance(tenants, list) or not tenants:
+            return "draft_outreach requires at least one target tenant."
+
+        drafts = await draft_outreach_emails(
+            property_address=address,
+            vacancy_description=vacancy,
+            target_tenants=tenants,
+        )
+
+        lines = [f"## {len(drafts)} Outreach Drafts Generated\n"]
+        for i, d in enumerate(drafts, 1):
+            lines.append(f"### Draft {i}: {d.tenant_name}")
+            lines.append(f"**To:** {d.recipient_email or '(no email provided)'}")
+            lines.append(f"**Subject:** {d.subject}")
+            if d.rationale:
+                lines.append(f"**Rationale:** {d.rationale}")
+            lines.append(f"\n{d.body[:500]}{'...' if len(d.body) > 500 else ''}\n")
+
+        return "\n".join(lines)
 
     else:
         return f"Unknown tool: {tool_name}"
