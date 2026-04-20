@@ -23,7 +23,7 @@ export function LoginPage() {
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-3 h-3 rounded-sm bg-[var(--accent)]" />
           <span className="text-sm font-semibold tracking-wide text-industrial">
-            SpaceFit
+            Perigee
           </span>
         </div>
 
@@ -68,7 +68,7 @@ export function LoginPage() {
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
             <div className="w-2 h-2 rounded-sm bg-[var(--accent)]" />
             <span className="text-sm font-semibold tracking-wide text-industrial">
-              SpaceFit
+              Perigee
             </span>
           </div>
 

@@ -1,4 +1,4 @@
-"""LLM abstraction layer for SpaceFit backend."""
+"""LLM abstraction layer for Perigee backend."""
 
 from app.llm.client import get_llm_client, get_vision_llm_client
 from app.llm.types import (

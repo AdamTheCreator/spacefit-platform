@@ -63,7 +63,7 @@ async def get_user_memory(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> MemoryResponse | None:
     """
-    Get the current user's SpaceFit memory.
+    Get the current user's Perigee memory.
 
     Returns null if no memory exists yet.
     """
@@ -151,7 +151,7 @@ async def clear_user_memory(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """
-    Clear all SpaceFit memory for the current user.
+    Clear all Perigee memory for the current user.
 
     This removes:
     - All analyzed property history

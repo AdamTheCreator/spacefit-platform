@@ -1,5 +1,5 @@
 """
-SpaceFit Guardrail System
+Perigee Guardrail System
 
 Five layers of defense against abuse while preserving full CRE utility:
 1. Message size validation

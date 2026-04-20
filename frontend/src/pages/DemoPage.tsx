@@ -72,7 +72,7 @@ export function DemoPage() {
             </svg>
           </div>
           <div>
-            <h1 className="font-mono text-lg font-bold tracking-tight text-industrial">SpaceFit AI</h1>
+            <h1 className="font-mono text-lg font-bold tracking-tight text-industrial">Perigee</h1>
             <p className="font-mono text-[10px] text-industrial-muted uppercase tracking-wide">Interactive Demo - {DEMO_PROPERTY.name}</p>
           </div>
         </div>
@@ -142,7 +142,7 @@ export function DemoPage() {
             </div>
 
             <h2 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-3">
-              Welcome to SpaceFit AI Demo
+              Welcome to Perigee Demo
             </h2>
 
             <p className="font-mono text-sm text-industrial-secondary max-w-lg mb-6">

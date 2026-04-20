@@ -19,7 +19,7 @@ export function RegisterPage() {
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-2 h-2 bg-[var(--accent)]" />
           <span className="font-mono text-xs font-bold tracking-[0.2em] uppercase text-industrial">
-            SpaceFit
+            Perigee
           </span>
         </div>
 
