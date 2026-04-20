@@ -24,6 +24,10 @@ const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const SearchPage = lazy(() => import('./pages/ComingSoonPage').then(m => ({ default: m.SearchPage })));
+const AnalyticsPage = lazy(() => import('./pages/ComingSoonPage').then(m => ({ default: m.AnalyticsPage })));
+const InsightsPage = lazy(() => import('./pages/ComingSoonPage').then(m => ({ default: m.InsightsPage })));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
@@ -64,9 +68,13 @@ function App() {
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
+            <Route path="/" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+            <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
             <Route path="/chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="/chat/:sessionId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
             <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/pipeline/:dealId" element={<PipelinePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
