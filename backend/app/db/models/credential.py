@@ -171,6 +171,10 @@ class UserAIConfig(Base):
     # Custom endpoint for DeepSeek, local LLMs, etc.
     base_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Per-specialist model overrides (JSON):
+    # {"orchestrator": "claude-sonnet-4-6-...", "scout": "claude-haiku-4-5-...", ...}
+    specialist_models_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Validation status
     is_key_valid: Mapped[bool] = mapped_column(Boolean, default=False)
     key_validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

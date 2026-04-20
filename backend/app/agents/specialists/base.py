@@ -22,8 +22,8 @@ class SpecialistConfig:
 # These are verified against the Anthropic API as of 2026-04.
 MODEL_TIER_MAP: dict[str, str] = {
     "fast": "claude-haiku-4-5-20251001",
-    "balanced": "claude-sonnet-4-20250514",
-    "deep": "claude-sonnet-4-20250514",
+    "balanced": "claude-sonnet-4-6-20260320",
+    "deep": "claude-sonnet-4-6-20260320",
 }
 
 

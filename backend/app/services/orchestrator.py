@@ -460,10 +460,14 @@ async def call_specialist(
     request_id = uuid.uuid4().hex[:8]
     spec = get_specialist(name)
 
-    # Resolve model: BYOK overrides tier default
+    # Resolve model: per-specialist override > BYOK default > tier default
     if resolved_llm:
         llm = resolved_llm.client
-        effective_model = resolved_llm.model
+        # Check for per-specialist model override
+        if resolved_llm.specialist_models and name in resolved_llm.specialist_models:
+            effective_model = resolved_llm.specialist_models[name]
+        else:
+            effective_model = resolved_llm.model
     else:
         llm = get_llm_client()
         effective_model = resolve_model_for_tier(spec.default_model_tier)

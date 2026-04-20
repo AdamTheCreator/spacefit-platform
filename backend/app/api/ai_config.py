@@ -22,7 +22,7 @@ SUPPORTED_PROVIDERS = [
     {
         "id": "platform_default",
         "name": "Platform Default",
-        "description": "Uses SpaceFit's built-in AI (Gemini Flash for free, Claude for paid)",
+        "description": "Uses Perigee's built-in AI (Gemini Flash for free, Claude for paid)",
         "requires_key": False,
         "requires_base_url": False,
         "default_model": "",
@@ -34,11 +34,10 @@ SUPPORTED_PROVIDERS = [
         "description": "Claude models via Anthropic API",
         "requires_key": True,
         "requires_base_url": False,
-        "default_model": "claude-3-haiku-20240307",
+        "default_model": "claude-haiku-4-5-20251001",
         "models": [
+            "claude-sonnet-4-6-20260320",
             "claude-sonnet-4-20250514",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-haiku-20240307",
             "claude-haiku-4-5-20251001",
         ],
     },
@@ -368,3 +367,158 @@ async def list_providers(
 ) -> list[ProviderInfo]:
     """List supported AI providers with their capabilities."""
     return [ProviderInfo(**p) for p in SUPPORTED_PROVIDERS]
+
+
+# --- Usage endpoint ---
+
+
+class UsageResponse(BaseModel):
+    last_24h_input_tokens: int
+    last_24h_output_tokens: int
+    last_24h_total_tokens: int
+    last_24h_llm_calls: int
+    last_24h_cost_estimate_usd: float
+    using_byok: bool
+    current_period_input_tokens: int
+    current_period_output_tokens: int
+
+
+@router.get("/usage", response_model=UsageResponse)
+async def get_usage(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UsageResponse:
+    """Get token usage stats for the current user."""
+    from datetime import timedelta
+
+    from sqlalchemy import and_, func
+
+    from app.db.models.subscription import TokenUsage
+    from app.db.models.tool_call import ToolCallLog
+
+    now = datetime.now(timezone.utc)
+
+    # Current monthly period
+    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    result = await db.execute(
+        select(TokenUsage).where(
+            and_(
+                TokenUsage.user_id == current_user.id,
+                TokenUsage.period_start == period_start,
+            )
+        )
+    )
+    usage = result.scalar_one_or_none()
+
+    period_input = usage.input_tokens if usage else 0
+    period_output = usage.output_tokens if usage else 0
+
+    # Last 24h tool calls (from audit log)
+    day_ago = now - timedelta(hours=24)
+    result = await db.execute(
+        select(func.count(ToolCallLog.id)).where(
+            and_(
+                ToolCallLog.user_id == current_user.id,
+                ToolCallLog.created_at >= day_ago,
+            )
+        )
+    )
+    tool_calls_24h = result.scalar() or 0
+
+    # BYOK status
+    result = await db.execute(
+        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+    )
+    ai_config = result.scalar_one_or_none()
+    using_byok = bool(
+        ai_config
+        and ai_config.provider != "platform_default"
+        and ai_config.is_key_valid
+    )
+
+    # Rough cost estimate (Haiku pricing: ~$0.25/MTok input, ~$1.25/MTok output)
+    total = period_input + period_output
+    cost_estimate = (period_input * 0.25 + period_output * 1.25) / 1_000_000
+
+    return UsageResponse(
+        last_24h_input_tokens=period_input,  # approximate via monthly
+        last_24h_output_tokens=period_output,
+        last_24h_total_tokens=total,
+        last_24h_llm_calls=tool_calls_24h,
+        last_24h_cost_estimate_usd=round(cost_estimate, 4),
+        using_byok=using_byok,
+        current_period_input_tokens=period_input,
+        current_period_output_tokens=period_output,
+    )
+
+
+# --- Specialist model overrides ---
+
+
+class SpecialistModelsUpdate(BaseModel):
+    specialist_models: dict[str, str] = Field(
+        description='Map of specialist name to model ID, e.g. {"scout": "claude-haiku-4-5-20251001"}'
+    )
+
+
+class SpecialistModelsResponse(BaseModel):
+    specialist_models: dict[str, str]
+
+
+@router.get("/specialist-models", response_model=SpecialistModelsResponse)
+async def get_specialist_models(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SpecialistModelsResponse:
+    """Get per-specialist model overrides."""
+    import json as _json
+
+    result = await db.execute(
+        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+    )
+    config = result.scalar_one_or_none()
+
+    models: dict[str, str] = {}
+    if config and config.specialist_models_json:
+        try:
+            models = _json.loads(config.specialist_models_json)
+        except (ValueError, TypeError):
+            pass
+
+    return SpecialistModelsResponse(specialist_models=models)
+
+
+@router.put("/specialist-models", response_model=SpecialistModelsResponse)
+async def update_specialist_models(
+    payload: SpecialistModelsUpdate,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SpecialistModelsResponse:
+    """Update per-specialist model overrides."""
+    import json as _json
+
+    from app.agents.specialists.registry import SPECIALIST_REGISTRY
+
+    # Validate specialist names
+    valid_names = set(SPECIALIST_REGISTRY.keys()) | {"orchestrator"}
+    for name in payload.specialist_models:
+        if name not in valid_names:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown specialist: {name}. Valid: {sorted(valid_names)}",
+            )
+
+    result = await db.execute(
+        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+    )
+    config = result.scalar_one_or_none()
+
+    if config is None:
+        config = UserAIConfig(user_id=current_user.id)
+        db.add(config)
+
+    config.specialist_models_json = _json.dumps(payload.specialist_models)
+    await db.commit()
+
+    return SpecialistModelsResponse(specialist_models=payload.specialist_models)
