@@ -160,7 +160,7 @@ def wrap_links_for_tracking(
     Args:
         html_body: Original HTML email body
         tracking_id: Recipient's tracking ID
-        base_url: Base URL for the tracking server (e.g., https://api.spacefit.ai)
+        base_url: Base URL for the tracking server (e.g., https://api.perigee.ai)
 
     Returns:
         HTML body with wrapped links
