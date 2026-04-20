@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, CurrentUser
+from app.core.config import settings
 from app.core.security import verify_token, decrypt_credential
 from app.db.models.user import User
 from app.db.models.chat import ChatSession, ChatMessage
@@ -956,6 +957,147 @@ async def websocket_endpoint(
 
             # Phase 1: hardcoded — Phase 2 wires up real import detection
             has_imported_data = {"costar": False, "placer": False}
+
+            # ----------------------------------------------------------
+            # Specialist routing (Phase 3) vs monolithic orchestrator
+            # ----------------------------------------------------------
+            if settings.enable_specialist_routing:
+                from app.services.orchestrator import (
+                    plan_workflow,
+                    call_specialist,
+                    synthesize_specialist_outputs,
+                )
+
+                try:
+                    # Step 1: Plan which specialists to call
+                    specialist_plan = await plan_workflow(
+                        user_content,
+                        context=proj_context,
+                        resolved_llm=user_resolved_llm,
+                    )
+                    logger.info("[chat] specialist plan: %s", specialist_plan)
+
+                    # Send workflow init to frontend
+                    specialist_steps = [
+                        WorkflowStep(
+                            id=f"specialist-{name}",
+                            agent_type=AgentType.ORCHESTRATOR,
+                            description=f"{name.title()} analyzing...",
+                        )
+                        for name in specialist_plan
+                    ]
+                    if specialist_steps:
+                        await send_ws_message(
+                            websocket,
+                            "workflow_init",
+                            [step.model_dump(mode="json") for step in specialist_steps],
+                        )
+
+                    # Step 2: Call each specialist in sequence
+                    specialist_outputs: list[dict] = []
+                    total_input_tokens = 0
+                    total_output_tokens = 0
+
+                    for i, spec_name in enumerate(specialist_plan):
+                        step_id = f"specialist-{spec_name}"
+                        await send_ws_message(
+                            websocket,
+                            "workflow_update",
+                            {"step_id": step_id, "status": WorkflowStepStatus.RUNNING.value},
+                        )
+
+                        # Build messages for this specialist: include prior specialist outputs
+                        spec_messages = list(conversation_history)
+                        for prev_output in specialist_outputs:
+                            if prev_output.get("content"):
+                                spec_messages.append({
+                                    "role": "assistant",
+                                    "content": f"[{prev_output['specialist'].title()} findings]:\n{prev_output['content']}",
+                                })
+                                spec_messages.append({
+                                    "role": "user",
+                                    "content": "Continue the analysis using the above findings.",
+                                })
+
+                        spec_result = await call_specialist(
+                            name=spec_name,
+                            messages=spec_messages,
+                            context=proj_context,
+                            resolved_llm=user_resolved_llm,
+                            project_context=proj_context,
+                        )
+                        total_input_tokens += spec_result.get("input_tokens", 0)
+                        total_output_tokens += spec_result.get("output_tokens", 0)
+
+                        # Handle tool calls from this specialist
+                        if spec_result.get("tool_calls"):
+                            await handle_tool_calls(
+                                websocket=websocket,
+                                tool_calls=spec_result["tool_calls"],
+                                session_id=actual_session_id,
+                                user_id=user_id,
+                                conversation_history=spec_messages,
+                                user_context=user_context,
+                                has_imported_data=has_imported_data,
+                                document_context=doc_context,
+                                project_context=proj_context,
+                                system_prompt_id=session_prompt_id,
+                                analysis_type=session_analysis_type,
+                                resolved_llm=user_resolved_llm,
+                            )
+
+                        specialist_outputs.append(spec_result)
+
+                        await send_ws_message(
+                            websocket,
+                            "workflow_update",
+                            {"step_id": step_id, "status": WorkflowStepStatus.COMPLETED.value},
+                        )
+
+                    # Step 3: Synthesize
+                    if len(specialist_outputs) > 1 or not specialist_outputs[0].get("content"):
+                        synthesis = await synthesize_specialist_outputs(
+                            user_message=user_content,
+                            specialist_outputs=specialist_outputs,
+                            conversation_history=conversation_history,
+                            resolved_llm=user_resolved_llm,
+                            project_context=proj_context,
+                        )
+                        total_input_tokens += synthesis.get("input_tokens", 0)
+                        total_output_tokens += synthesis.get("output_tokens", 0)
+                        final_content = synthesis["content"]
+                    else:
+                        # Single specialist — use its output directly
+                        final_content = specialist_outputs[0].get("content", "")
+
+                    await record_token_usage(user_id, total_input_tokens, total_output_tokens)
+                    if not session_usage_counted:
+                        session_usage_counted = True
+                        await increment_session_usage(user_id)
+
+                    if final_content:
+                        synth_msg = Message(
+                            role=MessageRole.AGENT,
+                            agent_type=AgentType.ORCHESTRATOR,
+                            content=final_content,
+                        )
+                        await send_ws_message(websocket, "message", synth_msg.model_dump(mode="json"))
+                        if actual_session_id:
+                            await save_message_to_db(actual_session_id, "agent", final_content, "orchestrator")
+                        conversation_history.append({"role": "assistant", "content": final_content})
+
+                except Exception as e:
+                    logger.exception("[chat] specialist routing failed: %s", e)
+                    error_msg = Message(
+                        role=MessageRole.SYSTEM,
+                        content=f"I'm having trouble connecting to my AI backend. Error: {str(e)}",
+                    )
+                    await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
+                continue
+
+            # ----------------------------------------------------------
+            # Monolithic orchestrator path (default, feature flag off)
+            # ----------------------------------------------------------
 
             # Get orchestrator response with native tool calling
             try:

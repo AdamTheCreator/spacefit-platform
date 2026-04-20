@@ -2,6 +2,7 @@ import type { AgentType, WorkflowStep } from '../../types/chat';
 
 // Agent configuration with softer colors
 const AGENT_CONFIG: Record<string, { name: string; shortName: string; color: string; bgColor: string }> = {
+  // Legacy tool-level agents
   'demographics': { name: 'Demographics', shortName: 'Demo', color: 'bg-[var(--accent)]', bgColor: 'bg-[var(--accent-subtle)]' },
   'tenant-roster': { name: 'Tenant Roster', shortName: 'Tenants', color: 'bg-[var(--color-success)]', bgColor: 'bg-[var(--bg-success)]' },
   'void-analysis': { name: 'Tenant Gap Analysis', shortName: 'Gaps', color: 'bg-[var(--color-error)]', bgColor: 'bg-[var(--bg-error)]' },
@@ -10,6 +11,11 @@ const AGENT_CONFIG: Record<string, { name: string; shortName: string; color: str
   'orchestrator': { name: 'Assistant', shortName: 'Main', color: 'bg-[var(--accent)]', bgColor: 'bg-[var(--accent-subtle)]' },
   'placer': { name: 'Placer.ai', shortName: 'Placer', color: 'bg-[var(--color-success)]', bgColor: 'bg-[var(--bg-success)]' },
   'siteusa': { name: 'SiteUSA', shortName: 'SiteUSA', color: 'bg-[var(--color-warning)]', bgColor: 'bg-[var(--bg-warning)]' },
+  // Specialist agents (Phase 3)
+  'specialist-scout': { name: 'Scout', shortName: 'Scout', color: 'bg-blue-500', bgColor: 'bg-blue-500/10' },
+  'specialist-analyst': { name: 'Analyst', shortName: 'Analyst', color: 'bg-purple-500', bgColor: 'bg-purple-500/10' },
+  'specialist-matchmaker': { name: 'Matchmaker', shortName: 'Match', color: 'bg-amber-500', bgColor: 'bg-amber-500/10' },
+  'specialist-outreach': { name: 'Outreach', shortName: 'Outreach', color: 'bg-emerald-500', bgColor: 'bg-emerald-500/10' },
 };
 
 interface AgentStatusStripProps {
@@ -77,7 +83,8 @@ export function AgentStatusStrip({
 
           {/* Agent chips - softer pill style */}
           {workflowSteps.map((step) => {
-            const config = AGENT_CONFIG[step.agentType] || {
+            // Prefer specialist-specific config (keyed by step.id), fall back to agentType
+            const config = AGENT_CONFIG[step.id] || AGENT_CONFIG[step.agentType] || {
               name: step.agentType,
               shortName: step.agentType.slice(0, 4),
               color: 'bg-[var(--text-muted)]',
