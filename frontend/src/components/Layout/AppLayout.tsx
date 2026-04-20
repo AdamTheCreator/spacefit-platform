@@ -83,7 +83,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const menuItems = useMemo(() => [
     { path: '/profile', label: 'Profile' },
     { path: '/customers', label: 'Customers' },
-    { path: '/connections', label: 'Connections' },
+    { path: '/connections', label: 'Data Library' },
     { path: '/settings', label: 'Settings' },
     { action: 'logout', label: 'Sign out' },
   ], []);
@@ -284,14 +284,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-[var(--border-subtle)] space-y-0.5">
           <a
-            href="mailto:support-spacefit@agentmail.to"
+            href="mailto:support-perigee@agentmail.to"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <HelpCircle size={16} />
             <span>Support</span>
           </a>
           <div className="px-3 pt-2">
-             <p className="text-[10px] text-industrial-muted">SpaceFit v{import.meta.env.VITE_APP_VERSION}</p>
+             <p className="text-[10px] text-industrial-muted">Perigee v{import.meta.env.VITE_APP_VERSION}</p>
           </div>
         </div>
       </div>
@@ -313,8 +313,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link to="/chat" className="flex items-center gap-2.5 ml-2 group">
               <div className="relative w-8 h-8 flex items-center justify-center">
                 <img
-                  src="/spacefit-mark.svg"
-                  alt="SpaceFit logo"
+                  src="/perigee-mark.svg"
+                  alt="Perigee logo"
                   className="w-8 h-8 rounded-lg object-cover"
                 />
                 <span
@@ -335,7 +335,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 />
               </div>
               <span className="text-sm font-bold tracking-tight text-industrial group-hover:text-[var(--accent)] transition-colors">
-                SpaceFit
+                Perigee
               </span>
             </Link>
           </div>
@@ -404,7 +404,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     tabIndex={focusedIndex === 2 ? 0 : -1}
                   >
                     <Key size={16} />
-                    <span>Connections</span>
+                    <span>Data Library</span>
                   </Link>
 
                   <Link

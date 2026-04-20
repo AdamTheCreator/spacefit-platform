@@ -24,6 +24,7 @@ from app.api.feedback import router as feedback_router
 from app.api.projects import router as projects_router
 from app.api.ai_config import router as ai_config_router
 from app.api.admin import router as admin_router
+from app.api.imports import router as imports_router
 from app.core.config import settings
 from app.core.database import engine
 from app.llm.client import aclose_llm_client
@@ -78,6 +79,7 @@ app.include_router(feedback_router, prefix=settings.api_prefix)
 app.include_router(projects_router, prefix=settings.api_prefix)
 app.include_router(ai_config_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
+app.include_router(imports_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

@@ -6,6 +6,7 @@ import { useArchiveDocument, useDeleteDocument } from '../../hooks/useDocuments'
 import { useUploadStore, type UploadItem } from '../../stores/uploadStore';
 import { DocumentCard } from './DocumentCard';
 import { ProjectDocumentPreviewModal } from './ProjectDocumentPreviewModal';
+import { ImportUploadCard } from '../Imports/ImportUploadCard';
 import type { ProjectDetail } from '../../types/project';
 import type { DocumentUploadResponse, ParsedDocument } from '../../types/document';
 import api from '../../lib/axios';
@@ -308,6 +309,27 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
               Upload documents
             </button>
           )}
+
+          {/* Data Imports */}
+          <div className="mt-4">
+            <h3 className="text-[11px] font-bold text-industrial-muted uppercase tracking-widest mb-2">
+              Data Imports
+            </h3>
+            <div className="space-y-2">
+              {(['costar', 'placer', 'siteusa'] as const).map((source) => (
+                <ImportUploadCard
+                  key={source}
+                  source={source}
+                  projectId={project.id}
+                  onUploadComplete={() => {
+                    queryClient.invalidateQueries({
+                      queryKey: projectKeys.detail(project.id),
+                    });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
 
           {/* Upload progress */}
           {activeUploadItems.length > 0 && (

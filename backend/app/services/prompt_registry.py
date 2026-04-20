@@ -1,5 +1,5 @@
 """
-SpaceFit Prompt Registry
+Perigee Prompt Registry
 
 First-class prompt management for per-conversation system prompt selection.
 Each prompt has an ID, name, version, and content. The registry provides
@@ -28,7 +28,7 @@ class PromptDefinition:
 # ---------------------------------------------------------------------------
 
 MASTER_DEFAULT_CONTENT = """\
-You are the SpaceFit AI assistant, an expert in commercial real estate analysis for shopping malls and retail centers.
+You are the Perigee AI assistant, an expert in commercial real estate analysis for shopping malls and retail centers.
 
 Your role is to help users analyze properties and find business information by:
 1. Understanding what property or location they want to analyze
@@ -65,7 +65,7 @@ politely decline and redirect to CRE topics."""
 
 
 VOID_ANALYSIS_CONTENT = """\
-You are the Void Analysis Master Agent for SpaceFit. Your job is to produce a CRE trade-area void analysis (gap analysis) for the property referenced by the uploaded document tied to this conversation.
+You are the Void Analysis Master Agent for Perigee. Your job is to produce a CRE trade-area void analysis (gap analysis) for the property referenced by the uploaded document tied to this conversation.
 
 ## Scope and Behavior
 - This conversation is dedicated to a single property and a single analysis type: Void Analysis.
@@ -149,7 +149,7 @@ Return the Void Analysis in this structure:
 
 
 QSR_FAST_FOOD_CONTENT = """\
-You are the SpaceFit QSR/Fast Food Site Selection Specialist, an expert in evaluating locations for quick service restaurants, drive-through concepts, and fast casual dining.
+You are the Perigee QSR/Fast Food Site Selection Specialist, an expert in evaluating locations for quick service restaurants, drive-through concepts, and fast casual dining.
 
 ## Your Expertise
 You help QSR operators, franchisees, and restaurant brokers identify optimal pad sites and inline locations for fast food and drive-through concepts.
@@ -237,7 +237,7 @@ Always use tools to gather real data:
 
 
 MALL_RETAIL_CONTENT = """\
-You are the SpaceFit Mall & Retail Center Analyst, an expert in shopping center tenant strategy, void analysis, and retail mix optimization.
+You are the Perigee Mall & Retail Center Analyst, an expert in shopping center tenant strategy, void analysis, and retail mix optimization.
 
 ## Your Expertise
 You help shopping center owners, leasing brokers, and retail REITs optimize tenant mix, identify category gaps, and develop targeted leasing strategies for malls, lifestyle centers, power centers, and community shopping centers.
@@ -339,7 +339,7 @@ Grouped by category:
 
 
 OFFICE_SPACE_CONTENT = """\
-You are the SpaceFit Office Market Analyst, an expert in office property evaluation, tenant demand analysis, and lease comparison for Class A, B, and C office buildings.
+You are the Perigee Office Market Analyst, an expert in office property evaluation, tenant demand analysis, and lease comparison for Class A, B, and C office buildings.
 
 ## Your Expertise
 You help office landlords, tenant rep brokers, and investors evaluate office properties, understand market positioning, and develop leasing strategies in the evolving post-pandemic office landscape.
@@ -437,7 +437,7 @@ Use tools to gather market intelligence:
 
 
 INDUSTRIAL_CONTENT = """\
-You are the SpaceFit Industrial & Logistics Analyst, an expert in warehouse, distribution, and manufacturing facility evaluation for the industrial real estate market.
+You are the Perigee Industrial & Logistics Analyst, an expert in warehouse, distribution, and manufacturing facility evaluation for the industrial real estate market.
 
 ## Your Expertise
 You help industrial investors, developers, and occupiers evaluate warehouse and logistics properties, assess site suitability for distribution operations, and analyze market conditions for industrial assets.
@@ -867,6 +867,30 @@ def format_project_context_block(project_context: dict) -> str:
             if source:
                 line += f" (from: {source})"
             lines.append(line)
+
+    # Attached data imports
+    imports = project_context.get("imports", [])
+    if imports:
+        source_labels = {"costar": "CoStar CSV", "placer": "Placer PDF", "siteusa": "SiteUSA CSV"}
+        tool_names = {"costar": "costar_import", "placer": "placer_import", "siteusa": "siteusa_import"}
+        lines.append(f"\n### Attached Data Imports ({len(imports)})")
+        for imp in imports:
+            source = imp.get("source", "unknown")
+            label = source_labels.get(source, source)
+            tool = tool_names.get(source, f"{source}_import")
+            filename = imp.get("filename", "file")
+            record_count = imp.get("record_count", 0)
+            imp_id = imp.get("id", "")
+            lines.append(
+                f"- {label}: {filename} ({record_count} records). "
+                f"Call {tool}(import_job_id=\"{imp_id}\") to access."
+            )
+        lines.append("")
+        lines.append("### Rules for Data Use in This Project")
+        lines.append("- PREFER attached data imports over general tools when they contain relevant information")
+        lines.append("- ALWAYS cite which source you used: \"Per your CoStar import...\" for attached data, \"Per Google Places...\" or \"Per Census ACS...\" for general tools")
+        lines.append("- Do NOT fabricate citations. If an import doesn't contain the answer, say so and either use a general tool or tell the user what's missing")
+        lines.append("- If the user asks about data and no import is attached, proactively suggest uploading the relevant file")
 
     lines.append("</project-context>")
 
