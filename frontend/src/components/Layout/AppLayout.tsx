@@ -283,6 +283,32 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-[var(--border-subtle)] space-y-0.5">
+          {/* Upgrade card — always shown; /pricing handles current-plan state */}
+          <Link
+            to="/pricing"
+            onClick={() => isMobile && setSidebarOpen(false)}
+            className="block relative mb-2 rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-cream,var(--bg-tertiary))] hover:shadow-sm transition-shadow group"
+          >
+            <img
+              src="/mascots/goose-solar.webp"
+              alt=""
+              aria-hidden="true"
+              className="absolute -right-3 -bottom-3 w-24 h-24 object-contain select-none pointer-events-none opacity-95"
+              draggable={false}
+            />
+            <div className="relative z-10 p-3 pr-16 max-w-[160px]">
+              <p className="font-display text-[12px] font-semibold text-industrial leading-tight">
+                Ready for more orbit?
+              </p>
+              <p className="text-[11px] text-industrial-secondary leading-snug mt-1">
+                Unlimited chats, imports, and outreach on Pro.
+              </p>
+              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-[var(--accent)] group-hover:underline">
+                Upgrade →
+              </span>
+            </div>
+          </Link>
+
           <a
             href="mailto:support-perigee@agentmail.to"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"

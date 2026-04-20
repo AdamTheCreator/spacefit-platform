@@ -23,7 +23,7 @@ export function NotFoundPage() {
           {/* Off-course: Navigator goose + planet */}
           <div className="mb-6">
             <img
-              src="/mascots/goose-planet.png"
+              src="/mascots/goose-planet.webp"
               alt=""
               className="w-48 h-48 mx-auto object-contain select-none"
               draggable={false}
