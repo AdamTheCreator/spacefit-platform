@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Upload, Link2, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { CheckCircle, Upload, Link2, ArrowRight, ArrowLeft, Loader2, Key } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../lib/axios';
 
-type OnboardingStep = 'welcome' | 'import' | 'connect' | 'complete';
+type OnboardingStep = 'welcome' | 'import' | 'connect' | 'ai_key' | 'complete';
 
-const STEPS: OnboardingStep[] = ['welcome', 'import', 'connect', 'complete'];
+const STEPS: OnboardingStep[] = ['welcome', 'import', 'connect', 'ai_key', 'complete'];
 
 const AVAILABLE_AGENTS = [
   {
@@ -41,6 +41,9 @@ export function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
+  const [byokKey, setByokKey] = useState('');
+  const [byokValidating, setByokValidating] = useState(false);
+  const [byokResult, setByokResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
   const currentIndex = STEPS.indexOf(currentStep);
 
@@ -77,6 +80,34 @@ export function OnboardingPage() {
     handleNext();
   };
 
+  const handleByokSubmit = async () => {
+    if (!byokKey.trim()) return;
+    setByokValidating(true);
+    setByokResult(null);
+    try {
+      // Save the key
+      await api.put('/ai-config', {
+        provider: 'anthropic',
+        api_key: byokKey.trim(),
+        model: 'claude-haiku-4-5-20251001',
+      });
+      // Validate it
+      const res = await api.post('/ai-config/validate-key', {
+        provider: 'anthropic',
+        api_key: byokKey.trim(),
+        model: 'claude-haiku-4-5-20251001',
+      });
+      setByokResult(res.data);
+      if (res.data.valid) {
+        setTimeout(() => handleNext(), 800);
+      }
+    } catch {
+      setByokResult({ valid: false, error: 'Failed to validate key' });
+    } finally {
+      setByokValidating(false);
+    }
+  };
+
   const toggleAgent = (agentId: string) => {
     setSelectedAgents((prev) =>
       prev.includes(agentId)
@@ -104,7 +135,7 @@ export function OnboardingPage() {
                 <span className="text-4xl">👋</span>
               </div>
               <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">
-                Welcome to SpaceFit AI, {user?.first_name || 'there'}!
+                Welcome to Perigee AI, {user?.first_name || 'there'}!
               </h1>
               <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
                 Let&apos;s get you set up. This will only take a few minutes and you can
@@ -241,6 +272,73 @@ export function OnboardingPage() {
             </div>
           )}
 
+          {/* AI Key Step */}
+          {currentStep === 'ai_key' && (
+            <div>
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center mx-auto mb-4">
+                  <Key className="text-[var(--accent)]" size={28} />
+                </div>
+                <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">
+                  Bring your own AI key
+                </h2>
+                <p className="font-mono text-xs text-industrial-muted max-w-md mx-auto">
+                  Add your Anthropic API key for unlimited usage with your own billing.
+                  We cover your first queries free &mdash; add a key anytime from Settings.
+                </p>
+              </div>
+
+              <div className="bg-[var(--bg-tertiary)] border border-industrial-subtle p-6 mb-6">
+                <label className="font-mono text-xs uppercase tracking-wide text-industrial-muted mb-2 block">
+                  Anthropic API Key
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="password"
+                    value={byokKey}
+                    onChange={(e) => { setByokKey(e.target.value); setByokResult(null); }}
+                    placeholder="sk-ant-..."
+                    className="flex-1 bg-[var(--bg-primary)] border border-industrial-subtle px-3 py-2 font-mono text-sm text-industrial placeholder:text-industrial-muted/50 focus:border-[var(--accent)] focus:outline-none"
+                  />
+                  <button
+                    onClick={handleByokSubmit}
+                    disabled={!byokKey.trim() || byokValidating}
+                    className="btn-industrial-primary px-4 disabled:opacity-50"
+                  >
+                    {byokValidating ? <Loader2 size={16} className="animate-spin" /> : 'Validate'}
+                  </button>
+                </div>
+                {byokResult && (
+                  <p className={`font-mono text-xs mt-2 ${byokResult.valid ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>
+                    {byokResult.valid ? 'Key validated successfully!' : byokResult.error}
+                  </p>
+                )}
+                <p className="font-mono text-[10px] text-industrial-muted mt-3">
+                  Your key is encrypted and stored securely. Get one at console.anthropic.com.
+                </p>
+              </div>
+
+              <div className="flex justify-between">
+                <button onClick={handleBack} className="btn-industrial">
+                  <ArrowLeft size={18} />
+                  Back
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSkip}
+                    className="font-mono text-xs uppercase tracking-wide text-industrial-muted hover:text-industrial transition-colors px-4 py-2"
+                  >
+                    Skip for now
+                  </button>
+                  <button onClick={handleNext} className="btn-industrial-primary">
+                    Continue
+                    <ArrowRight size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Complete Step */}
           {currentStep === 'complete' && (
             <div className="text-center">
@@ -249,7 +347,7 @@ export function OnboardingPage() {
               </div>
               <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">You&apos;re all set!</h1>
               <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
-                Your account is ready. Start chatting with SpaceFit AI to analyze
+                Your account is ready. Start chatting with Perigee AI to analyze
                 properties and find the perfect matches for your clients.
               </p>
               <div className="flex justify-center gap-4">
@@ -272,7 +370,7 @@ export function OnboardingPage() {
                     </>
                   ) : (
                     <>
-                      Start using SpaceFit AI
+                      Start using Perigee AI
                       <ArrowRight size={18} />
                     </>
                   )}

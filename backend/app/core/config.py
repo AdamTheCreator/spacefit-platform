@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     llm_tool_result_max_chars: int = Field(default=12000)
 
     # Specialist routing (Phase 3)
-    enable_specialist_routing: bool = Field(default=False)
+    enable_specialist_routing: bool = Field(default=True)
 
     # Guardrails
     guardrail_max_message_chars: int = Field(default=8000)

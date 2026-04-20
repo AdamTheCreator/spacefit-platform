@@ -28,6 +28,7 @@ from app.api.imports import router as imports_router
 from app.core.config import settings
 from app.core.database import engine
 from app.llm.client import aclose_llm_client
+from app.mcp.server import mcp as perigee_mcp
 
 import logging
 
@@ -80,6 +81,10 @@ app.include_router(projects_router, prefix=settings.api_prefix)
 app.include_router(ai_config_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(imports_router, prefix=settings.api_prefix)
+
+# Mount MCP HTTP+SSE transport -- external MCP clients (Claude Desktop, Cursor)
+# can connect at /mcp.  Internal agents use PerigeeMCPClient (in-process).
+app.mount("/mcp", perigee_mcp.sse_app())
 
 
 @app.get("/")

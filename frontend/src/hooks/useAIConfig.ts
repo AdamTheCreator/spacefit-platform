@@ -117,3 +117,62 @@ export function useProviders() {
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 }
+
+// --- Usage ---
+
+export interface UsageData {
+  last_24h_total_tokens: number;
+  last_24h_llm_calls: number;
+  last_24h_cost_estimate_usd: number;
+  using_byok: boolean;
+  current_period_input_tokens: number;
+  current_period_output_tokens: number;
+}
+
+export function useUsage() {
+  const { user } = useAuthStore();
+  return useQuery({
+    queryKey: ['aiUsage', user?.id],
+    queryFn: async () => {
+      const { data } = await api.get<UsageData>('/ai-config/usage');
+      return data;
+    },
+    enabled: !!user,
+    staleTime: 1000 * 30, // 30s
+  });
+}
+
+// --- Specialist model overrides ---
+
+export interface SpecialistModels {
+  specialist_models: Record<string, string>;
+}
+
+export function useSpecialistModels() {
+  const { user } = useAuthStore();
+  return useQuery({
+    queryKey: ['specialistModels', user?.id],
+    queryFn: async () => {
+      const { data } = await api.get<SpecialistModels>('/ai-config/specialist-models');
+      return data;
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useUpdateSpecialistModels() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  return useMutation({
+    mutationFn: async (models: Record<string, string>) => {
+      const { data } = await api.put<SpecialistModels>('/ai-config/specialist-models', {
+        specialist_models: models,
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['specialistModels', user?.id], data);
+    },
+  });
+}

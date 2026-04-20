@@ -14,6 +14,9 @@ import {
   useValidateKey,
   useRemoveKey,
   useProviders,
+  useUsage,
+  useSpecialistModels,
+  useUpdateSpecialistModels,
   type AIConfigUpdate,
 } from '../hooks/useAIConfig';
 
@@ -185,7 +188,7 @@ function AIPreferencesSection() {
       </div>
 
       <p className="text-sm text-industrial-secondary mb-6 leading-relaxed">
-        Help SpaceFit AI understand your business to provide more relevant analysis and recommendations.
+        Help Perigee AI understand your business to provide more relevant analysis and recommendations.
       </p>
 
       <div className="space-y-6">
@@ -371,7 +374,7 @@ function MemorySection() {
           <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
             <Brain size={16} className="text-[var(--accent)]" />
           </div>
-          <h2 className="text-sm font-semibold text-industrial">SpaceFit Memory</h2>
+          <h2 className="text-sm font-semibold text-industrial">Perigee Memory</h2>
         </div>
         {hasMemory && (
           <button
@@ -385,7 +388,7 @@ function MemorySection() {
       </div>
 
       <p className="text-sm text-industrial-secondary mb-6 leading-relaxed">
-        SpaceFit remembers your analysis history and preferences to provide more personalized recommendations.
+        Perigee remembers your analysis history and preferences to provide more personalized recommendations.
       </p>
 
       {!hasMemory ? (
@@ -513,7 +516,7 @@ function MemorySection() {
           <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] p-6 max-w-sm mx-4 shadow-xl">
             <h3 className="text-sm font-semibold text-industrial mb-2">Clear Memory?</h3>
             <p className="text-xs text-industrial-secondary mb-4">
-              This will permanently delete all your analysis history, property data, and inferred preferences. SpaceFit will start fresh.
+              This will permanently delete all your analysis history, property data, and inferred preferences. Perigee will start fresh.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -655,7 +658,7 @@ function AIModelSection() {
       <p className="text-sm text-industrial-secondary mb-4 leading-relaxed">
         {config?.has_byok_key
           ? 'Using your own API key. Chat requests go directly to your provider.'
-          : 'Using SpaceFit\'s built-in AI. Bring your own key to use any provider.'}
+          : 'Using Perigee\'s built-in AI. Bring your own key to use any provider.'}
       </p>
 
       {/* Expand/collapse toggle */}
@@ -809,6 +812,127 @@ function AIModelSection() {
   );
 }
 
+const SPECIALIST_NAMES = ['scout', 'analyst', 'matchmaker', 'outreach'] as const;
+const ANTHROPIC_MODELS = [
+  'claude-sonnet-4-6-20260320',
+  'claude-sonnet-4-20250514',
+  'claude-haiku-4-5-20251001',
+];
+
+function UsageSection() {
+  const { data: usage } = useUsage();
+
+  if (!usage) return null;
+
+  const totalK = (usage.current_period_input_tokens + usage.current_period_output_tokens) / 1000;
+
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center">
+          <Sparkles size={16} className="text-industrial-muted" />
+        </div>
+        <h2 className="text-sm font-semibold text-industrial">Usage This Month</h2>
+        {usage.using_byok && (
+          <span className="text-[10px] text-[var(--color-success)] px-2 py-0.5 bg-[var(--bg-success)] rounded-full ml-auto">
+            BYOK
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-xs text-industrial-muted">Tokens</p>
+          <p className="text-lg font-semibold text-industrial">{totalK.toFixed(1)}K</p>
+        </div>
+        <div>
+          <p className="text-xs text-industrial-muted">Tool Calls (24h)</p>
+          <p className="text-lg font-semibold text-industrial">{usage.last_24h_llm_calls}</p>
+        </div>
+        <div>
+          <p className="text-xs text-industrial-muted">Est. Cost</p>
+          <p className="text-lg font-semibold text-industrial">${usage.last_24h_cost_estimate_usd.toFixed(2)}</p>
+        </div>
+      </div>
+      {!usage.using_byok && totalK > 5 && (
+        <p className="text-xs text-[var(--accent)] mt-3 pt-3 border-t border-[var(--border-subtle)]">
+          You&apos;ve used {totalK.toFixed(0)}K tokens on our platform key. Add your own Anthropic key in AI Model settings for unmetered usage.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SpecialistModelsSection() {
+  const { data: config } = useAIConfig();
+  const { data: specModels } = useSpecialistModels();
+  const updateMutation = useUpdateSpecialistModels();
+  const [localModels, setLocalModels] = useState<Record<string, string>>({});
+  const [dirty, setDirty] = useState(false);
+
+  // Sync from server
+  const serverModels = specModels?.specialist_models || {};
+
+  const handleChange = (name: string, model: string) => {
+    const updated = { ...serverModels, ...localModels, [name]: model };
+    // Remove empty entries (means "use default")
+    if (!model) delete updated[name];
+    setLocalModels(updated);
+    setDirty(true);
+  };
+
+  const handleSave = async () => {
+    await updateMutation.mutateAsync({ ...serverModels, ...localModels });
+    setDirty(false);
+    setLocalModels({});
+  };
+
+  // Only show if user has BYOK key
+  if (!config?.has_byok_key || !config?.is_key_valid) return null;
+
+  const merged = { ...serverModels, ...localModels };
+
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center">
+          <Brain size={16} className="text-industrial-muted" />
+        </div>
+        <h2 className="text-sm font-semibold text-industrial">Specialist Models</h2>
+      </div>
+      <p className="text-xs text-industrial-muted mb-4">
+        Override which Claude model each specialist uses. Leave blank for the default.
+      </p>
+      <div className="space-y-3">
+        {SPECIALIST_NAMES.map((name) => (
+          <div key={name} className="flex items-center gap-3">
+            <span className="text-xs font-medium text-industrial w-24 capitalize">{name}</span>
+            <select
+              value={merged[name] || ''}
+              onChange={(e) => handleChange(name, e.target.value)}
+              className="input-industrial flex-1 text-xs"
+            >
+              <option value="">Default</option>
+              {ANTHROPIC_MODELS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+      {dirty && (
+        <button
+          onClick={handleSave}
+          disabled={updateMutation.isPending}
+          className="btn-industrial-primary mt-4 text-xs"
+        >
+          {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+          Save
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   return (
     <AppLayout>
@@ -816,11 +940,17 @@ export function SettingsPage() {
         <h1 className="text-xl font-semibold text-industrial mb-6">Settings</h1>
 
         <div className="space-y-6">
-          {/* SpaceFit Memory - Featured at top */}
+          {/* Perigee Memory - Featured at top */}
           <MemorySection />
 
           {/* AI Model Configuration */}
           <AIModelSection />
+
+          {/* Usage */}
+          <UsageSection />
+
+          {/* Per-specialist model overrides (BYOK only) */}
+          <SpecialistModelsSection />
 
           {/* AI Preferences */}
           <AIPreferencesSection />

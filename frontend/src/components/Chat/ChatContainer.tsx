@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Sparkles, Users, FileText, Mail, Save, ArrowRight, MapPin } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Sparkles, Users, FileText, Mail, Save, ArrowRight, MapPin, Key } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
+import { useAIConfig } from '../../hooks/useAIConfig';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
@@ -159,8 +160,34 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
     sendMessage(content);
   }, [sendMessage]);
 
+  const navigate = useNavigate();
+  const { data: aiConfig } = useAIConfig();
+  const [byokDismissed, setByokDismissed] = useState(false);
+  const userMessageCount = messages.filter((m) => m.role === 'user').length;
+  const showByokNudge = !byokDismissed && !aiConfig?.has_byok_key && userMessageCount >= 5;
+
   return (
     <div className="flex flex-col h-full bg-transparent">
+      {/* BYOK nudge */}
+      {showByokNudge && (
+        <div className="flex-shrink-0 px-4 py-2 bg-[var(--accent)]/5 border-b border-[var(--accent)]/20 flex items-center gap-2 text-xs text-[var(--accent)]">
+          <Key size={12} />
+          <span>Add your own Anthropic key for unmetered usage.</span>
+          <button
+            onClick={() => navigate('/settings')}
+            className="underline hover:no-underline font-medium"
+          >
+            Add key
+          </button>
+          <button
+            onClick={() => setByokDismissed(true)}
+            className="ml-auto text-industrial-muted hover:text-industrial"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Connection Status */}
       {!isConnected && (
         <div className="flex-shrink-0 px-4 py-2.5 bg-[var(--bg-warning)] border-b border-[var(--color-warning)]/20" role="status" aria-live="polite">
@@ -321,7 +348,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
                 ? 'Connecting to server...'
                 : isProcessing
                 ? 'Processing your request...'
-                : 'Message SpaceFit...'
+                : 'Message Perigee...'
             }
           />
           <p className="text-xs text-industrial-muted mt-3 text-center">

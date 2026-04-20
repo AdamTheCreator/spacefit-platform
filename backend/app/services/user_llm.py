@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Default models per provider (used when user doesn't specify a model)
 PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": "claude-3-haiku-20240307",
+    "anthropic": "claude-haiku-4-5-20251001",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash",
     "deepseek": "deepseek-chat",
@@ -41,6 +41,7 @@ class ResolvedLLM:
     model: str
     provider: str
     is_byok: bool
+    specialist_models: dict[str, str] | None = None  # e.g. {"scout": "claude-haiku-4-5-..."}
 
 
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
@@ -107,11 +108,20 @@ async def resolve_user_llm(
                 api_key=api_key,
                 base_url=ai_config.base_url or "",
             )
+            # Parse per-specialist model overrides if set
+            specialist_models: dict[str, str] | None = None
+            if ai_config.specialist_models_json:
+                import json
+                try:
+                    specialist_models = json.loads(ai_config.specialist_models_json)
+                except (json.JSONDecodeError, TypeError):
+                    pass
             return ResolvedLLM(
                 client=client,
                 model=model,
                 provider=ai_config.provider,
                 is_byok=True,
+                specialist_models=specialist_models,
             )
         except Exception:
             logger.warning(
