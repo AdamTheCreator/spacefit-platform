@@ -1,4 +1,4 @@
-# SpaceFit Design System — Minimalist AI Assistant
+# Perigee Design System — Minimalist AI Assistant
 
 > **Mandatory reading for any agent touching the frontend.**
 > Violating these principles will be reverted. When in doubt, do less.
@@ -7,7 +7,7 @@
 
 ## Product Role
 
-SpaceFit is an AI-driven commercial real estate workbench. The UI follows the UX patterns of modern AI interfaces (ChatGPT, Claude) — not traditional SaaS dashboards. The conversation *is* the product.
+Perigee is an AI-driven commercial real estate workbench. The UI follows the UX patterns of modern AI interfaces (ChatGPT, Claude) — not traditional SaaS dashboards. The conversation *is* the product.
 
 ---
 

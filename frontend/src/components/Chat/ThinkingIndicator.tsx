@@ -12,7 +12,7 @@ export function ThinkingIndicator({ isVisible, activeAgentType }: ThinkingIndica
   const activeAgentName = activeAgentType ? AGENTS[activeAgentType]?.name : null;
 
   return (
-    <div className="w-full group animate-fade-in" role="status" aria-live="polite" aria-label="SpaceFit is working on your request">
+    <div className="w-full group animate-fade-in" role="status" aria-live="polite" aria-label="Perigee is working on your request">
       <div className="chat-stage px-4 py-2">
         <div className="flex gap-4 sm:gap-6 items-start">
           <div className="relative flex-shrink-0 pt-1">
@@ -26,7 +26,7 @@ export function ThinkingIndicator({ isVisible, activeAgentType }: ThinkingIndica
           <div className="flex-1 min-w-0 rounded-2xl border border-[var(--accent)]/15 bg-[linear-gradient(135deg,var(--bg-elevated)_0%,var(--accent-subtle)_100%)] px-4 py-3 shadow-sm">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-industrial">
-                {activeAgentName || 'SpaceFit Assistant'}
+                {activeAgentName || 'Perigee Assistant'}
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-primary)]/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
                 Live

@@ -33,7 +33,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-bold text-industrial">
-                {isUser ? 'You' : agent?.name || 'SpaceFit'}
+                {isUser ? 'You' : agent?.name || 'Perigee'}
               </span>
               {!isUser && message.isStreaming && (
                 <span className="text-[10px] font-medium text-[var(--accent)] uppercase tracking-wider animate-pulse">

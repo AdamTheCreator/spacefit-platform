@@ -59,7 +59,7 @@ export function DeleteProjectModal({
 
           <div className="space-y-2 text-sm text-industrial-secondary">
             <p>
-              Deleting this project will permanently remove it from SpaceFit.
+              Deleting this project will permanently remove it from Perigee.
             </p>
             <p>
               {hasDocuments

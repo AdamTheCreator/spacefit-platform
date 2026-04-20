@@ -36,7 +36,7 @@ export function AnalysisProcessingView({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-md mx-auto animate-fade-in">
-      {/* SpaceFit icon with pulse ring */}
+      {/* Perigee icon with pulse ring */}
       <div className="relative mb-8">
         <div className="w-14 h-14 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-[var(--accent)]/20">
           <Sparkles size={26} />

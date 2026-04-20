@@ -96,7 +96,7 @@ export function SharedReportPage() {
           <div className="w-8 h-8 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center">
             <Sparkles size={16} />
           </div>
-          <span className="text-sm font-semibold text-industrial">SpaceFit</span>
+          <span className="text-sm font-semibold text-industrial">Perigee</span>
           <span className="text-xs text-industrial-muted ml-auto">
             Shared report
           </span>

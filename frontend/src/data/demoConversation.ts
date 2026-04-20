@@ -371,7 +371,7 @@ Each email was personalized with the specific data points that match each tenant
 
 **Demo Complete!**
 
-This walkthrough demonstrated SpaceFit AI's full pipeline:
+This walkthrough demonstrated Perigee's full pipeline:
 1. **Data Aggregation** - Demographics, tenants, foot traffic
 2. **Tenant Gap Analysis** - Identified category gaps
 3. **Tenant Matching** - Matched your clients to opportunities
