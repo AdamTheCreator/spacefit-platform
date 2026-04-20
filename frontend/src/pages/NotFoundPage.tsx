@@ -20,22 +20,22 @@ export function NotFoundPage() {
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center p-8 relative z-10">
         <div className="max-w-md w-full text-center">
-          {/* Error code display */}
-          <div className="mb-8">
-            <div className="w-24 h-24 mx-auto rounded-2xl bg-[var(--bg-error)] flex items-center justify-center mb-6">
-              <svg className="w-12 h-12 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-              </svg>
-            </div>
-            <h1 className="text-6xl font-bold text-industrial-muted mb-2">404</h1>
+          {/* Off-course: Navigator goose + planet */}
+          <div className="mb-6">
+            <img
+              src="/mascots/goose-planet.webp"
+              alt=""
+              className="w-48 h-48 mx-auto object-contain select-none"
+              draggable={false}
+            />
+            <h1 className="text-5xl font-bold text-industrial-muted mt-2 tracking-tight">404</h1>
           </div>
 
           {/* Status message */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-industrial mb-2">Page not found</h2>
+            <h2 className="text-xl font-semibold text-industrial mb-2">Off-course</h2>
             <p className="text-sm text-industrial-secondary leading-relaxed">
-              The page you're looking for doesn't exist or has been moved.
-              Check the URL or navigate back to a working page.
+              This page isn't on our star chart. Check the URL or head back to mission control.
             </p>
           </div>
 

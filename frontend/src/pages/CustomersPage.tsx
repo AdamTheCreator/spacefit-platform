@@ -114,15 +114,18 @@ function EmptyState({
   return (
     <div className="card-industrial">
       <div className="p-8 text-center">
-        <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-industrial flex items-center justify-center mx-auto mb-4">
-          <Users size={32} className="text-industrial-muted" />
-        </div>
+        <img
+          src="/mascots/goose-carriers.webp"
+          alt=""
+          aria-hidden="true"
+          className="w-28 h-28 mx-auto mb-3 object-contain select-none"
+          draggable={false}
+        />
         <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">
           No customers yet
         </h2>
         <p className="font-mono text-xs text-industrial-muted mb-6 max-w-md mx-auto">
-          Add your clients and prospects to send them targeted notifications about
-          property opportunities.
+          Bring your clients and prospects aboard — the crew will match them to property opportunities.
         </p>
         <div className="flex gap-3 justify-center">
           <Button variant="secondary" iconLeft={<Upload size={16} />} onClick={onImport}>

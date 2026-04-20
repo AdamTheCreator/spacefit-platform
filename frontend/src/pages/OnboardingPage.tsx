@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Upload, Link2, ArrowRight, ArrowLeft, Loader2, Key } from 'lucide-react';
+import { CheckCircle, Upload, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../lib/axios';
 
@@ -128,14 +128,17 @@ export function OnboardingPage() {
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-2xl">
-          {/* Welcome Step */}
+          {/* Welcome Step — Planner goose */}
           {currentStep === 'welcome' && (
             <div className="text-center">
-              <div className="w-20 h-20 bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center mx-auto mb-6">
-                <span className="text-4xl">👋</span>
-              </div>
+              <img
+                src="/mascots/goose-planner.webp"
+                alt=""
+                className="w-36 h-36 mx-auto mb-4 object-contain select-none"
+                draggable={false}
+              />
               <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">
-                Welcome to Perigee AI, {user?.first_name || 'there'}!
+                Welcome to Perigee, {user?.first_name || 'there'}!
               </h1>
               <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
                 Let&apos;s get you set up. This will only take a few minutes and you can
@@ -151,13 +154,16 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Import Step */}
+          {/* Import Step — Carriers goose (cargo/data crew) */}
           {currentStep === 'import' && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center mx-auto mb-4">
-                  <Upload className="text-[var(--accent)]" size={28} />
-                </div>
+                <img
+                  src="/mascots/goose-carriers.webp"
+                  alt=""
+                  className="w-28 h-28 mx-auto mb-3 object-contain select-none"
+                  draggable={false}
+                />
                 <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">
                   Import your customer list
                 </h2>
@@ -203,13 +209,16 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Connect Step */}
+          {/* Connect Step — Engineer goose (wiring up integrations) */}
           {currentStep === 'connect' && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 flex items-center justify-center mx-auto mb-4">
-                  <Link2 className="text-[var(--color-success)]" size={28} />
-                </div>
+                <img
+                  src="/mascots/goose-engineer.webp"
+                  alt=""
+                  className="w-28 h-28 mx-auto mb-3 object-contain select-none"
+                  draggable={false}
+                />
                 <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">
                   Connect your data sources
                 </h2>
@@ -272,13 +281,16 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* AI Key Step */}
+          {/* AI Key Step — Welder goose (sealing the connection) */}
           {currentStep === 'ai_key' && (
             <div>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center mx-auto mb-4">
-                  <Key className="text-[var(--accent)]" size={28} />
-                </div>
+                <img
+                  src="/mascots/goose-welder.webp"
+                  alt=""
+                  className="w-28 h-28 mx-auto mb-3 object-contain select-none"
+                  draggable={false}
+                />
                 <h2 className="font-mono text-xl font-bold tracking-tight text-industrial mb-2">
                   Bring your own AI key
                 </h2>
@@ -339,15 +351,18 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Complete Step */}
+          {/* Complete Step — Launch goose (mission begins) */}
           {currentStep === 'complete' && (
             <div className="text-center">
-              <div className="w-20 h-20 bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 flex items-center justify-center mx-auto mb-6">
-                <CheckCircle className="text-[var(--color-success)]" size={40} />
-              </div>
-              <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">You&apos;re all set!</h1>
+              <img
+                src="/mascots/goose-launch.webp"
+                alt=""
+                className="w-36 h-36 mx-auto mb-4 object-contain select-none"
+                draggable={false}
+              />
+              <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">You&apos;re cleared for launch!</h1>
               <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
-                Your account is ready. Start chatting with Perigee AI to analyze
+                Your mission control is ready. Start chatting with Perigee to analyze
                 properties and find the perfect matches for your clients.
               </p>
               <div className="flex justify-center gap-4">

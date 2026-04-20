@@ -188,11 +188,15 @@ export function OutreachPage() {
               </div>
             </div>
           ) : filteredCampaigns.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <div className="w-16 h-16 bg-[var(--bg-tertiary)] border border-industrial-subtle flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-industrial-muted" />
-              </div>
-              <h3 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">No campaigns yet</h3>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <img
+                src="/mascots/goose-launch.webp"
+                alt=""
+                aria-hidden="true"
+                className="w-28 h-28 mx-auto mb-3 object-contain select-none"
+                draggable={false}
+              />
+              <h3 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">Ready to launch</h3>
               <p className="font-mono text-xs text-industrial-muted mb-6 max-w-md">
                 Create your first outreach campaign from a tenant gap analysis. Ask Perigee to
                 find tenant gaps and then reach out to the identified tenants.

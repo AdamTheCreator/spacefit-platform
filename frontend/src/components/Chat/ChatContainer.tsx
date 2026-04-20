@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Sparkles, Users, FileText, Mail, Save, ArrowRight, MapPin, Key } from 'lucide-react';
+import { Users, FileText, Mail, Save, ArrowRight, MapPin, Key } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useAIConfig } from '../../hooks/useAIConfig';
 import { ChatMessage } from './ChatMessage';
@@ -223,13 +223,20 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
           />
         ) : messages.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-2xl mx-auto animate-fade-in">
-            <div className="w-12 h-12 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center mb-8 shadow-lg shadow-[var(--accent)]/20">
-              <Sparkles size={24} />
-            </div>
+            <img
+              src="/mascots/goose-planner.webp"
+              alt=""
+              aria-hidden="true"
+              className="w-28 h-28 mb-4 object-contain select-none"
+              draggable={false}
+            />
 
-            <h2 className="text-3xl font-bold tracking-tight text-industrial mb-10">
+            <h2 className="font-display text-3xl font-bold tracking-tight text-industrial mb-2">
               How can I help you today?
             </h2>
+            <p className="text-sm text-industrial-secondary mb-10 max-w-md">
+              Ask anything about your markets, properties, or prospects — or pick a starting point.
+            </p>
 
             {/* Context-Aware Suggestion Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full px-4">

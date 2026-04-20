@@ -22,16 +22,16 @@ interface MarkdownRendererProps {
   agentType?: string;
 }
 
-// Chart color palette - softer, coordinated with design system
+// Chart color palette — Perigee brand-aligned
 const CHART_COLORS = [
-  '#E5A840', // accent gold
-  '#22C55E', // success green
-  '#3B82F6', // info blue
-  '#F59E0B', // warning amber
-  '#8B5CF6', // purple
-  '#06B6D4', // cyan
-  '#EC4899', // pink
-  '#14B8A6', // teal
+  '#FF8A3D', // orbit orange (accent)
+  '#3A5BA0', // orbit blue
+  '#2F7A3B', // success green
+  '#E5B85C', // soft gold
+  '#A7C7F7', // mist blue
+  '#1F3556', // deep blue
+  '#C25E1F', // burnt orange
+  '#596779', // slate
 ];
 
 // Extract data for charts from specific content patterns

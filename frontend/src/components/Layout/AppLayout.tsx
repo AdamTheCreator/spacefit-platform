@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   MessageSquare,
   Plus,
@@ -11,12 +11,15 @@ import {
   Menu,
   X,
   Kanban,
-  FolderOpen,
   Mail,
-  Archive,
   HelpCircle,
   Sparkles,
   Shield,
+  Home,
+  Search as SearchIcon,
+  Building2,
+  BarChart3,
+  Star,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -27,6 +30,81 @@ import { useSetupNotifications } from '../../hooks/useSetupNotifications';
 
 interface AppLayoutProps {
   children: React.ReactNode;
+}
+
+// Perigee sidebar nav definitions
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  matchPrefixes?: string[];
+};
+
+const WORKSPACE_NAV: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: Home },
+  { to: '/chat', label: 'Chat', icon: MessageSquare, matchPrefixes: ['/chat'] },
+  { to: '/search', label: 'Search', icon: SearchIcon },
+  { to: '/projects', label: 'Properties', icon: Building2, matchPrefixes: ['/projects'] },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/pipeline', label: 'Workflow', icon: Kanban, matchPrefixes: ['/pipeline'] },
+  { to: '/insights', label: 'Insights', icon: Sparkles },
+  { to: '/customers', label: 'Customers', icon: Users },
+  { to: '/outreach', label: 'Outreach', icon: Mail },
+];
+
+const STATES_NAV: NavItem[] = [
+  { to: '/onboarding', label: 'Onboarding', icon: Star },
+  { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+function isNavActive(pathname: string, to: string, prefixes?: string[]): boolean {
+  if (pathname === to) return true;
+  if (to === '/dashboard' && pathname === '/') return true;
+  if (prefixes) return prefixes.some(p => pathname === p || pathname.startsWith(p + '/'));
+  return false;
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 text-[10.5px] font-semibold tracking-[0.1em] text-industrial-muted uppercase">
+      {children}
+    </div>
+  );
+}
+
+function SidebarLink({
+  to,
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  to: string;
+  icon: typeof Home;
+  label: string;
+  active: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+        active
+          ? 'bg-[var(--color-neutral-900)] text-white'
+          : 'text-industrial-secondary hover:bg-[var(--bg-tertiary)] hover:text-industrial'
+      }`}
+    >
+      <Icon size={16} />
+      <span className="flex-1">{label}</span>
+      {active && (
+        <span
+          aria-hidden="true"
+          className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] shrink-0"
+        />
+      )}
+    </Link>
+  );
 }
 
 // Mobile breakpoint hook
@@ -57,6 +135,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { user, logout } = useAuthStore();
   const { clearChat, connectionStatus } = useChatStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const { sessions, isLoading, deleteSession } = useChatSessions();
   usePreferences();
@@ -167,71 +246,82 @@ export function AppLayout({ children }: AppLayoutProps) {
           app-sidebar flex flex-col border-r border-[var(--border-subtle)] overflow-hidden
         `}
       >
-        {/* Sidebar Header */}
-        <div className="p-4">
+        {/* Sidebar Header — Perigee logo + wordmark */}
+        <Link
+          to="/dashboard"
+          onClick={() => isMobile && setSidebarOpen(false)}
+          className="flex items-center gap-2.5 px-4 py-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-tertiary)]/40 transition-colors"
+        >
+          <img
+            src="/perigee-logo.png"
+            alt="Perigee"
+            width={32}
+            height={32}
+            className="rounded-full object-cover shrink-0"
+          />
+          <span className="font-display font-bold text-[17px] text-industrial tracking-[0.02em]">
+            PERIGEE
+          </span>
+          <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
+            v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
+          </span>
+        </Link>
+
+        {/* Workspace section */}
+        <div className="px-3 pt-3 pb-1">
+          <SectionLabel>Workspace</SectionLabel>
+          <nav className="space-y-0.5 mt-1">
+            {WORKSPACE_NAV.map((item) => (
+              <SidebarLink
+                key={item.to}
+                to={item.to}
+                icon={item.icon}
+                label={item.label}
+                active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
+                onClick={() => isMobile && setSidebarOpen(false)}
+              />
+            ))}
+          </nav>
+        </div>
+
+        {/* States section */}
+        <div className="px-3 pt-3 pb-1">
+          <SectionLabel>States</SectionLabel>
+          <nav className="space-y-0.5 mt-1">
+            {STATES_NAV.map((item) => (
+              <SidebarLink
+                key={item.to}
+                to={item.to}
+                icon={item.icon}
+                label={item.label}
+                active={isNavActive(location.pathname, item.to)}
+                onClick={() => isMobile && setSidebarOpen(false)}
+              />
+            ))}
+            {user?.is_admin && (
+              <SidebarLink
+                to="/admin"
+                icon={Shield}
+                label="Admin"
+                active={isNavActive(location.pathname, '/admin')}
+                onClick={() => isMobile && setSidebarOpen(false)}
+              />
+            )}
+          </nav>
+        </div>
+
+        {/* New Chat quick-action */}
+        <div className="px-3 pt-2 pb-1">
           <button
             onClick={() => {
               handleNewChat();
               if (isMobile) setSidebarOpen(false);
             }}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg bg-[var(--accent)] text-white font-bold text-sm transition-all group hover:bg-[var(--accent-hover)] shadow-lg shadow-[var(--accent)]/20 active:scale-[0.98]"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-industrial-secondary border border-dashed border-[var(--border-strong)] hover:border-[var(--accent)] hover:text-industrial hover:bg-[var(--bg-tertiary)] transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <Plus size={18} strokeWidth={3} />
-              <span>New Chat</span>
-            </div>
+            <Plus size={14} />
+            <span>New chat</span>
           </button>
-        </div>
-
-        {/* Workspace Navigation */}
-        <div className="px-3 py-2">
-          <nav className="space-y-0.5">
-            <Link
-              to="/pipeline"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
-            >
-              <Kanban size={16} />
-              <span>Pipeline</span>
-            </Link>
-            <Link
-              to="/projects"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
-            >
-              <FolderOpen size={16} />
-              <span>Projects</span>
-            </Link>
-            <Link
-              to="/outreach"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
-            >
-              <Mail size={16} />
-              <span>Outreach</span>
-            </Link>
-            <Link
-              to="/archive"
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
-            >
-              <Archive size={16} />
-              <span>Archive</span>
-            </Link>
-            {user?.is_admin && (
-              <>
-                <div className="my-1.5 mx-3 border-t border-[var(--border-subtle)]" />
-                <Link
-                  to="/admin"
-                  onClick={() => isMobile && setSidebarOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
-                >
-                  <Shield size={16} />
-                  <span>Admin</span>
-                </Link>
-              </>
-            )}
-          </nav>
         </div>
 
         {/* Chat History */}
@@ -283,6 +373,32 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-[var(--border-subtle)] space-y-0.5">
+          {/* Upgrade card — always shown; /pricing handles current-plan state */}
+          <Link
+            to="/pricing"
+            onClick={() => isMobile && setSidebarOpen(false)}
+            className="block relative mb-2 rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-cream,var(--bg-tertiary))] hover:shadow-sm transition-shadow group"
+          >
+            <img
+              src="/mascots/goose-solar.webp"
+              alt=""
+              aria-hidden="true"
+              className="absolute -right-3 -bottom-3 w-24 h-24 object-contain select-none pointer-events-none opacity-95"
+              draggable={false}
+            />
+            <div className="relative z-10 p-3 pr-16 max-w-[160px]">
+              <p className="font-display text-[12px] font-semibold text-industrial leading-tight">
+                Ready for more orbit?
+              </p>
+              <p className="text-[11px] text-industrial-secondary leading-snug mt-1">
+                Unlimited chats, imports, and outreach on Pro.
+              </p>
+              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-[var(--accent)] group-hover:underline">
+                Upgrade →
+              </span>
+            </div>
+          </Link>
+
           <a
             href="mailto:support-perigee@agentmail.to"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
@@ -305,39 +421,40 @@ export function AppLayout({ children }: AppLayoutProps) {
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="p-2 rounded-lg text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
+                aria-label="Open sidebar"
               >
                 <Menu size={20} />
               </button>
             )}
-            
-            <Link to="/chat" className="flex items-center gap-2.5 ml-2 group">
-              <div className="relative w-8 h-8 flex items-center justify-center">
-                <img
-                  src="/perigee-mark.svg"
-                  alt="Perigee logo"
-                  className="w-8 h-8 rounded-lg object-cover"
-                />
-                <span
-                  className={`absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg-secondary)] pointer-events-none ${
-                    connectionStatus === 'connected'
-                      ? 'bg-emerald-500 animate-pulse-slow'
-                      : connectionStatus === 'connecting'
-                      ? 'bg-amber-500 animate-pulse-slow'
-                      : 'bg-red-500'
-                  }`}
-                  title={
-                    connectionStatus === 'connected'
-                      ? 'Connected to server'
-                      : connectionStatus === 'connecting'
-                      ? 'Connecting to server'
-                      : 'Disconnected from server'
-                  }
-                />
-              </div>
-              <span className="text-sm font-bold tracking-tight text-industrial group-hover:text-[var(--accent)] transition-colors">
-                Perigee
+            <span
+              className={`ml-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-industrial-muted ${
+                connectionStatus === 'connected' ? '' : 'text-industrial-secondary'
+              }`}
+              title={
+                connectionStatus === 'connected'
+                  ? 'Connected to server'
+                  : connectionStatus === 'connecting'
+                  ? 'Connecting to server'
+                  : 'Disconnected from server'
+              }
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  connectionStatus === 'connected'
+                    ? 'bg-emerald-500 animate-pulse-slow'
+                    : connectionStatus === 'connecting'
+                    ? 'bg-amber-500 animate-pulse-slow'
+                    : 'bg-red-500'
+                }`}
+              />
+              <span className="hidden sm:inline">
+                {connectionStatus === 'connected'
+                  ? 'Connected'
+                  : connectionStatus === 'connecting'
+                  ? 'Connecting…'
+                  : 'Offline'}
               </span>
-            </Link>
+            </span>
           </div>
 
           <div className="flex items-center gap-3">

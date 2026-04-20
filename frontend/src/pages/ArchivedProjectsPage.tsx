@@ -153,11 +153,15 @@ export function ArchivedProjectsPage() {
             </div>
           ) : !data?.items.length ? (
             <div className="text-center py-16">
-              <div className="w-14 h-14 rounded-xl bg-[var(--bg-tertiary)] text-industrial-muted flex items-center justify-center mx-auto mb-4">
-                <Archive size={28} />
-              </div>
+              <img
+                src="/mascots/goose-planet.webp"
+                alt=""
+                aria-hidden="true"
+                className="w-24 h-24 mx-auto mb-3 object-contain select-none opacity-90"
+                draggable={false}
+              />
               <p className="text-sm text-industrial-muted">
-                No archived projects
+                Nothing in orbit here yet — archived projects will land here when you wrap them up.
               </p>
             </div>
           ) : (
