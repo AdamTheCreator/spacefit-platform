@@ -132,7 +132,7 @@ export function OnboardingPage() {
           {currentStep === 'welcome' && (
             <div className="text-center">
               <img
-                src="/mascots/goose-planner.png"
+                src="/mascots/goose-planner.webp"
                 alt=""
                 className="w-36 h-36 mx-auto mb-4 object-contain select-none"
                 draggable={false}
@@ -159,7 +159,7 @@ export function OnboardingPage() {
             <div>
               <div className="text-center mb-8">
                 <img
-                  src="/mascots/goose-carriers.png"
+                  src="/mascots/goose-carriers.webp"
                   alt=""
                   className="w-28 h-28 mx-auto mb-3 object-contain select-none"
                   draggable={false}
@@ -214,7 +214,7 @@ export function OnboardingPage() {
             <div>
               <div className="text-center mb-8">
                 <img
-                  src="/mascots/goose-engineer.png"
+                  src="/mascots/goose-engineer.webp"
                   alt=""
                   className="w-28 h-28 mx-auto mb-3 object-contain select-none"
                   draggable={false}
@@ -286,7 +286,7 @@ export function OnboardingPage() {
             <div>
               <div className="text-center mb-8">
                 <img
-                  src="/mascots/goose-welder.png"
+                  src="/mascots/goose-welder.webp"
                   alt=""
                   className="w-28 h-28 mx-auto mb-3 object-contain select-none"
                   draggable={false}
@@ -355,7 +355,7 @@ export function OnboardingPage() {
           {currentStep === 'complete' && (
             <div className="text-center">
               <img
-                src="/mascots/goose-launch.png"
+                src="/mascots/goose-launch.webp"
                 alt=""
                 className="w-36 h-36 mx-auto mb-4 object-contain select-none"
                 draggable={false}

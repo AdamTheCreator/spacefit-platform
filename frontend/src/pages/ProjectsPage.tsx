@@ -184,13 +184,17 @@ export function ProjectsPage() {
             </div>
           ) : !data?.items.length ? (
             <div className="text-center py-16">
-              <div className="w-14 h-14 rounded-xl bg-[var(--bg-tertiary)] text-industrial-muted flex items-center justify-center mx-auto mb-4">
-                <FolderOpen size={28} />
-              </div>
+              <img
+                src="/mascots/goose-planner.webp"
+                alt=""
+                aria-hidden="true"
+                className="w-28 h-28 mx-auto mb-3 object-contain select-none"
+                draggable={false}
+              />
               <p className="text-sm text-industrial-muted mb-4">
                 {search
                   ? 'No projects match your search'
-                  : 'Create your first project to get started'}
+                  : 'Kick off your first project and the Planner will take it from there.'}
               </p>
               {!search && (
                 <button
