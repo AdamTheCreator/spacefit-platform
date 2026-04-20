@@ -351,227 +351,30 @@ async def get_orchestrator_response(
     }
 
 
-async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = None, credential=None) -> str:
-    """
-    Execute a tool and return the result.
+async def execute_tool(
+    tool_name: str,
+    tool_input: dict,
+    user_id: str | None = None,
+    credential=None,
+    session_id: str | None = None,
+) -> str:
+    """Execute a tool through the MCP gateway.
 
-    Args:
-        tool_name: Name of the tool to execute
-        tool_input: Input parameters for the tool
-        user_id: Optional user ID for credential lookup
-        credential: Optional pre-fetched credential
-
-    Returns:
-        String result from the tool execution
+    This is a thin compatibility shim. All real logic lives in
+    ``app.mcp.server`` (tool implementations) and ``app.mcp.gateway``
+    (audit + rate-limit). New code should use ``PerigeeMCPClient``
+    directly instead of calling this function.
     """
+    from app.mcp.client import PerigeeMCPClient
+
     if not isinstance(tool_input, dict):
         return "Invalid tool input (expected an object)."
 
-    def _get_str(value: object | None, *, max_len: int = 400) -> str | None:
-        if not isinstance(value, str):
-            return None
-        cleaned = value.strip()
-        if not cleaned:
-            return None
-        return cleaned[:max_len]
-
-    def _get_float(value: object | None, *, default: float) -> float:
-        try:
-            return float(value)  # type: ignore[arg-type]
-        except Exception:
-            return default
-
-    def _clamp_float(value: float, *, min_value: float, max_value: float) -> float:
-        return max(min_value, min(max_value, value))
-
-    if tool_name == "business_search":
-        from app.services.business_search import search_businesses
-
-        location = _get_str(tool_input.get("location"))
-        if not location:
-            return "Business search requires a location (city/state or a full address)."
-
-        query = _get_str(tool_input.get("query"), max_len=200)
-        business_type = _get_str(tool_input.get("business_type"), max_len=120)
-        radius_miles = _clamp_float(
-            _get_float(tool_input.get("radius_miles"), default=2.0),
-            min_value=0.25,
-            max_value=25.0,
-        )
-
-        result = await search_businesses(
-            query=query,
-            business_type=business_type,
-            location=location,
-            radius_miles=radius_miles,
-        )
-        return result.to_formatted_report()
-
-    elif tool_name == "demographics_analysis":
-        from app.services.census import analyze_demographics
-
-        address = _get_str(tool_input.get("address"))
-        if not address:
-            return "Demographics analysis requires an address or location."
-        radius_miles = _clamp_float(
-            _get_float(tool_input.get("radius_miles"), default=3.0),
-            min_value=0.5,
-            max_value=25.0,
-        )
-        return await analyze_demographics(address, radius_miles=radius_miles)
-
-    elif tool_name == "tenant_roster":
-        from app.services.places import analyze_tenant_roster
-
-        address = _get_str(tool_input.get("address"))
-        if not address:
-            return "Tenant roster lookup requires an address."
-        radius_miles = _clamp_float(
-            _get_float(tool_input.get("radius_miles"), default=1.0),
-            min_value=0.5,
-            max_value=25.0,
-        )
-        return await analyze_tenant_roster(address, radius_miles=radius_miles)
-
-    elif tool_name == "void_analysis":
-        from app.services.void_analysis import generate_void_report
-        from app.services.census import get_demographics_structured
-        from app.services.places import get_tenants_structured
-
-        address = _get_str(tool_input.get("address"))
-        if not address:
-            return "Void analysis requires an address."
-        radius_miles = _clamp_float(
-            _get_float(tool_input.get("radius_miles"), default=3.0),
-            min_value=0.5,
-            max_value=25.0,
-        )
-
-        # Gather supporting data for void analysis
-        demographics_data = await get_demographics_structured(address)
-        tenants_data = await get_tenants_structured(address, radius_miles=radius_miles)
-
-        return await generate_void_report(
-            property_address=address,
-            existing_tenants=tenants_data,
-            demographics=demographics_data,
-        )
-
-    elif tool_name == "costar_import":
-        import json
-        from app.core.database import async_session_factory
-        from app.db.models.import_job import ImportJob
-
-        job_id = _get_str(tool_input.get("import_job_id"))
-        if not job_id:
-            return "costar_import requires an import_job_id."
-
-        async with async_session_factory() as db:
-            from sqlalchemy import select
-            result = await db.execute(
-                select(ImportJob).where(
-                    ImportJob.id == job_id,
-                    ImportJob.source == "costar",
-                )
-            )
-            job = result.scalar_one_or_none()
-
-        if not job:
-            return f"CoStar import job {job_id} not found."
-        if job.status != "ready":
-            return f"CoStar import job {job_id} is still {job.status}."
-        if not job.parsed_payload_json:
-            return "CoStar import has no parsed data."
-
-        return f"CoStar Import Data ({job.original_filename}):\n{job.parsed_payload_json}"
-
-    elif tool_name == "placer_import":
-        import json
-        from app.core.database import async_session_factory
-        from app.db.models.import_job import ImportJob
-
-        job_id = _get_str(tool_input.get("import_job_id"))
-        if not job_id:
-            return "placer_import requires an import_job_id."
-
-        async with async_session_factory() as db:
-            from sqlalchemy import select
-            result = await db.execute(
-                select(ImportJob).where(
-                    ImportJob.id == job_id,
-                    ImportJob.source == "placer",
-                )
-            )
-            job = result.scalar_one_or_none()
-
-        if not job:
-            return f"Placer import job {job_id} not found."
-        if job.status != "ready":
-            return f"Placer import job {job_id} is still {job.status}."
-        if not job.parsed_payload_json:
-            return "Placer import has no parsed data."
-
-        return f"Placer Trade Area Data ({job.original_filename}):\n{job.parsed_payload_json}"
-
-    elif tool_name == "siteusa_import":
-        import json
-        from app.core.database import async_session_factory
-        from app.db.models.import_job import ImportJob
-
-        job_id = _get_str(tool_input.get("import_job_id"))
-        if not job_id:
-            return "siteusa_import requires an import_job_id."
-
-        async with async_session_factory() as db:
-            from sqlalchemy import select
-            result = await db.execute(
-                select(ImportJob).where(
-                    ImportJob.id == job_id,
-                    ImportJob.source == "siteusa",
-                )
-            )
-            job = result.scalar_one_or_none()
-
-        if not job:
-            return f"SiteUSA import job {job_id} not found."
-        if job.status != "ready":
-            return f"SiteUSA import job {job_id} is still {job.status}."
-        if not job.parsed_payload_json:
-            return "SiteUSA import has no parsed data."
-
-        return f"SiteUSA Traffic Data ({job.original_filename}):\n{job.parsed_payload_json}"
-
-    elif tool_name == "draft_outreach":
-        from app.services.outreach_drafts import draft_outreach_emails
-
-        address = _get_str(tool_input.get("property_address"))
-        if not address:
-            return "draft_outreach requires a property_address."
-
-        vacancy = _get_str(tool_input.get("vacancy_description")) or "Available space"
-        tenants = tool_input.get("target_tenants", [])
-        if not isinstance(tenants, list) or not tenants:
-            return "draft_outreach requires at least one target tenant."
-
-        drafts = await draft_outreach_emails(
-            property_address=address,
-            vacancy_description=vacancy,
-            target_tenants=tenants,
-        )
-
-        lines = [f"## {len(drafts)} Outreach Drafts Generated\n"]
-        for i, d in enumerate(drafts, 1):
-            lines.append(f"### Draft {i}: {d.tenant_name}")
-            lines.append(f"**To:** {d.recipient_email or '(no email provided)'}")
-            lines.append(f"**Subject:** {d.subject}")
-            if d.rationale:
-                lines.append(f"**Rationale:** {d.rationale}")
-            lines.append(f"\n{d.body[:500]}{'...' if len(d.body) > 500 else ''}\n")
-
-        return "\n".join(lines)
-
-    else:
-        return f"Unknown tool: {tool_name}"
+    client = PerigeeMCPClient(
+        user_id=user_id or "system",
+        session_id=session_id,
+    )
+    return await client.call_tool(tool_name, tool_input)
 
 
 async def plan_workflow(

@@ -547,7 +547,7 @@ async def handle_tool_calls(
 
         try:
             result = await asyncio.wait_for(
-                execute_tool(tool_name, tool_input, user_id),
+                execute_tool(tool_name, tool_input, user_id, session_id=session_id),
                 timeout=TOOL_TIMEOUT_SECONDS,
             )
             logger.debug("[handle_tools] tool=%s result_chars=%d", tool_name, len(result))

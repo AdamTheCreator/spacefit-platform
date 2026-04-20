@@ -1,7 +1,7 @@
 [project]
-name = "spacefit-backend"
+name = "perigee-backend"
 version = "0.1.0"
-description = "SpaceFit AI Backend - Commercial Real Estate Intelligence Platform"
+description = "Perigee AI Backend - Commercial Real Estate Intelligence Platform"
 requires-python = ">=3.11"
 dependencies = [
     # Web framework
@@ -41,6 +41,9 @@ dependencies = [
 
     # AI
     "anthropic>=0.40.0",
+
+    # MCP (Model Context Protocol)
+    "mcp[cli]>=1.0.0",
 
     # Payments
     "stripe>=8.0.0",
