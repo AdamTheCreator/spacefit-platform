@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PERIGEE INDUSTRIAL DESIGN SYSTEM
-   Inspired by MCLN / Francesco Michelini - Utilitarian Aesthetic
+   PERIGEE DESIGN SYSTEM
+   Playful Spatial Intelligence — Space Navy + Orbit Orange + Mist Blue
+   Fonts: Sora (display) · Inter (UI) · JetBrains Mono (data)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -10,52 +11,58 @@
    ───────────────────────────────────────────────────────────────────────────── */
 @theme {
   /* ═══════════════════════════════════════════════════════════════════════════
-     SOFTENED COLOR PALETTE
-     Warmer neutrals, gentler contrasts, more approachable feel
+     PERIGEE PALETTE — Space Navy ramp + Orbit Orange + Mist Blue
      ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Neutral Palette - Warmer undertones */
-  --color-neutral-50: #FAFAF9;
-  --color-neutral-100: #F5F4F2;
-  --color-neutral-200: #E8E7E5;
-  --color-neutral-300: #D4D3D0;
-  --color-neutral-400: #A3A19D;
-  --color-neutral-500: #737169;
-  --color-neutral-600: #5C5A55;
-  --color-neutral-700: #45433F;
-  --color-neutral-800: #2A2927;
-  --color-neutral-900: #1A1918;
-  --color-neutral-950: #0F0E0D;
+  /* Neutral Palette — cool navy ramp (moonlight → slate → space navy) */
+  --color-neutral-50:  #FAFBFD;
+  --color-neutral-100: #F2F5F9;  /* moonlight */
+  --color-neutral-200: #E4E9F0;
+  --color-neutral-300: #CBD3DE;
+  --color-neutral-400: #A7ADB7;  /* cool gray */
+  --color-neutral-500: #7A8594;
+  --color-neutral-600: #596779;
+  --color-neutral-700: #334155;  /* slate */
+  --color-neutral-800: #1F3556;  /* deep blue */
+  --color-neutral-900: #0F1B2D;  /* space navy */
+  --color-neutral-950: #050A14;
 
-  /* Accent - Warm Gold (refined) */
-  --color-accent-50: #FFFCF5;
-  --color-accent-100: #FEF7E6;
-  --color-accent-200: #FDECC7;
-  --color-accent-300: #FBDB99;
-  --color-accent-400: #F5C44D;
-  --color-accent-500: #E5A840;
-  --color-accent-600: #D49A35;
-  --color-accent-700: #B07D28;
-  --color-accent-800: #8C6320;
-  --color-accent-900: #73511A;
+  /* Accent — Orbit Orange ramp */
+  --color-accent-50:  #FFF6EF;
+  --color-accent-100: #FFE4CE;
+  --color-accent-200: #FFC59A;
+  --color-accent-300: #FFA66B;
+  --color-accent-400: #FF944F;
+  --color-accent-500: #FF8A3D;  /* orbit orange */
+  --color-accent-600: #E5731D;
+  --color-accent-700: #C25E1F;
+  --color-accent-800: #8A4314;
+  --color-accent-900: #5A2A0A;
 
-  /* Semantic Colors - Balanced saturation */
-  --color-success: #22C55E;
-  --color-success-light: #DCFCE7;
-  --color-warning: #EAB308;
-  --color-warning-light: #FEF9C3;
-  --color-error: #EF4444;
-  --color-error-light: #FEE2E2;
-  --color-info: #3B82F6;
-  --color-info-light: #DBEAFE;
+  /* Brand-adjacent utility hues */
+  --color-orbit:    #3A5BA0;  /* orbit blue — links, chart lines */
+  --color-orbit-2:  #1F3556;  /* deep blue */
+  --color-mist:     #A7C7F7;  /* mist blue — stars, soft accents */
+  --color-gold:     #E5B85C;  /* soft gold — secondary accent */
+  --color-cream:    #FBF8F0;  /* soft card surface */
+  --color-offwhite: #F5F1E8;  /* warm page background */
+
+  /* Semantic Colors */
+  --color-success: #2F7A3B;
+  --color-success-light: #E3F1E5;
+  --color-warning: #8A6417;
+  --color-warning-light: #FBEFC8;
+  --color-error: #B64535;
+  --color-error-light: #FCE3DA;
+  --color-info: #3A5BA0;
+  --color-info-light: #E4EDFB;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     TYPOGRAPHY
-     Sans-serif for UI, monospace reserved for code/data
+     TYPOGRAPHY — Sora (display) + Inter (UI) + JetBrains Mono (data)
      ═══════════════════════════════════════════════════════════════════════════ */
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
-  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Sora', 'Inter', system-ui, -apple-system, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -74,25 +81,25 @@
   --spacing-16: 64px;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     BORDER RADIUS - Softened corners
+     BORDER RADIUS — Perigee scale (8/12/16/24/28)
      ═══════════════════════════════════════════════════════════════════════════ */
   --radius-none: 0;
   --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
   --radius-full: 9999px;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     SHADOWS - Soft, layered depth
+     SHADOWS — Navy-tinted at low alpha
      ═══════════════════════════════════════════════════════════════════════════ */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
+  --shadow-xs: 0 1px 2px rgba(15, 27, 45, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 27, 45, 0.06), 0 1px 2px rgba(15, 27, 45, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 27, 45, 0.08), 0 2px 4px -1px rgba(15, 27, 45, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 27, 45, 0.10), 0 4px 6px -2px rgba(15, 27, 45, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 27, 45, 0.12), 0 10px 10px -5px rgba(15, 27, 45, 0.04);
 
   /* ═══════════════════════════════════════════════════════════════════════════
      MOTION / ANIMATION
@@ -112,28 +119,34 @@
    BASE STYLES & THEME VARIABLES
    ───────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Light Theme (Default) - Warm and approachable */
-  --bg-primary: #F8F8F7;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #F0EFED;
+  /* Light Theme — Warm off-white page background, navy text, orange accent */
+  --bg-primary: #F5F1E8;        /* warm off-white page */
+  --bg-secondary: #FFFFFF;       /* card surface */
+  --bg-tertiary: #F2F5F9;        /* moonlight panels */
   --bg-elevated: #FFFFFF;
-  --bg-muted: #E8E7E5;
-  --bg-accent-subtle: var(--color-accent-50);
+  --bg-muted: #E4E9F0;
+  --bg-cream: #FBF8F0;           /* soft card variant */
+  --bg-accent-subtle: rgba(255, 138, 61, 0.08);
 
-  --text-primary: var(--color-neutral-900);
-  --text-secondary: var(--color-neutral-600);
+  --text-primary: var(--color-neutral-900);   /* space navy */
+  --text-secondary: var(--color-neutral-700); /* slate */
   --text-muted: var(--color-neutral-500);
   --text-inverted: #FFFFFF;
 
-  --border-default: #E0DFDD;
-  --border-strong: #CFCDC9;
-  --border-subtle: #EAEAE8;
+  --border-default: #E4E9F0;
+  --border-strong: #CBD3DE;
+  --border-subtle: #EEF1F6;
   /* Legacy aliases for compatibility */
   --border-color: var(--border-strong);
 
-  --accent: var(--color-accent-500);
+  --accent: var(--color-accent-500);          /* orbit orange */
   --accent-hover: var(--color-accent-600);
   --accent-subtle: var(--color-accent-100);
+
+  /* Brand aux — exposed as semantic vars for component use */
+  --orbit: var(--color-orbit);
+  --mist: var(--color-mist);
+  --gold: var(--color-gold);
 
   /* Semantic backgrounds */
   --bg-success: var(--color-success-light);
@@ -142,46 +155,47 @@
   --bg-info: var(--color-info-light);
 
   /* Interactive states */
-  --hover-overlay: rgba(0, 0, 0, 0.04);
-  --active-overlay: rgba(0, 0, 0, 0.08);
+  --hover-overlay: rgba(15, 27, 45, 0.04);
+  --active-overlay: rgba(15, 27, 45, 0.08);
   --focus-ring: var(--accent);
   --focus-ring-offset: 2px;
 
   color-scheme: light;
 }
 
-/* Dark Theme Override */
+/* Dark Theme Override — Space Navy canvas with off-white typography */
 .dark, [data-theme="dark"] {
-  --bg-primary: #141312;
-  --bg-secondary: #1A1918;
-  --bg-tertiary: #222120;
-  --bg-elevated: #1E1D1C;
-  --bg-muted: #2A2928;
-  --bg-accent-subtle: rgba(229, 168, 64, 0.1);
+  --bg-primary: #0F1B2D;         /* space navy */
+  --bg-secondary: #18253D;       /* slightly raised */
+  --bg-tertiary: #1F3556;        /* deep blue panels */
+  --bg-elevated: #1F3556;
+  --bg-muted: #2B4067;
+  --bg-cream: #18253D;
+  --bg-accent-subtle: rgba(255, 138, 61, 0.14);
 
-  --text-primary: var(--color-neutral-100);
-  --text-secondary: var(--color-neutral-400);
+  --text-primary: #F5F1E8;                    /* warm off-white */
+  --text-secondary: var(--color-mist);        /* mist blue */
   --text-muted: var(--color-neutral-500);
   --text-inverted: var(--color-neutral-900);
 
-  --border-default: #2D2C29;
-  --border-strong: #3D3C38;
-  --border-subtle: #252423;
+  --border-default: #2B4067;
+  --border-strong: #3E5681;
+  --border-subtle: #1F3556;
   --border-color: var(--border-strong);
 
-  --accent: var(--color-accent-400);
-  --accent-hover: var(--color-accent-300);
-  --accent-subtle: rgba(229, 168, 64, 0.15);
+  --accent: var(--color-accent-500);          /* keep vivid orange in dark */
+  --accent-hover: var(--color-accent-400);
+  --accent-subtle: rgba(255, 138, 61, 0.18);
 
-  /* Semantic backgrounds (darker variants) */
-  --bg-success: rgba(34, 197, 94, 0.15);
-  --bg-warning: rgba(234, 179, 8, 0.15);
-  --bg-error: rgba(239, 68, 68, 0.15);
-  --bg-info: rgba(59, 130, 246, 0.15);
+  /* Semantic backgrounds (muted for dark canvas) */
+  --bg-success: rgba(47, 122, 59, 0.18);
+  --bg-warning: rgba(229, 184, 92, 0.15);
+  --bg-error: rgba(182, 69, 53, 0.18);
+  --bg-info: rgba(58, 91, 160, 0.18);
 
   /* Interactive states */
-  --hover-overlay: rgba(255, 255, 255, 0.04);
-  --active-overlay: rgba(255, 255, 255, 0.08);
+  --hover-overlay: rgba(245, 241, 232, 0.05);
+  --active-overlay: rgba(245, 241, 232, 0.09);
 
   color-scheme: dark;
 }
@@ -265,6 +279,7 @@ body {
 
 /* Type scale */
 .text-display {
+  font-family: var(--font-display);
   font-size: 24px;
   font-weight: 600;
   line-height: 1.2;
@@ -272,6 +287,7 @@ body {
 }
 
 .text-title {
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
   line-height: 1.3;
@@ -387,14 +403,14 @@ body {
   color: var(--color-neutral-900);
   font-weight: 600;
   min-height: 44px; /* Touch-friendly minimum */
-  box-shadow: var(--shadow-sm), 0 0 0 0 rgba(229, 168, 64, 0);
+  box-shadow: var(--shadow-sm), 0 0 0 0 rgba(255, 138, 61, 0);
 }
 
 .btn-industrial-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   color: var(--color-neutral-900);
-  box-shadow: var(--shadow-md), 0 0 0 0 rgba(229, 168, 64, 0.1);
+  box-shadow: var(--shadow-md), 0 0 0 0 rgba(255, 138, 61, 0.1);
 }
 
 .btn-industrial-primary:active {
@@ -1345,7 +1361,7 @@ textarea.input-industrial {
 }
 
 .dark .glass {
-  background: rgba(26, 25, 24, 0.8);
+  background: rgba(15, 27, 45, 0.8);
 }
 
 /* Divider */
