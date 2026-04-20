@@ -574,6 +574,222 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str | None = N
         return f"Unknown tool: {tool_name}"
 
 
+async def plan_workflow(
+    user_message: str,
+    context: dict | None = None,
+    resolved_llm: ResolvedLLM | None = None,
+) -> list[str]:
+    """Ask a small LLM call: which specialists should handle this user message?
+
+    Returns an ordered list of specialist names, e.g. ["scout", "analyst", "matchmaker"].
+    """
+    from app.agents.specialists.registry import SPECIALIST_REGISTRY
+
+    request_id = uuid.uuid4().hex[:8]
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
+
+    specialist_descriptions = "\n".join(
+        f"- {name}: {spec.description}"
+        for name, spec in SPECIALIST_REGISTRY.items()
+    )
+
+    context_hint = ""
+    if context:
+        if context.get("imports"):
+            context_hint += f"\nUser has {len(context['imports'])} data imports attached."
+        if context.get("documents"):
+            context_hint += f"\nUser has {len(context['documents'])} documents attached."
+
+    planning_prompt = f"""Given the user's message, decide which specialists to call and in what order.
+
+Available specialists:
+{specialist_descriptions}
+
+Common patterns:
+- Business/location discovery -> scout
+- Property analysis -> scout, analyst
+- Find tenant candidates -> scout, analyst, matchmaker
+- Find candidates + draft outreach -> scout, analyst, matchmaker, outreach
+- Draft outreach (candidates already known) -> outreach
+- Simple demographic question -> scout
+{context_hint}
+
+Respond with ONLY a comma-separated list of specialist names, in execution order. No explanation.
+Example: scout, analyst, matchmaker"""
+
+    try:
+        response = await llm.chat(
+            LLMChatRequest(
+                model=model,
+                max_tokens=50,
+                system=planning_prompt,
+                messages=[LLMChatMessage(role="user", content=user_message)],
+                request_id=request_id,
+            )
+        )
+        raw = response.content.strip().lower()
+        names = [n.strip() for n in raw.split(",") if n.strip() in SPECIALIST_REGISTRY]
+        if not names:
+            # Fallback: scout handles everything
+            names = ["scout"]
+        logger.info("[plan_workflow:%s] plan=%s", request_id, names)
+        return names
+    except Exception as e:
+        logger.exception("[plan_workflow:%s] failed, falling back to scout", request_id)
+        return ["scout"]
+
+
+async def call_specialist(
+    name: str,
+    messages: list[dict[str, str]],
+    context: dict | None = None,
+    resolved_llm: ResolvedLLM | None = None,
+    project_context: dict | None = None,
+) -> dict:
+    """Run a single specialist pass with its scoped prompt + tool subset.
+
+    Returns dict with 'content', 'tool_calls', 'stop_reason', token counts.
+    """
+    from app.agents.specialists.registry import get_specialist
+    from app.agents.specialists.base import resolve_model_for_tier
+
+    request_id = uuid.uuid4().hex[:8]
+    spec = get_specialist(name)
+
+    # Resolve model: BYOK overrides tier default
+    if resolved_llm:
+        llm = resolved_llm.client
+        effective_model = resolved_llm.model
+    else:
+        llm = get_llm_client()
+        effective_model = resolve_model_for_tier(spec.default_model_tier)
+
+    # Build messages
+    llm_messages = []
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role not in ("user", "assistant"):
+            continue
+        if not isinstance(content, str):
+            continue
+        llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
+
+    # Build system prompt with project context
+    system_prompt = spec.system_prompt
+    if project_context:
+        from app.services.prompt_registry import format_project_context_block
+        context_block = format_project_context_block(project_context)
+        if context_block:
+            system_prompt = system_prompt + "\n\n" + redact_secrets(context_block)
+
+    # Filter tools to only what this specialist is allowed
+    all_tools = get_tools_for_context()
+    specialist_tools = [t for t in all_tools if t["name"] in spec.allowed_tools]
+
+    logger.info(
+        "[specialist:%s:%s] model=%s tools=%d messages=%d",
+        name, request_id, effective_model, len(specialist_tools), len(llm_messages),
+    )
+
+    response = await llm.chat(
+        LLMChatRequest(
+            system=system_prompt,
+            messages=llm_messages,
+            model=effective_model,
+            max_tokens=2048,
+            tools=specialist_tools if specialist_tools else None,
+            tool_choice={"type": "any"} if specialist_tools and should_force_tool_use(
+                llm_messages[-1].content if llm_messages else ""
+            ) else None,
+            request_id=request_id,
+        )
+    )
+
+    tool_calls = [
+        {"id": tc.id, "name": tc.name, "input": tc.input}
+        for tc in response.tool_calls
+    ]
+
+    logger.info(
+        "[specialist:%s:%s] stop=%s tools=%d chars=%d",
+        name, request_id, response.stop_reason, len(tool_calls), len(response.content),
+    )
+
+    return {
+        "specialist": name,
+        "content": response.content,
+        "tool_calls": tool_calls,
+        "stop_reason": response.stop_reason,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+    }
+
+
+async def synthesize_specialist_outputs(
+    user_message: str,
+    specialist_outputs: list[dict],
+    conversation_history: list[dict[str, str]],
+    resolved_llm: ResolvedLLM | None = None,
+    project_context: dict | None = None,
+) -> dict:
+    """Synthesize outputs from multiple specialists into a single coherent response."""
+    from app.agents.prompts.orchestrator import ORCHESTRATOR_SYSTEM_PROMPT
+
+    request_id = uuid.uuid4().hex[:8]
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
+
+    # Build synthesis prompt with specialist outputs
+    output_blocks = []
+    for output in specialist_outputs:
+        name = output.get("specialist", "unknown")
+        content = output.get("content", "")
+        if content:
+            output_blocks.append(f"### {name.title()} output:\n{redact_secrets(content)}")
+
+    synthesis_input = (
+        "The following specialists have gathered data. Synthesize their outputs into a single, "
+        "coherent response for the user. Cite data sources. Lead with the answer.\n\n"
+        + "\n\n---\n\n".join(output_blocks)
+    )
+
+    llm_messages = []
+    for msg in conversation_history:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role in ("user", "assistant") and isinstance(content, str):
+            llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
+
+    llm_messages.append(LLMChatMessage(role="user", content=synthesis_input))
+
+    system_prompt = ORCHESTRATOR_SYSTEM_PROMPT
+    if project_context:
+        from app.services.prompt_registry import format_project_context_block
+        context_block = format_project_context_block(project_context)
+        if context_block:
+            system_prompt = system_prompt + "\n\n" + redact_secrets(context_block)
+
+    response = await llm.chat(
+        LLMChatRequest(
+            system=system_prompt,
+            messages=llm_messages,
+            model=model,
+            max_tokens=2048,
+            request_id=request_id,
+        )
+    )
+
+    return {
+        "content": response.content,
+        "tool_calls": [],
+        "stop_reason": response.stop_reason,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+    }
+
+
 async def generate_conversation_title(
     first_message: str,
     resolved_llm: ResolvedLLM | None = None,

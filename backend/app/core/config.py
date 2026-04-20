@@ -3,7 +3,7 @@ from pydantic import Field
 
 
 class Settings(BaseSettings):
-    app_name: str = "SpaceFit AI"
+    app_name: str = "Perigee"
     debug: bool = Field(default=False)
     api_prefix: str = "/api/v1"
 
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # Database (SQLite for dev, PostgreSQL for production)
     database_url: str = Field(
-        default="sqlite+aiosqlite:///./spacefit.db"
+        default="sqlite+aiosqlite:///./perigee.db"
     )
 
     # JWT Authentication
@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     llm_max_concurrency: int = Field(default=4)
     llm_tool_result_max_chars: int = Field(default=12000)
 
+    # Specialist routing (Phase 3)
+    enable_specialist_routing: bool = Field(default=False)
+
     # Guardrails
     guardrail_max_message_chars: int = Field(default=8000)
     guardrail_rate_limit_messages: int = Field(default=30)
@@ -97,7 +100,7 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="")
     smtp_use_tls: bool = Field(default=True)
     smtp_from_email: str = Field(default="")  # Default sender email
-    smtp_from_name: str = Field(default="SpaceFit")
+    smtp_from_name: str = Field(default="Perigee")
 
     # File Upload
     upload_dir: str = Field(default="./uploads")
@@ -111,8 +114,8 @@ class Settings(BaseSettings):
 
     # Resend Email (transactional emails)
     resend_api_key: str = Field(default="")
-    resend_from_email: str = Field(default="noreply@spacefit.ai")
-    resend_from_name: str = Field(default="SpaceFit")
+    resend_from_email: str = Field(default="noreply@perigee.ai")
+    resend_from_name: str = Field(default="Perigee")
 
     # ATTOM Data API (title/owner lookup)
     attom_api_key: str = Field(default="")
