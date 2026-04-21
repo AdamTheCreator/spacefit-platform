@@ -1,4 +1,3 @@
-import { Sparkles } from 'lucide-react';
 import { AGENTS, type AgentType } from '../../types/chat';
 
 interface ThinkingIndicatorProps {
@@ -16,11 +15,9 @@ export function ThinkingIndicator({ isVisible, activeAgentType }: ThinkingIndica
       <div className="chat-stage px-4 py-2">
         <div className="flex gap-4 sm:gap-6 items-start">
           <div className="relative flex-shrink-0 pt-1">
-            <div className="absolute inset-0 rounded-xl bg-[var(--accent)]/20 blur-md animate-pulse" aria-hidden="true" />
-            <div className="relative w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center text-white shadow-md shadow-[var(--accent)]/30">
-              <Sparkles size={14} />
-            </div>
-            <div className="absolute -inset-1 rounded-xl border border-[var(--accent)]/30 animate-ping" aria-hidden="true" />
+            <div className="absolute inset-0 rounded-full bg-[var(--accent)]/20 blur-md animate-pulse" aria-hidden="true" />
+            <img src="/perigee-logo.png" alt="" className="relative w-7 h-7 rounded-full object-cover shadow-md shadow-[var(--accent)]/30" />
+            <div className="absolute -inset-1 rounded-full border border-[var(--accent)]/30 animate-ping" aria-hidden="true" />
           </div>
 
           <div className="flex-1 min-w-0 rounded-2xl border border-[var(--accent)]/15 bg-[linear-gradient(135deg,var(--bg-elevated)_0%,var(--accent-subtle)_100%)] px-4 py-3 shadow-sm">

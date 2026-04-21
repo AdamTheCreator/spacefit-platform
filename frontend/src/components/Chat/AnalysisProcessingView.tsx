@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Sparkles } from 'lucide-react';
 import type { AgentType, WorkflowStep } from '../../types/chat';
 
 interface AnalysisProcessingViewProps {
@@ -38,10 +37,8 @@ export function AnalysisProcessingView({
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-md mx-auto animate-fade-in">
       {/* Perigee icon with pulse ring */}
       <div className="relative mb-8">
-        <div className="w-14 h-14 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-[var(--accent)]/20">
-          <Sparkles size={26} />
-        </div>
-        <span className="absolute inset-0 rounded-xl border-2 border-[var(--accent)]/40 animate-pulse-slow" />
+        <img src="/perigee-logo.png" alt="" className="w-14 h-14 rounded-full object-cover shadow-lg shadow-[var(--accent)]/20" />
+        <span className="absolute inset-0 rounded-full border-2 border-[var(--accent)]/40 animate-pulse-slow" />
       </div>
 
       {/* Heading */}

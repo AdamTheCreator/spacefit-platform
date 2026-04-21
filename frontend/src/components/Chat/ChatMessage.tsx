@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { Sparkles } from 'lucide-react';
 import type { Message } from '../../types/chat';
 import { AGENTS } from '../../types/chat';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -23,9 +22,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
                 U
               </div>
             ) : (
-              <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center text-white">
-                <Sparkles size={14} />
-              </div>
+              <img src="/perigee-logo.png" alt="" className="w-7 h-7 rounded-full object-cover" />
             )}
           </div>
 
