@@ -70,10 +70,10 @@ export function PricingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-industrial flex items-center justify-center dark">
-        <div className="relative w-8 h-8">
-          <div className="w-8 h-8 border border-industrial" />
-          <div className="absolute inset-0 border-t border-[var(--accent)] animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F8F8F7' }}>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={28} className="animate-spin" style={{ color: '#3A5BA0' }} />
+          <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: '#A3A19D' }}>Loading plans</p>
         </div>
       </div>
     );
