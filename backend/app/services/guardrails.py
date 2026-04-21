@@ -13,12 +13,16 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from app.services.user_llm import ResolvedLLM
 
 logger = logging.getLogger(__name__)
 
@@ -144,12 +148,22 @@ def _classify_instant(content: str) -> str:
     return "AMBIGUOUS"
 
 
-async def _classify_with_haiku(content: str) -> str:
-    """Use a cheap Haiku call to classify ambiguous messages. Returns 'CRE' or 'OFF_TOPIC'."""
+async def _classify_with_haiku(
+    content: str,
+    resolved_llm: "ResolvedLLM | None" = None,
+) -> str:
+    """Use a cheap Haiku call to classify ambiguous messages. Returns 'CRE' or 'OFF_TOPIC'.
+
+    If `resolved_llm` is provided and represents a BYOK config, routes the classifier
+    call through the user's own key so that BYOK users incur zero platform-side tokens.
+    """
     try:
         from app.llm import get_llm_client, LLMChatRequest, LLMChatMessage
 
-        llm = get_llm_client()
+        if resolved_llm is not None and resolved_llm.is_byok:
+            llm = resolved_llm.client
+        else:
+            llm = get_llm_client()
         response = await llm.chat(
             LLMChatRequest(
                 system="Classify if this message is related to commercial real estate (CRE). Reply with exactly one word: CRE or OFF_TOPIC",
@@ -167,10 +181,16 @@ async def _classify_with_haiku(content: str) -> str:
         return "CRE"  # Fail open
 
 
-async def classify_message(content: str) -> tuple[bool, str | None]:
+async def classify_message(
+    content: str,
+    resolved_llm: "ResolvedLLM | None" = None,
+) -> tuple[bool, str | None]:
     """
     Three-tier topic classification.
     Returns (allowed, error_message).
+
+    `resolved_llm` is forwarded to the tier-3 Haiku classifier so BYOK users
+    do not consume platform tokens for topic classification.
     """
     verdict = _classify_instant(content)
 
@@ -181,7 +201,7 @@ async def classify_message(content: str) -> tuple[bool, str | None]:
         return False, CRE_REJECTION_MESSAGE
 
     # Ambiguous → Haiku fallback
-    haiku_result = await _classify_with_haiku(content)
+    haiku_result = await _classify_with_haiku(content, resolved_llm=resolved_llm)
     if haiku_result == "CRE":
         return True, None
 
@@ -254,8 +274,18 @@ def _current_period_start() -> datetime:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-async def check_token_budget(user_id: str) -> tuple[bool, str | None]:
-    """Check if user has exhausted their monthly token budget."""
+async def check_token_budget(
+    user_id: str,
+    is_byok: bool = False,
+) -> tuple[bool, str | None]:
+    """Check if user has exhausted their monthly token budget.
+
+    When `is_byok=True` the user is paying for their own API usage on their own
+    provider key, so the platform's subscription-level token budget does not apply.
+    """
+    if is_byok:
+        return True, None
+
     from app.core.database import async_session_factory
     from app.db.models.subscription import Subscription, TokenUsage
 
@@ -310,8 +340,18 @@ async def record_token_usage(
     user_id: str,
     input_tokens: int,
     output_tokens: int,
+    is_byok: bool = False,
 ) -> None:
-    """Upsert token counts into the TokenUsage table for the current month."""
+    """Upsert token counts into the TokenUsage table for the current month.
+
+    When `is_byok=True`, the user is using their own provider API key, so we do
+    NOT attribute these tokens to the platform's per-user quota. The user can
+    track real usage in their own provider dashboard (Anthropic console,
+    OpenAI platform, etc.). This keeps BYOK users free of platform-side token
+    accounting and prevents double-counting against their subscription limits.
+    """
+    if is_byok:
+        return
     if input_tokens == 0 and output_tokens == 0:
         return
 

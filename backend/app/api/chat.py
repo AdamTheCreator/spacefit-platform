@@ -629,11 +629,12 @@ async def handle_tool_calls(
             resolved_llm=resolved_llm,
         )
 
-        # Record tokens from synthesis call
+        # Record tokens from synthesis call (skipped if user is on BYOK)
         await record_token_usage(
             user_id,
             synthesis_response.get("input_tokens", 0),
             synthesis_response.get("output_tokens", 0),
+            is_byok=bool(resolved_llm and resolved_llm.is_byok),
         )
 
         # Check if Claude wants to use more tools (rare, but possible)
@@ -826,8 +827,9 @@ async def websocket_endpoint(
                 await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
 
-            # 3. Topic classifier
-            ok, err = await classify_message(user_content)
+            # 3. Topic classifier — forward BYOK context so the ambiguous-tier Haiku
+            # classifier call uses the user's key, not the platform's
+            ok, err = await classify_message(user_content, resolved_llm=user_resolved_llm)
             if not ok:
                 await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
@@ -838,8 +840,11 @@ async def websocket_endpoint(
                 await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
 
-            # 5. Token budget
-            ok, err = await check_token_budget(user_id)
+            # 5. Token budget — BYOK users bypass platform budget; their own provider meters usage
+            ok, err = await check_token_budget(
+                user_id,
+                is_byok=bool(user_resolved_llm and user_resolved_llm.is_byok),
+            )
             if not ok:
                 await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
@@ -1074,7 +1079,12 @@ async def websocket_endpoint(
                         # Single specialist — use its output directly
                         final_content = specialist_outputs[0].get("content", "")
 
-                    await record_token_usage(user_id, total_input_tokens, total_output_tokens)
+                    await record_token_usage(
+                        user_id,
+                        total_input_tokens,
+                        total_output_tokens,
+                        is_byok=bool(user_resolved_llm and user_resolved_llm.is_byok),
+                    )
                     if not session_usage_counted:
                         session_usage_counted = True
                         await increment_session_usage(user_id)
@@ -1125,10 +1135,12 @@ async def websocket_endpoint(
                 continue
 
             # --- Post-LLM: record tokens and session usage ---
+            # Skip recording when BYOK is active — user's tokens are metered by their own provider.
             await record_token_usage(
                 user_id,
                 response.get("input_tokens", 0),
                 response.get("output_tokens", 0),
+                is_byok=bool(user_resolved_llm and user_resolved_llm.is_byok),
             )
             if not session_usage_counted:
                 session_usage_counted = True
