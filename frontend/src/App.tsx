@@ -59,6 +59,7 @@ function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -73,7 +74,6 @@ function App() {
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
             <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
             <Route path="/chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="/chat/:sessionId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
