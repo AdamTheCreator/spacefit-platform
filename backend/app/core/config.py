@@ -7,8 +7,28 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False)
     api_prefix: str = "/api/v1"
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
+    # CORS — list of explicit origins the API accepts XHR/fetch from.
+    # Localhost entries are for local dev; production hosts are for the
+    # deployed SPA and any vanity domain. Render preview deployments are
+    # covered by ``cors_origin_regex`` below rather than enumerated here.
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        # Production (spacefit era — still live during the perigee rename).
+        "https://spacefit.app",
+        "https://www.spacefit.app",
+        "https://spacefit.onrender.com",
+        # Production (perigee era — rename target per render.yaml docs).
+        "https://perigee.ai",
+        "https://www.perigee.ai",
+        "https://app.perigee.ai",
+    ]
+    # Regex-based origin check for Render's per-PR preview URLs
+    # (pullRequestPreviewsEnabled: true in render.yaml). FastAPI's
+    # CORSMiddleware matches this against the Origin header when a
+    # literal allow_origins match fails. Leaving empty disables it.
+    cors_origin_regex: str = r"^https://(spacefit|perigee)-pr-\d+\.onrender\.com$"
 
     # WebSocket
     ws_heartbeat_interval: int = 30
