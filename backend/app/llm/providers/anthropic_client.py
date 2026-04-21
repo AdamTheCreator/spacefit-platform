@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.llm.exceptions import LLMConfigurationError, LLMProviderError
+from app.byok.errors import map_anthropic_exception
+from app.llm.exceptions import LLMConfigurationError
 from app.llm.types import (
     LLMChatRequest,
     LLMResponse,
@@ -28,7 +29,10 @@ class AnthropicLLMClient:
 
         try:
             from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
-            from anthropic.types import ToolUseBlock, TextBlock  # type: ignore[import-not-found]
+            from anthropic.types import (  # type: ignore[import-not-found]
+                TextBlock,
+                ToolUseBlock,
+            )
         except Exception as e:  # pragma: no cover - depends on optional install
             raise LLMConfigurationError(
                 "Anthropic provider selected but the 'anthropic' package is not installed."
@@ -64,7 +68,9 @@ class AnthropicLLMClient:
             try:
                 response = await self._client.messages.create(**create_kwargs)
             except Exception as e:
-                raise LLMProviderError("Anthropic request failed") from e
+                # Route through the BYOK error mapper so 401/403/429/5xx
+                # get distinct codes rather than a single generic failure.
+                raise map_anthropic_exception(e) from e
 
         text_content = ""
         tool_calls: list[LLMToolCall] = []
@@ -127,7 +133,8 @@ class AnthropicLLMClient:
             try:
                 response = await self._client.messages.create(**create_kwargs)
             except Exception as e:
-                raise LLMProviderError("Anthropic vision request failed") from e
+                # Vision uses the same normalized error surface as chat.
+                raise map_anthropic_exception(e) from e
 
         text_content = ""
         for block in getattr(response, "content", []):

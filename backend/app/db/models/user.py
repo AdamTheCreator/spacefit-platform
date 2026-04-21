@@ -77,8 +77,8 @@ class User(Base):
     memory: Mapped["UserMemory | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
-    ai_config: Mapped["UserAIConfig | None"] = relationship(
-        back_populates="user", cascade="all, delete-orphan", uselist=False
+    ai_configs: Mapped[list["UserAIConfig"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
     @property

@@ -1,7 +1,17 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, LargeBinary
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -148,42 +158,126 @@ class UserPreferences(Base):
 
 
 class UserAIConfig(Base):
-    """Per-user AI provider configuration for BYOK (Bring Your Own Key)."""
+    """Per-user AI provider configuration for BYOK (Bring Your Own Key).
+
+    One row represents one credential in its lifecycle. A user can have at
+    most one row in status ``active`` or ``rotating`` per provider (enforced
+    by the partial unique index in migration 028); revoked/invalid rows are
+    retained for audit. The credential_audit_log table records access to
+    these rows.
+    """
     __tablename__ = "user_ai_configs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
-    # Provider selection
-    provider: Mapped[str] = mapped_column(
-        String(30), default="platform_default"
-    )  # platform_default, anthropic, openai, google, deepseek, openai_compatible
+    # Org-ready. scope_level='user' for every current row; org_id stays NULL
+    # until organizations exist. Resolution code filters scope_level='user'
+    # today; when orgs land, it will add a fallback to scope_level='org'.
+    scope_level: Mapped[str] = mapped_column(String(10), default="user", nullable=False)
+    org_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
-    # Model override (e.g. "gpt-4o", "gemini-2.0-flash")
+    # Provider selection. Legal values validated in application code — kept
+    # as a String column rather than Enum to keep migrations simple (adding
+    # a new provider is additive in code, no schema change).
+    provider: Mapped[str] = mapped_column(String(30), default="platform_default")
+
+    # Model override.
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # Encrypted BYOK key
+    # Envelope-encrypted key material. After migration 029 backfill, the
+    # invariant for an ``active`` row is:
+    #   api_key_encrypted = AES-256-GCM(dek, ciphertext_iv, api_key) + tag
+    #   ciphertext_tag    = GCM auth tag for api_key_encrypted
+    #   encrypted_dek     = KEK-wrapped DEK
+    #   kek_id            = identifier of the KEK that wrapped the DEK
+    # For a revoked row, all four are zeroed (crypto-shredded).
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    ciphertext_iv: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    ciphertext_tag: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    encrypted_dek: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    kek_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Legacy Fernet column, retained during the 029→030 migration window so
+    # rollback is possible; drop in migration 030 after envelope is stable.
     encryption_salt: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
-    # Custom endpoint for DeepSeek, local LLMs, etc.
+    # Display + dedupe.
+    key_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    key_last_four: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Custom endpoint for DeepSeek, local LLMs, OpenAI-compatible gateways.
     base_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Per-specialist model overrides (JSON):
     # {"orchestrator": "claude-sonnet-4-6-...", "scout": "claude-haiku-4-5-...", ...}
     specialist_models_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Validation status
+    # Governance scope (JSON). Recognized keys:
+    #   allowed_models: list[str]
+    #   denied_models: list[str]
+    #   monthly_spend_cap_usd: number
+    #   monthly_request_cap: int
+    scope: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+
+    # Lifecycle: active | rotating | invalid | revoked. Enforcement of the
+    # "at most one active|rotating per (user_id, provider)" invariant is at
+    # the DB level via a partial unique index.
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+
+    # Validation status (live-call provider check).
     is_key_valid: Mapped[bool] = mapped_column(Boolean, default=False)
     key_validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     key_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Audit timestamps. last_used_at is async-updated post-request; created_by
+    # is the acting user (may differ from user_id when admin creates on their
+    # behalf); revoked_* are set on soft-delete.
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
-    user: Mapped["User"] = relationship(back_populates="ai_config")
+    user: Mapped["User"] = relationship(back_populates="ai_configs")
+
+
+class CredentialAuditLog(Base):
+    """Append-only audit trail for every BYOK credential action.
+
+    Written by ``app.byok.audit`` on every create / validate / use / rotate /
+    revoke. Survives credential deletion (credential_id becomes NULL, the
+    fingerprint column preserves the logical linkage).
+    """
+    __tablename__ = "credential_audit_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=False), primary_key=True)
+    credential_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("user_ai_configs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    credential_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    actor_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
 from app.db.models.user import User  # noqa: E402

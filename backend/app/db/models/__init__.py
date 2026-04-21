@@ -1,28 +1,34 @@
-from app.db.models.user import User, OAuthAccount, RefreshToken, SSOConfiguration
-from app.db.models.chat import ChatSession, ChatMessage
-from app.db.models.project import Project
-from app.db.models.customer import Customer, CustomerContact
-from app.db.models.credential import SiteCredential, AgentConnection, OnboardingProgress, UserAIConfig
-from app.db.models.deal import Deal, DealStageHistory, DealActivity, Property
-from app.db.models.document import (
-    ParsedDocument,
-    AvailableSpace,
-    ExistingTenant,
-    VoidAnalysisResult,
-    InvestmentMemo,
-    DocumentType,
-    DocumentStatus,
+from app.db.models.chat import ChatMessage, ChatSession
+from app.db.models.credential import (
+    AgentConnection,
+    CredentialAuditLog,
+    OnboardingProgress,
+    SiteCredential,
+    UserAIConfig,
 )
+from app.db.models.customer import Customer, CustomerContact
+from app.db.models.deal import Deal, DealActivity, DealStageHistory, Property
+from app.db.models.document import (
+    AvailableSpace,
+    DocumentStatus,
+    DocumentType,
+    ExistingTenant,
+    InvestmentMemo,
+    ParsedDocument,
+    VoidAnalysisResult,
+)
+from app.db.models.import_job import ImportJob
+from app.db.models.project import Project
 from app.db.models.subscription import (
-    SubscriptionPlan,
     Subscription,
-    UsageRecord,
-    SubscriptionTier,
+    SubscriptionPlan,
     SubscriptionStatus,
+    SubscriptionTier,
+    UsageRecord,
     UsageType,
 )
+from app.db.models.user import OAuthAccount, RefreshToken, SSOConfiguration, User
 from app.db.models.user_memory import UserMemory
-from app.db.models.import_job import ImportJob
 
 __all__ = [
     "User",
@@ -37,6 +43,7 @@ __all__ = [
     "AgentConnection",
     "OnboardingProgress",
     "UserAIConfig",
+    "CredentialAuditLog",
     "Deal",
     "DealStageHistory",
     "DealActivity",

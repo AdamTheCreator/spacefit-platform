@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, CurrentUser
-from app.core.security import encrypt_credential, decrypt_credential, generate_user_salt
+from app.api.deps import CurrentUser, get_db
+from app.core.security import encrypt_credential, generate_user_salt
 from app.db.models.credential import UserAIConfig
 from app.services.user_llm import PROVIDER_DEFAULT_MODELS
 
@@ -150,7 +150,9 @@ async def get_ai_config(
 ) -> AIConfigResponse:
     """Get current AI model configuration."""
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == current_user.id)
+        .where(UserAIConfig.status == "active")
     )
     config = result.scalar_one_or_none()
 
@@ -198,7 +200,9 @@ async def update_ai_config(
         )
 
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == current_user.id)
+        .where(UserAIConfig.status == "active")
     )
     config = result.scalar_one_or_none()
 
@@ -281,7 +285,7 @@ async def validate_key(
 
         # If we got here, the key works. Update the config in DB.
         result = await db.execute(
-            select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+            select(UserAIConfig).where(UserAIConfig.user_id == current_user.id).where(UserAIConfig.status == "active")
         )
         config = result.scalar_one_or_none()
         if config and config.api_key_encrypted:
@@ -300,7 +304,7 @@ async def validate_key(
 
         # Update config with error
         result = await db.execute(
-            select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+            select(UserAIConfig).where(UserAIConfig.user_id == current_user.id).where(UserAIConfig.status == "active")
         )
         config = result.scalar_one_or_none()
         if config:
@@ -318,7 +322,9 @@ async def remove_byok_key(
 ) -> AIConfigResponse:
     """Remove BYOK key and revert to platform default."""
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == current_user.id)
+        .where(UserAIConfig.status == "active")
     )
     config = result.scalar_one_or_none()
 
@@ -428,7 +434,7 @@ async def get_usage(
 
     # BYOK status
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id).where(UserAIConfig.status == "active")
     )
     ai_config = result.scalar_one_or_none()
     using_byok = bool(
@@ -475,7 +481,9 @@ async def get_specialist_models(
     import json as _json
 
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == current_user.id)
+        .where(UserAIConfig.status == "active")
     )
     config = result.scalar_one_or_none()
 
@@ -510,7 +518,9 @@ async def update_specialist_models(
             )
 
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id)
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == current_user.id)
+        .where(UserAIConfig.status == "active")
     )
     config = result.scalar_one_or_none()
 
