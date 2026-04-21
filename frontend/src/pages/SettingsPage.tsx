@@ -20,6 +20,31 @@ import {
   type AIConfigUpdate,
 } from '../hooks/useAIConfig';
 
+// Shared fallback for sections whose data-fetch failed.
+// Avoids the eternal-skeleton bug when the backend is sleepy or offline.
+function SectionError({ title, onRetry }: { title: string; onRetry: () => void }) {
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[var(--bg-error)] flex items-center justify-center shrink-0">
+            <AlertCircle size={16} className="text-[var(--color-error)]" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-industrial">{title}</h2>
+            <p className="text-xs text-industrial-muted mt-0.5">
+              Couldn't load from the server. It may be waking up — try again in a few seconds.
+            </p>
+          </div>
+        </div>
+        <button onClick={onRetry} className="btn-industrial btn-sm shrink-0">
+          Retry
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MultiSelect({
   options,
   selected,
@@ -117,8 +142,18 @@ function TagInput({
 }
 
 function AIPreferencesSection() {
-  const { data: options, isLoading: optionsLoading } = usePreferencesOptions();
-  const { data: preferences, isLoading: prefsLoading } = usePreferences();
+  const {
+    data: options,
+    isLoading: optionsLoading,
+    isError: optionsError,
+    refetch: refetchOptions,
+  } = usePreferencesOptions();
+  const {
+    data: preferences,
+    isLoading: prefsLoading,
+    isError: prefsError,
+    refetch: refetchPrefs,
+  } = usePreferences();
   const updateMutation = useUpdatePreferences();
 
   const [localPrefs, setLocalPrefs] = useState<PreferencesUpdate>({});
@@ -160,6 +195,15 @@ function AIPreferencesSection() {
           <div className="h-3 bg-[var(--bg-tertiary)] rounded w-3/4"></div>
         </div>
       </div>
+    );
+  }
+
+  if (optionsError || prefsError) {
+    return (
+      <SectionError
+        title="AI Preferences"
+        onRetry={() => { refetchOptions(); refetchPrefs(); }}
+      />
     );
   }
 
@@ -344,63 +388,99 @@ function AIPreferencesSection() {
 }
 
 function MemorySection() {
-  const { data: memory, isLoading } = useMemory();
+  const { data: memory, isLoading, isError, refetch } = useMemory();
   const clearMutation = useClearMemory();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const handleClear = async () => {
     await clearMutation.mutateAsync();
     setShowConfirm(false);
   };
 
-  if (isLoading) {
-    return (
-      <div className="card-industrial animate-pulse">
-        <div className="h-4 bg-[var(--bg-tertiary)] rounded w-48 mb-4"></div>
-        <div className="space-y-3">
-          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-full"></div>
-          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-3/4"></div>
-        </div>
-      </div>
-    );
-  }
-
   const hasMemory = memory && (memory.total_analyses > 0 || memory.book_of_business_summary?.tenant_count);
+
+  // Collapsed summary — what the user sees by default
+  const summary = hasMemory
+    ? `${memory.total_analyses} analyses · ${memory.analyzed_properties?.length || 0} properties · ${memory.book_of_business_summary?.tenant_count || 0} tenants remembered`
+    : 'Nothing remembered yet — starts learning after your first property analysis.';
 
   return (
     <div className="card-industrial">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
-            <Brain size={16} className="text-[var(--accent)]" />
-          </div>
-          <h2 className="text-sm font-semibold text-industrial">Perigee Memory</h2>
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="w-full flex items-center gap-3 text-left"
+      >
+        <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center shrink-0">
+          <Brain size={16} className="text-[var(--accent)]" />
         </div>
-        {hasMemory && (
-          <button
-            onClick={() => setShowConfirm(true)}
-            className="btn-industrial btn-sm text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--bg-error)]"
-          >
-            <Trash2 size={14} />
-            Clear Memory
-          </button>
-        )}
-      </div>
-
-      <p className="text-sm text-industrial-secondary mb-6 leading-relaxed">
-        Perigee remembers your analysis history and preferences to provide more personalized recommendations.
-      </p>
-
-      {!hasMemory ? (
-        <div className="text-center py-8 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-subtle)]">
-          <Brain size={32} className="text-industrial-muted mx-auto mb-3" />
-          <p className="text-sm text-industrial-muted">No memory yet</p>
-          <p className="text-xs text-industrial-muted mt-1">
-            Start analyzing properties to build your memory
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-industrial">Perigee Memory</h2>
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-industrial-muted px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)]">
+              Advanced
+            </span>
+          </div>
+          <p className="text-xs text-industrial-muted mt-0.5 truncate">
+            {isLoading ? 'Loading…' : isError ? 'Could not load memory' : summary}
           </p>
         </div>
-      ) : (
-        <div className="space-y-6">
+        <span className={`text-industrial-muted transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="mt-5 pt-5 border-t border-[var(--border-subtle)]">
+          <div className="text-xs text-industrial-secondary leading-relaxed mb-5 space-y-2">
+            <p>
+              <strong className="text-industrial">What is this?</strong> When you run tenant-gap
+              analyses, underwrite properties, or talk to Perigee about your book of business, it
+              quietly saves key facts — the markets you work, the tenant types you care about, the
+              properties you've touched — so future answers fit your workflow instead of starting
+              from scratch.
+            </p>
+            <p>
+              Memory only updates through normal chat and analysis activity. There's nothing to
+              configure here; this panel just shows what's stored and lets you wipe it.
+            </p>
+          </div>
+
+          {isError && (
+            <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--bg-error)] px-4 py-3 text-xs text-[var(--color-error)] flex items-center justify-between gap-3">
+              <span>Couldn't reach the memory service. The backend may be waking up.</span>
+              <button onClick={() => refetch()} className="btn-industrial btn-sm">
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!isError && hasMemory && (
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="btn-industrial btn-sm text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--bg-error)]"
+              >
+                <Trash2 size={14} />
+                Clear Memory
+              </button>
+            </div>
+          )}
+
+          {!isError && !hasMemory && !isLoading && (
+            <div className="text-center py-8 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-subtle)]">
+              <Brain size={32} className="text-industrial-muted mx-auto mb-3" />
+              <p className="text-sm text-industrial-muted">No memory yet</p>
+              <p className="text-xs text-industrial-muted mt-1">
+                It'll fill in automatically as you analyze properties and chat with Perigee.
+              </p>
+            </div>
+          )}
+
+          {!isError && hasMemory && (
+            <div className="space-y-6">
           {/* Stats Grid */}
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-subtle)]">
@@ -507,6 +587,8 @@ function MemorySection() {
               Last updated: {new Date(memory.last_updated).toLocaleDateString()}
             </p>
           )}
+            </div>
+          )}
         </div>
       )}
 
@@ -551,7 +633,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 function AIModelSection() {
-  const { data: config, isLoading } = useAIConfig();
+  const { data: config, isLoading, isError, refetch } = useAIConfig();
   const { data: providers } = useProviders();
   const updateMutation = useUpdateAIConfig();
   const validateMutation = useValidateKey();
@@ -628,6 +710,10 @@ function AIModelSection() {
         </div>
       </div>
     );
+  }
+
+  if (isError) {
+    return <SectionError title="AI Model" onRetry={() => refetch()} />;
   }
 
   const effectiveLabel = config
@@ -936,24 +1022,22 @@ function SpecialistModelsSection() {
 export function SettingsPage() {
   return (
     <AppLayout>
-      <div className="p-6 max-w-3xl mx-auto bg-[var(--bg-primary)] min-h-full">
-        <h1 className="text-xl font-semibold text-industrial mb-6">Settings</h1>
+      <div className="h-full overflow-y-auto">
+        <div className="p-6 max-w-3xl mx-auto min-h-full">
+          <h1 className="text-xl font-semibold text-industrial mb-6">Settings</h1>
 
-        <div className="space-y-6">
-          {/* Perigee Memory - Featured at top */}
-          <MemorySection />
+          <div className="space-y-6">
+            {/* AI Model Configuration — most important, up top */}
+            <AIModelSection />
 
-          {/* AI Model Configuration */}
-          <AIModelSection />
+            {/* Usage */}
+            <UsageSection />
 
-          {/* Usage */}
-          <UsageSection />
+            {/* Per-specialist model overrides (BYOK only) */}
+            <SpecialistModelsSection />
 
-          {/* Per-specialist model overrides (BYOK only) */}
-          <SpecialistModelsSection />
-
-          {/* AI Preferences */}
-          <AIPreferencesSection />
+            {/* AI Preferences */}
+            <AIPreferencesSection />
 
           {/* Notifications */}
           <div className="card-industrial">
@@ -1045,12 +1129,16 @@ export function SettingsPage() {
             </div>
           </div>
 
+          {/* Advanced: Perigee Memory (collapsed by default) */}
+          <MemorySection />
+
           {/* Danger Zone */}
           <div className="card-industrial border-[var(--color-error)]/20">
             <h2 className="text-sm font-semibold text-[var(--color-error)] mb-4">Danger Zone</h2>
             <button className="btn-industrial border-[var(--color-error)]/30 text-[var(--color-error)] hover:bg-[var(--bg-error)] transition-colors">
               Delete Account
             </button>
+          </div>
           </div>
         </div>
       </div>
