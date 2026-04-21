@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { FileText, MoreHorizontal, Archive, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { ParsedDocument } from '../../types/document';
+import { documentKeys, fetchDocumentFile } from '../../hooks/useDocuments';
 
 const TYPE_LABELS: Record<string, string> = {
   leasing_flyer: 'Leasing flyer',
@@ -23,6 +25,7 @@ interface DocumentCardProps {
 
 export function DocumentCard({ document, onClick, onArchive, onDelete }: DocumentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const queryClient = useQueryClient();
   const label = TYPE_LABELS[document.document_type] || 'Document';
   const confidence = document.confidence_score
     ? `${Math.round(document.confidence_score * 100)}% conf`
@@ -30,12 +33,24 @@ export function DocumentCard({ document, onClick, onArchive, onDelete }: Documen
   const isProcessing =
     document.status === 'pending' || document.status === 'processing';
   const hasActions = onArchive || onDelete;
+  const canPrefetch = onClick && document.status === 'completed';
+
+  const handlePrefetch = () => {
+    if (!canPrefetch) return;
+    queryClient.prefetchQuery({
+      queryKey: [...documentKeys.detail(document.id), 'file'],
+      queryFn: () => fetchDocumentFile(document.id),
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 
   return (
     <div className="group relative">
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={handlePrefetch}
+        onFocus={handlePrefetch}
         className="relative w-full overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-3 text-left transition-colors hover:border-[var(--accent)]/20 hover:bg-[var(--bg-secondary)]"
         title={onClick ? `Preview ${document.filename}` : document.filename}
       >

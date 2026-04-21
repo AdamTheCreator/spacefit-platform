@@ -356,10 +356,20 @@ async def get_document_file(
             detail="Document file not found on disk",
         )
 
+    # Files on disk are immutable after upload (reprocess creates a new record),
+    # so let the browser cache them per-user for an hour. ETag is tied to the
+    # document id + latest mutation timestamp so clients revalidate if we ever
+    # do mutate in place.
+    version_ts = document.processed_at or document.created_at
+    etag = f'"{document.id}-{int(version_ts.timestamp())}"'
     return FileResponse(
         path=document.file_path,
         media_type=document.mime_type,
         filename=document.filename,
+        headers={
+            "Cache-Control": "private, max-age=3600",
+            "ETag": etag,
+        },
     )
 
 
