@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { LoginForm } from '../components/Auth/LoginForm';
 import { SocialLoginButtons } from '../components/Auth/SocialLoginButtons';
 
@@ -13,81 +13,84 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] dark flex">
-      {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[var(--bg-secondary)] flex-col justify-between p-12 relative overflow-hidden">
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent-subtle)] to-transparent opacity-50" />
+    <div className="min-h-screen flex" style={{ background: '#F8F8F7' }}>
+      {/* Left Panel — Perigee branding */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #0F1B2D 0%, #1A2D4A 100%)' }}>
+        {/* Decorative orbit */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06]" viewBox="0 0 600 800" fill="none">
+          <ellipse cx="300" cy="400" rx="400" ry="250" stroke="white" strokeWidth="1" />
+          <ellipse cx="300" cy="400" rx="250" ry="160" stroke="white" strokeWidth="0.5" />
+        </svg>
 
         {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-3 h-3 rounded-sm bg-[var(--accent)]" />
-          <span className="text-sm font-semibold tracking-wide text-industrial">
-            Perigee
-          </span>
-        </div>
+        <Link to="/" className="relative z-10 flex items-center gap-2.5">
+          <img src="/perigee-logo.png" alt="Perigee" width={32} height={32} className="rounded-full object-cover" />
+          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.04em', color: 'white' }}>PERIGEE</span>
+        </Link>
 
-        {/* Tagline */}
+        {/* Tagline + mascot */}
         <div className="relative z-10 space-y-6">
-          <h1 className="text-4xl font-bold tracking-tight text-industrial leading-tight">
-            Commercial Real Estate
+          <p className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: '#E5A840' }}>Real Estate Intelligence</p>
+          <h1 className="text-4xl font-bold tracking-tight leading-tight text-white" style={{ fontFamily: "'Sora', sans-serif" }}>
+            Playful intelligence
             <br />
-            <span className="text-[var(--accent)]">Intelligence Platform</span>
+            for modern real estate.
           </h1>
-          <p className="text-base text-industrial-secondary max-w-md leading-relaxed">
+          <p className="text-base max-w-md leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
             AI-powered site selection, market analysis, and deal management for retail real estate professionals.
           </p>
 
           {/* Stats bar */}
-          <div className="flex gap-10 pt-8 border-t border-[var(--border-subtle)]">
+          <div className="flex gap-10 pt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <div>
-              <div className="text-2xl font-bold text-[var(--accent)] tabular-nums">2.4M+</div>
-              <div className="text-xs text-industrial-muted mt-1">Properties</div>
+              <div className="text-2xl font-bold tabular-nums" style={{ color: '#E5A840' }}>2.4M+</div>
+              <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Properties</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[var(--accent)] tabular-nums">850+</div>
-              <div className="text-xs text-industrial-muted mt-1">Markets</div>
+              <div className="text-2xl font-bold tabular-nums" style={{ color: '#E5A840' }}>850+</div>
+              <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Markets</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[var(--accent)] tabular-nums">99.2%</div>
-              <div className="text-xs text-industrial-muted mt-1">Uptime</div>
+              <div className="text-2xl font-bold tabular-nums" style={{ color: '#E5A840' }}>99.2%</div>
+              <div className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Uptime</div>
             </div>
           </div>
         </div>
 
-        {/* Version */}
-        <div className="relative z-10 text-xs text-industrial-muted">
-          v{import.meta.env.VITE_APP_VERSION}
+        {/* Mascot */}
+        <div className="relative z-10 flex items-end gap-4">
+          <img src="/mascots/goose-planner.webp" alt="" className="h-24 object-contain opacity-80" />
+          <span className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
+          </span>
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
+      {/* Right Panel — Login form on light background */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-y-auto">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <div className="w-2 h-2 rounded-sm bg-[var(--accent)]" />
-            <span className="text-sm font-semibold tracking-wide text-industrial">
-              Perigee
-            </span>
+          <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
+            <img src="/perigee-logo.png" alt="Perigee" width={28} height={28} className="rounded-full object-cover" />
+            <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, color: '#0F1B2D' }}>PERIGEE</span>
           </div>
 
           <div className="mb-8 text-center lg:text-left">
-            <h2 className="text-2xl font-semibold text-industrial mb-2">
+            <h2 className="text-2xl font-semibold mb-2" style={{ color: '#0F1B2D', fontFamily: "'Sora', sans-serif" }}>
               Welcome back
             </h2>
-            <p className="text-sm text-industrial-secondary">Sign in to continue to your account</p>
+            <p className="text-sm" style={{ color: '#737169' }}>Sign in to continue to your account</p>
           </div>
 
-          <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] shadow-sm p-6">
+          <div className="rounded-2xl border p-6" style={{ background: 'white', borderColor: '#E0DFDD', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
             <SocialLoginButtons />
 
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[var(--border-subtle)]" />
+                <div className="w-full" style={{ borderTop: '1px solid #E0DFDD' }} />
               </div>
               <div className="relative flex justify-center">
-                <span className="px-3 bg-[var(--bg-elevated)] text-xs text-industrial-muted">Or continue with email</span>
+                <span className="px-3 text-xs" style={{ background: 'white', color: '#A3A19D' }}>Or continue with email</span>
               </div>
             </div>
 
