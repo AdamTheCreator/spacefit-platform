@@ -40,14 +40,4 @@ export function ComingSoonPage({ title, description, mascot }: ComingSoonPagePro
   );
 }
 
-export function InsightsPage() {
-  return (
-    <ComingSoonPage
-      title="Insights crew is assembling"
-      description="What the Engineer flagged for you today — thesis drift, comp outliers, and expiring opportunities in your markets."
-      mascot="welder"
-    />
-  );
-}
-
 export default ComingSoonPage;
