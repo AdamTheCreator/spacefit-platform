@@ -70,6 +70,9 @@ api.interceptors.response.use(
       if (!refreshToken) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        // Wipe persisted zustand auth state too — otherwise LoginPage hydrates
+        // with isAuthenticated:true and ping-pongs us back to /dashboard.
+        localStorage.removeItem('auth-storage');
         window.location.href = '/login';
         return Promise.reject(error);
       }
@@ -93,6 +96,8 @@ api.interceptors.response.use(
         processQueue(refreshError as Error, null);
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        // Wipe persisted zustand auth state — see note in the no-refresh-token branch.
+        localStorage.removeItem('auth-storage');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {

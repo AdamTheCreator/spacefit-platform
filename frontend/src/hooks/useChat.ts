@@ -142,6 +142,9 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         setConnectionStatus('disconnected');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        // Wipe persisted zustand auth state too — otherwise LoginPage hydrates
+        // with isAuthenticated:true and ping-pongs the user back in.
+        localStorage.removeItem('auth-storage');
         window.location.href = '/login';
         return;
       }
