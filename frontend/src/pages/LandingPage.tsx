@@ -1,5 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { ArrowRight, BarChart3, Target, Users } from 'lucide-react';
+import { useAuthStore } from '../stores/authStore';
 
 const NAV_LINKS = ['Product', 'Solutions', 'Resources', 'Company'];
 
@@ -20,6 +21,11 @@ const FEATURE_CARDS: { mascot: string; title: string; desc: string; accent: stri
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-white text-[var(--color-neutral-900)]" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>

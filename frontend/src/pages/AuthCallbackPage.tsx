@@ -16,7 +16,7 @@ export function AuthCallbackPage() {
       localStorage.setItem('refresh_token', refreshToken);
 
       checkAuth().then(() => {
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       });
     } else {
       navigate('/login', { replace: true });

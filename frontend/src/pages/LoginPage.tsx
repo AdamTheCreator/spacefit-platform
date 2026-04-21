@@ -1,12 +1,18 @@
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
 import { LoginForm } from '../components/Auth/LoginForm';
 import { SocialLoginButtons } from '../components/Auth/SocialLoginButtons';
+import { useAuthStore } from '../stores/authStore';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuthStore();
 
   const from = (location.state as { from?: Location })?.from?.pathname || '/dashboard';
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleSuccess = () => {
     navigate(from, { replace: true });
