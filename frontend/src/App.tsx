@@ -25,7 +25,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ defaul
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const SearchPage = lazy(() => import('./pages/ComingSoonPage').then(m => ({ default: m.SearchPage })));
+const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })));
 const AnalyticsPage = lazy(() => import('./pages/ComingSoonPage').then(m => ({ default: m.AnalyticsPage })));
 const InsightsPage = lazy(() => import('./pages/ComingSoonPage').then(m => ({ default: m.InsightsPage })));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
