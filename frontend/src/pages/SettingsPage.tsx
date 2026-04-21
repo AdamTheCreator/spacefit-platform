@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '../components/Layout';
-import { Bell, Shield, Palette, Sparkles, Check, Plus, X, Brain, Trash2, Building2, Users, MapPin, Cpu, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Trash } from 'lucide-react';
+import { Bell, Shield, Palette, Sparkles, Check, Plus, X, Brain, Trash2, Building2, Users, MapPin, Cpu, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Trash, Clock, DollarSign, Gauge } from 'lucide-react';
 import {
   usePreferences,
   usePreferencesOptions,
@@ -19,6 +19,9 @@ import {
   useUpdateSpecialistModels,
   type AIConfigUpdate,
 } from '../hooks/useAIConfig';
+import { useUpdateCredentialScope, type ScopeUpdatePayload } from '../hooks/useCredentialScope';
+import { useCredentialAudit, auditActionLabel } from '../hooks/useCredentialAudit';
+import { toBYOKUserMessage } from '../lib/byok-errors';
 
 // Shared fallback for sections whose data-fetch failed.
 // Avoids the eternal-skeleton bug when the backend is sleepy or offline.
@@ -903,6 +906,221 @@ function AIModelSection() {
   );
 }
 
+// --- BYOK v2 sub-sections --------------------------------------------------
+//
+// Rendered only when the backend returns a v2 `AIConfig` (identified by a
+// non-null `id` field). On a v1 backend these components render nothing,
+// so the page is safe to ship ahead of the backend feature flag flipping.
+
+function ScopeSection() {
+  const { data: config } = useAIConfig();
+  const update = useUpdateCredentialScope();
+
+  // Existing scope, with defaults for the input controls.
+  const scope = config?.scope ?? {};
+  const initialAllowed = (scope.allowed_models ?? []).join(', ');
+  const initialRequestCap = scope.monthly_request_cap ?? '';
+  const initialSpendCap = scope.monthly_spend_cap_usd ?? '';
+
+  const [allowedRaw, setAllowedRaw] = useState<string>(initialAllowed);
+  const [requestCap, setRequestCap] = useState<string>(String(initialRequestCap));
+  const [spendCap, setSpendCap] = useState<string>(String(initialSpendCap));
+  const [error, setError] = useState<string | null>(null);
+  const [savedOk, setSavedOk] = useState(false);
+
+  // v2 sentinel: the Settings card shouldn't exist for v1 responses.
+  if (!config?.id || !config.has_byok_key) return null;
+
+  const handleSave = async () => {
+    setError(null);
+    setSavedOk(false);
+    const allowedModels = allowedRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    const payload: ScopeUpdatePayload = {
+      allowed_models: allowedModels,
+      // Empty string = clear. Number parse errors = clear.
+      monthly_request_cap: requestCap.trim() === '' ? null : Number(requestCap) || null,
+      monthly_spend_cap_usd: spendCap.trim() === '' ? null : Number(spendCap) || null,
+    };
+
+    try {
+      await update.mutateAsync(payload);
+      setSavedOk(true);
+    } catch (err) {
+      const msg = toBYOKUserMessage(err);
+      setError(msg.body);
+    }
+  };
+
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center">
+          <Gauge size={16} className="text-industrial-muted" />
+        </div>
+        <h2 className="text-sm font-semibold text-industrial">Usage controls</h2>
+      </div>
+
+      <p className="text-sm text-industrial-secondary mb-5 leading-relaxed">
+        Restrict which models this credential may use and cap its monthly cost or request count.
+        Leave a field blank to remove that limit.
+      </p>
+
+      <div className="space-y-4">
+        <div>
+          <label className="text-sm font-medium text-industrial block mb-2">
+            Allowed models (comma-separated)
+          </label>
+          <input
+            type="text"
+            value={allowedRaw}
+            onChange={(e) => setAllowedRaw(e.target.value)}
+            placeholder="claude-haiku-4-5-20251001, claude-sonnet-4-6-20260320"
+            className="input-industrial"
+          />
+          <p className="text-xs text-industrial-muted mt-1">
+            Leave blank to allow any model the provider supports.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium text-industrial block mb-2">
+              <Clock size={12} className="inline mr-1 -mt-0.5" />
+              Monthly request cap
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={requestCap}
+              onChange={(e) => setRequestCap(e.target.value)}
+              placeholder="e.g. 10000"
+              className="input-industrial"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-industrial block mb-2">
+              <DollarSign size={12} className="inline mr-1 -mt-0.5" />
+              Monthly spend cap (USD)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={spendCap}
+              onChange={(e) => setSpendCap(e.target.value)}
+              placeholder="e.g. 500"
+              className="input-industrial"
+            />
+            <p className="text-xs text-industrial-muted mt-1">
+              Estimate only — based on a blended per-token rate.
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[var(--bg-error)] text-[var(--color-error)]">
+            <AlertCircle size={14} />
+            {error}
+          </div>
+        )}
+        {savedOk && !error && (
+          <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[var(--bg-success)] text-[var(--color-success)]">
+            <CheckCircle2 size={14} />
+            Scope updated
+          </div>
+        )}
+
+        <div>
+          <button
+            onClick={handleSave}
+            disabled={update.isPending}
+            className="btn-industrial-primary"
+          >
+            {update.isPending ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Check size={14} />
+                Save scope
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecentActivitySection() {
+  const { data: config } = useAIConfig();
+  const { data: entries, isLoading } = useCredentialAudit(20);
+
+  // v2 sentinel + only interesting when there's a stored key.
+  if (!config?.id) return null;
+
+  return (
+    <div className="card-industrial">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center">
+          <Clock size={16} className="text-industrial-muted" />
+        </div>
+        <h2 className="text-sm font-semibold text-industrial">Recent activity</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="animate-pulse space-y-2">
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-full"></div>
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-5/6"></div>
+          <div className="h-3 bg-[var(--bg-tertiary)] rounded w-4/6"></div>
+        </div>
+      ) : !entries || entries.length === 0 ? (
+        <p className="text-sm text-industrial-muted">No activity yet.</p>
+      ) : (
+        <ul className="divide-y divide-[var(--border-subtle)]">
+          {entries.map((e) => (
+            <li key={e.id} className="py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex items-center gap-2">
+                {e.success ? (
+                  <CheckCircle2 size={12} className="text-[var(--color-success)] shrink-0" />
+                ) : (
+                  <AlertCircle size={12} className="text-[var(--color-error)] shrink-0" />
+                )}
+                <span className="text-sm text-industrial">{auditActionLabel(e.action)}</span>
+                {e.provider && (
+                  <span className="text-xs text-industrial-muted truncate">
+                    · {e.provider}
+                  </span>
+                )}
+                {e.error_code && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-error)] text-[var(--color-error)] font-mono">
+                    {e.error_code}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-industrial-muted tabular-nums shrink-0">
+                {new Date(e.occurred_at).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const SPECIALIST_NAMES = ['scout', 'analyst', 'matchmaker', 'outreach'] as const;
 const ANTHROPIC_MODELS = [
   'claude-sonnet-4-6-20260320',
@@ -1034,6 +1252,12 @@ export function SettingsPage() {
           <div className="space-y-6">
             {/* AI Model Configuration — most important, up top */}
             <AIModelSection />
+
+            {/* Usage controls: allow-lists + monthly caps (v2 only) */}
+            <ScopeSection />
+
+            {/* Recent credential activity (v2 only) */}
+            <RecentActivitySection />
 
             {/* Usage */}
             <UsageSection />
