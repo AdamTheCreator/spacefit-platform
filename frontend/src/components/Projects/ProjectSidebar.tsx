@@ -1,8 +1,12 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type DragEvent } from 'react';
 import { Plus, Pencil, Check, X, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUpdateProject, projectKeys } from '../../hooks/useProjects';
-import { useArchiveDocument, useDeleteDocument } from '../../hooks/useDocuments';
+import {
+  useArchiveDocument,
+  useDeleteDocument,
+  documentKeys,
+} from '../../hooks/useDocuments';
 import { useUploadStore, type UploadItem } from '../../stores/uploadStore';
 import { DocumentCard } from './DocumentCard';
 import { ProjectDocumentPreviewModal } from './ProjectDocumentPreviewModal';
@@ -31,6 +35,7 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
   );
   const [previewDocument, setPreviewDocument] = useState<ParsedDocument | null>(null);
   const [progressNow, setProgressNow] = useState(() => Date.now());
+  const [isDragging, setIsDragging] = useState(false);
   const updateProject = useUpdateProject();
   const archiveDocument = useArchiveDocument();
   const deleteDocument = useDeleteDocument();
@@ -109,10 +114,14 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
 
   const handleFileUpload = useCallback(
     async (files: FileList | null) => {
-      if (!files) return;
+      if (!files || files.length === 0) return;
+
+      // Reset the input so re-selecting the same file still fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = '';
 
       for (const file of Array.from(files)) {
         const clientId = store().addItem(file, project.id);
+        toast.success(`Added "${file.name}"`);
         const formData = new FormData();
         formData.append('file', file);
         formData.append('project_id', project.id);
@@ -141,6 +150,15 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
             },
           );
           store().markUploaded(clientId, response.data.id);
+
+          // Seed the file-URL cache with the already-in-memory File so the
+          // first preview opens instantly (zero network).
+          const localUrl = URL.createObjectURL(file);
+          queryClient.setQueryData(
+            [...documentKeys.detail(response.data.id), 'file'],
+            localUrl,
+          );
+
           if (import.meta.env.DEV) {
             console.debug('[ProjectSidebar] upload completed, invalidating project', {
               projectId: project.id,
@@ -167,6 +185,27 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
       }
     },
     [project.id, queryClient, store],
+  );
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // Only clear when leaving the drop container itself (not a child).
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragging(false);
+      handleFileUpload(e.dataTransfer.files);
+    },
+    [handleFileUpload],
   );
 
   const handleArchiveDoc = async (doc: ParsedDocument) => {
@@ -288,27 +327,84 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
               onChange={(e) => handleFileUpload(e.target.files)}
             />
           </div>
-          {visibleDocuments.length > 0 ? (
-            <div className="space-y-2">
-              {visibleDocuments.map((doc) => (
-                <DocumentCard
-                  key={doc.id}
-                  document={doc}
-                  onClick={() => setPreviewDocument(doc)}
-                  onArchive={handleArchiveDoc}
-                  onDelete={handleDeleteDoc}
-                />
-              ))}
+
+          {/* Upload progress — rendered directly under the header so feedback
+              appears exactly where the user clicked / dropped. */}
+          {activeUploadItems.length > 0 && (
+            <div className="mb-2 space-y-2">
+              {activeUploadItems.map((item) => {
+                const displayProgress =
+                  item.status === 'uploading'
+                    ? item.uploadProgress
+                    : getEstimatedProcessingProgress(item, progressNow);
+                return (
+                  <div
+                    key={item.clientId}
+                    className="animate-slide-down p-3 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-subtle)]"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-industrial truncate mr-2">
+                        {item.fileName}
+                      </span>
+                      <span className="text-[11px] text-[var(--accent)] whitespace-nowrap">
+                        {displayProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-[var(--border-subtle)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+                        style={{ width: `${displayProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-industrial-muted mt-1.5">
+                      {item.status === 'uploading'
+                        ? item.statusText
+                        : `Extracting property info and spaces… ${displayProgress}%`}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-6 rounded-lg border border-dashed border-[var(--border-subtle)] text-xs text-industrial-muted hover:border-[var(--accent)]/30 hover:text-[var(--accent)] transition-colors flex flex-col items-center gap-2"
-            >
-              <Upload size={16} />
-              Upload documents
-            </button>
           )}
+
+          <div
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {visibleDocuments.length > 0 ? (
+              <div
+                className={`space-y-2 rounded-lg transition-all ${
+                  isDragging
+                    ? 'ring-2 ring-[var(--accent)]/40 ring-offset-2 ring-offset-[var(--bg-secondary)] scale-[1.01]'
+                    : ''
+                }`}
+              >
+                {visibleDocuments.map((doc) => (
+                  <DocumentCard
+                    key={doc.id}
+                    document={doc}
+                    onClick={() => setPreviewDocument(doc)}
+                    onArchive={handleArchiveDoc}
+                    onDelete={handleDeleteDoc}
+                  />
+                ))}
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-full py-6 rounded-lg border border-dashed text-xs transition-all flex flex-col items-center gap-2 ${
+                  isDragging
+                    ? 'border-[var(--accent)] bg-[var(--accent-subtle)] text-[var(--accent)] scale-[1.01]'
+                    : 'border-[var(--border-subtle)] text-industrial-muted hover:border-[var(--accent)]/30 hover:text-[var(--accent)]'
+                }`}
+              >
+                <Upload size={16} />
+                {isDragging ? 'Drop to upload' : 'Upload or drag documents here'}
+              </button>
+            )}
+          </div>
 
           {/* Data Imports */}
           <div className="mt-4">
@@ -330,48 +426,6 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
               ))}
             </div>
           </div>
-
-          {/* Upload progress */}
-          {activeUploadItems.length > 0 && (
-            <div className="mt-2 space-y-2">
-              {activeUploadItems.map((item) => (
-                  (() => {
-                    const displayProgress =
-                      item.status === 'uploading'
-                        ? item.uploadProgress
-                        : getEstimatedProcessingProgress(item, progressNow);
-                    return (
-                  <div
-                    key={item.clientId}
-                    className="p-3 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-subtle)]"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-industrial truncate mr-2">
-                        {item.fileName}
-                      </span>
-                      <span className="text-[11px] text-[var(--accent)] whitespace-nowrap">
-                        {displayProgress}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 rounded-full bg-[var(--border-subtle)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
-                        style={{
-                          width: `${displayProgress}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="text-[11px] text-industrial-muted mt-1.5">
-                      {item.status === 'uploading'
-                        ? item.statusText
-                        : `Extracting property info and spaces… ${displayProgress}%`}
-                    </p>
-                  </div>
-                    );
-                  })()
-                ))}
-            </div>
-          )}
         </div>
       </div>
 
