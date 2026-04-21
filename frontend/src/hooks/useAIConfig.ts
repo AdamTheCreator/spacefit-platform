@@ -12,6 +12,19 @@ export interface AIConfig {
   key_error_message: string | null;
   effective_provider: string;
   effective_model: string;
+  // v2-only fields (undefined when the backend is running with
+  // BYOK_REBUILD_ENABLED=false). UI should gate scope / audit panels
+  // on the presence of `id` rather than on a version flag.
+  id?: string | null;
+  label?: string | null;
+  key_last_four?: string | null;
+  status?: string;
+  scope?: {
+    allowed_models?: string[];
+    denied_models?: string[];
+    monthly_spend_cap_usd?: number;
+    monthly_request_cap?: number;
+  };
 }
 
 export interface AIConfigUpdate {

@@ -90,9 +90,13 @@ async def resolve_user_llm(
       2. Paid tier without BYOK → Claude Haiku (platform key)
       3. Free tier without BYOK → Gemini Flash (platform key)
     """
-    # Check for BYOK config
+    # Check for BYOK config. Filter to the single live row — after migration
+    # 028 this table can hold multiple rows per user (revoked history +
+    # active + rotating), so a naked user_id match would raise on rotation.
     result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == user_id)
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == user_id)
+        .where(UserAIConfig.status == "active")
     )
     ai_config = result.scalar_one_or_none()
 

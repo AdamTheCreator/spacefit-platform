@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings
 from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -28,6 +28,39 @@ class Settings(BaseSettings):
     encryption_master_key: str = Field(
         default="development-encryption-key-32bytes!"
     )
+
+    # BYOK envelope encryption.
+    # Active KEK id; must appear in the KEK registry below (or fall back to
+    # encryption_master_key when id is 'v1' and no override is set). Rotate
+    # by adding a new BYOK_KEK_<id> env var, flipping this pointer, and
+    # running the re-wrap job.
+    byok_kek_primary_id: str = Field(default="v1")
+    # Additional KEK secrets, looked up by id. These are intentionally left
+    # empty by default so production must set them explicitly. The reserved
+    # id 'v1' falls back to encryption_master_key if byok_kek_v1 is empty,
+    # preserving backwards compatibility during the 028/029 migration.
+    byok_kek_v1: str = Field(default="")
+    byok_kek_v2: str = Field(default="")
+    byok_kek_v3: str = Field(default="")
+    # Plaintext-key TTL cache (per credential id). Capped at 60s by the
+    # crypto module regardless of what's configured here. Set to 0 to
+    # disable caching entirely (each chat turn pays a KDF + decrypt cost).
+    byok_decrypt_cache_ttl_seconds: int = Field(default=60)
+    # Max in-flight requests per credential (separate from, and finer-grained
+    # than, the per-client llm_max_concurrency limit).
+    byok_per_key_max_concurrency: int = Field(default=10)
+    # Credential-submission rate limit: `byok_submission_rate_limit` requests
+    # per `byok_submission_window_seconds` per user. Protects `PUT /ai-config`
+    # and `POST /ai-config/validate-key` from brute-force key probing.
+    byok_submission_rate_limit: int = Field(default=5)
+    byok_submission_window_seconds: int = Field(default=60)
+    # After this many consecutive `credential_invalid` responses from a
+    # provider, the gateway flips the credential to `status=invalid` and
+    # forces the user to revalidate.
+    byok_invalid_circuit_breaker_threshold: int = Field(default=5)
+    # Feature flag for the rebuild. When False the repo-original endpoints
+    # and resolution path are used unchanged, enabling instant rollback.
+    byok_rebuild_enabled: bool = Field(default=False)
 
     # OAuth
     google_client_id: str = Field(default="")

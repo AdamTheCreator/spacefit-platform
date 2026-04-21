@@ -6,6 +6,11 @@ from typing import Any
 
 import httpx
 
+from app.byok.errors import (
+    BYOKError,
+    map_openai_exception,
+    map_openai_http_response,
+)
 from app.llm.exceptions import LLMConfigurationError, LLMProviderError
 from app.llm.types import LLMChatRequest, LLMResponse, LLMToolCall, LLMVisionRequest
 
@@ -82,22 +87,46 @@ class OpenAICompatibleLLMClient:
             for attempt in range(self._max_retries + 1):
                 try:
                     resp = await self._client.post(url, json=payload)
-                    resp.raise_for_status()
+                except Exception as e:
+                    # Network-level failure (no response object). Map to
+                    # timeout / unavailable / generic based on exception
+                    # class and retry if the classification says so.
+                    last_error = e
+                    mapped = map_openai_exception(e)
+                    if attempt >= self._max_retries or not mapped.retryable:
+                        raise mapped from e
+                    await asyncio.sleep(min(2 ** attempt, 8))
+                    continue
+
+                mapped = map_openai_http_response(resp)
+                if mapped is None:
                     data = resp.json()
                     break
-                except Exception as e:
-                    last_error = e
-                    if attempt >= self._max_retries:
-                        raise LLMProviderError("OpenAI-compatible request failed") from e
-                    await asyncio.sleep(min(2 ** attempt, 8))
-            else:  # pragma: no cover
+                # Got a response but it's an error. If it's retryable
+                # (429 with Retry-After, 5xx), honor the cooldown hint
+                # on retries but only if we have budget left.
+                last_error = mapped
+                if attempt >= self._max_retries or not mapped.retryable:
+                    raise mapped
+                sleep_for = mapped.retry_after_seconds or min(2 ** attempt, 8)
+                await asyncio.sleep(sleep_for)
+            else:  # pragma: no cover — loop always breaks or raises
+                if isinstance(last_error, BYOKError):
+                    raise last_error
                 raise LLMProviderError("OpenAI-compatible request failed") from last_error
 
         try:
             choice0 = data["choices"][0]
             message = choice0["message"]
         except Exception as e:
-            raise LLMProviderError("OpenAI-compatible response shape was unexpected") from e
+            # 2xx body that doesn't match the chat-completions schema. Treat
+            # as a provider-side bug rather than a user-fixable issue.
+            raise BYOKError(
+                code="provider_server_error",
+                http_status=502,
+                retryable=False,
+                message="Provider returned an unexpected response shape.",
+            ) from e
 
         content = message.get("content") or ""
         stop_reason = choice0.get("finish_reason")
