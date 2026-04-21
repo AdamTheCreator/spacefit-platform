@@ -135,6 +135,21 @@ def _calculate_completion(prefs: UserPreferences) -> int:
     return int((completed / len(fields)) * 100)
 
 
+async def _get_user_preferences(db: AsyncSession, user_id: str) -> UserPreferences | None:
+    """Return the latest preferences row for a user.
+
+    Defensive against legacy databases that may contain duplicate rows
+    despite the intended unique(user_id) invariant.
+    """
+    result = await db.execute(
+        select(UserPreferences)
+        .where(UserPreferences.user_id == user_id)
+        .order_by(UserPreferences.updated_at.desc(), UserPreferences.created_at.desc())
+        .limit(1)
+    )
+    return result.scalars().first()
+
+
 @router.get("/options", response_model=PreferencesOptionsResponse)
 async def get_preference_options() -> PreferencesOptionsResponse:
     """Get available options for preference fields."""
@@ -152,10 +167,7 @@ async def get_preferences(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> PreferencesResponse:
     """Get current user's preferences."""
-    result = await db.execute(
-        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
-    )
-    prefs = result.scalar_one_or_none()
+    prefs = await _get_user_preferences(db, current_user.id)
 
     if not prefs:
         # Create default preferences
@@ -189,10 +201,7 @@ async def update_preferences(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> PreferencesResponse:
     """Update user preferences."""
-    result = await db.execute(
-        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
-    )
-    prefs = result.scalar_one_or_none()
+    prefs = await _get_user_preferences(db, current_user.id)
 
     if not prefs:
         prefs = UserPreferences(user_id=current_user.id)

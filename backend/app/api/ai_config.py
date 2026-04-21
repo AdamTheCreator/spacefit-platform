@@ -152,6 +152,24 @@ def _effective_provider_model(config: UserAIConfig | None, user_tier: str) -> tu
     return "google", "gemini-2.0-flash"
 
 
+async def _get_active_ai_config(db: AsyncSession, user_id: str) -> UserAIConfig | None:
+    """Return the most recently updated active AI config for a user.
+
+    Some legacy environments can contain multiple rows in ``active`` state
+    (e.g., from old data before partial unique indexes were enforced).
+    Using ``scalars().first()`` with an explicit ordering prevents
+    ``MultipleResultsFound`` 500s on settings reads.
+    """
+    result = await db.execute(
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == user_id)
+        .where(UserAIConfig.status == "active")
+        .order_by(UserAIConfig.updated_at.desc(), UserAIConfig.created_at.desc())
+        .limit(1)
+    )
+    return result.scalars().first()
+
+
 # --- Endpoints ---
 
 @router.get("", response_model=AIConfigResponse)
@@ -176,12 +194,7 @@ async def get_ai_config(
             effective_model=v2_resp.effective_model,
         )
 
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == current_user.id)
-        .where(UserAIConfig.status == "active")
-    )
-    config = result.scalar_one_or_none()
+    config = await _get_active_ai_config(db, current_user.id)
 
     eff_provider, eff_model = _effective_provider_model(config, current_user.tier)
 
@@ -247,12 +260,7 @@ async def update_ai_config(
             detail=f"Unsupported provider: {payload.provider}",
         )
 
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == current_user.id)
-        .where(UserAIConfig.status == "active")
-    )
-    config = result.scalar_one_or_none()
+    config = await _get_active_ai_config(db, current_user.id)
 
     if config is None:
         config = UserAIConfig(user_id=current_user.id)
@@ -332,10 +340,7 @@ async def validate_key(
         )
 
         # If we got here, the key works. Update the config in DB.
-        result = await db.execute(
-            select(UserAIConfig).where(UserAIConfig.user_id == current_user.id).where(UserAIConfig.status == "active")
-        )
-        config = result.scalar_one_or_none()
+        config = await _get_active_ai_config(db, current_user.id)
         if config and config.api_key_encrypted:
             config.is_key_valid = True
             config.key_validated_at = datetime.now(timezone.utc)
@@ -351,10 +356,7 @@ async def validate_key(
             error_msg = error_msg[:200] + "..."
 
         # Update config with error
-        result = await db.execute(
-            select(UserAIConfig).where(UserAIConfig.user_id == current_user.id).where(UserAIConfig.status == "active")
-        )
-        config = result.scalar_one_or_none()
+        config = await _get_active_ai_config(db, current_user.id)
         if config:
             config.is_key_valid = False
             config.key_error_message = error_msg
@@ -384,12 +386,7 @@ async def remove_byok_key(
             effective_model=v2_resp.effective_model,
         )
 
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == current_user.id)
-        .where(UserAIConfig.status == "active")
-    )
-    config = result.scalar_one_or_none()
+    config = await _get_active_ai_config(db, current_user.id)
 
     if config is None:
         eff_provider, eff_model = _effective_provider_model(None, current_user.tier)
@@ -496,10 +493,7 @@ async def get_usage(
     tool_calls_24h = result.scalar() or 0
 
     # BYOK status
-    result = await db.execute(
-        select(UserAIConfig).where(UserAIConfig.user_id == current_user.id).where(UserAIConfig.status == "active")
-    )
-    ai_config = result.scalar_one_or_none()
+    ai_config = await _get_active_ai_config(db, current_user.id)
     using_byok = bool(
         ai_config
         and ai_config.provider != "platform_default"
@@ -543,12 +537,7 @@ async def get_specialist_models(
     """Get per-specialist model overrides."""
     import json as _json
 
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == current_user.id)
-        .where(UserAIConfig.status == "active")
-    )
-    config = result.scalar_one_or_none()
+    config = await _get_active_ai_config(db, current_user.id)
 
     models: dict[str, str] = {}
     if config and config.specialist_models_json:
@@ -580,12 +569,7 @@ async def update_specialist_models(
                 detail=f"Unknown specialist: {name}. Valid: {sorted(valid_names)}",
             )
 
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == current_user.id)
-        .where(UserAIConfig.status == "active")
-    )
-    config = result.scalar_one_or_none()
+    config = await _get_active_ai_config(db, current_user.id)
 
     if config is None:
         config = UserAIConfig(user_id=current_user.id)
