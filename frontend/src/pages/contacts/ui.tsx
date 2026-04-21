@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { Search, Check, X, ChevronDown, Sparkles, Sun } from 'lucide-react';
+import { Search, Check, X, ChevronDown, Sun } from 'lucide-react';
 import type { Company, Contact, VerificationStatus } from './data';
 import { sectorBg, contactInitials, verifLabel } from './data';
 

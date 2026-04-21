@@ -3,7 +3,7 @@ import {
   ArrowLeft, Send, Calendar, Sun, X, Check, ChevronRight,
   Mail, Phone, Sparkles, FileText,
 } from 'lucide-react';
-import type { Company, Contact, Interaction, InteractionType } from './data';
+import type { Company, Contact, InteractionType } from './data';
 import {
   contactsById, companiesById, interactions,
   contactFullName, formatRelDays, sourceLabel,

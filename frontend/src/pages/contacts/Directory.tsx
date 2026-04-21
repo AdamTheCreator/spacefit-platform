@@ -3,7 +3,6 @@ import { Sparkles } from 'lucide-react';
 import {
   companies, contacts, companiesById, contactsForCompany,
   contactFullName, formatRelDays, formatSF,
-  type Company, type Contact,
 } from './data';
 import {
   CompanyLogo, ContactAvatar, VerifPill, ExpansionBadge,

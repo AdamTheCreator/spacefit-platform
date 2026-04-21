@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Building2, Users, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Directory } from './contacts/Directory';
 import { CompanyDetailPage } from './contacts/CompanyDetail';
 import { ContactDetailPage } from './contacts/ContactDetail';
