@@ -27,10 +27,16 @@ from app.api.admin import router as admin_router
 from app.api.imports import router as imports_router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.scrubbing import install_scrubbing_filter
 from app.llm.client import aclose_llm_client
 from app.mcp.server import mcp as perigee_mcp
 
 import logging
+
+# Install the secret-scrubbing log filter before anything else has a
+# chance to log — loads and DB connection messages can sometimes carry
+# credentials through tracebacks.
+install_scrubbing_filter()
 
 logger = logging.getLogger(__name__)
 

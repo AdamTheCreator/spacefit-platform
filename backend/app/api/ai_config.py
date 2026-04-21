@@ -1,15 +1,26 @@
-"""BYOK (Bring Your Own Key) AI configuration API endpoints."""
+"""BYOK (Bring Your Own Key) AI configuration API endpoints.
+
+The original (v1) handlers live in this file for backwards compatibility
+and rollback. When ``settings.byok_rebuild_enabled`` is True, the
+mutating routes delegate to ``app.api.ai_config_v2`` which implements
+additive rotation, soft-delete revoke, governance scope, submission
+rate limiting, audit logging, and normalized error codes. Read-only
+routes and provider metadata stay in v1 because they don't benefit
+from the rebuild.
+"""
 
 import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import ai_config_v2 as v2
 from app.api.deps import CurrentUser, get_db
+from app.core.config import settings
 from app.core.security import encrypt_credential, generate_user_salt
 from app.db.models.credential import UserAIConfig
 from app.services.user_llm import PROVIDER_DEFAULT_MODELS
@@ -149,6 +160,22 @@ async def get_ai_config(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AIConfigResponse:
     """Get current AI model configuration."""
+    if settings.byok_rebuild_enabled:
+        v2_resp = await v2.get_ai_config_v2(current_user, db)
+        # v2 response has a richer shape (id/status/scope/key_last_four/label);
+        # project down to the v1 shape the client expects.
+        return AIConfigResponse(
+            provider=v2_resp.provider,
+            model=v2_resp.model,
+            base_url=v2_resp.base_url,
+            has_byok_key=v2_resp.has_byok_key,
+            is_key_valid=v2_resp.is_key_valid,
+            key_validated_at=v2_resp.key_validated_at,
+            key_error_message=v2_resp.key_error_message,
+            effective_provider=v2_resp.effective_provider,
+            effective_model=v2_resp.effective_model,
+        )
+
     result = await db.execute(
         select(UserAIConfig)
         .where(UserAIConfig.user_id == current_user.id)
@@ -189,8 +216,29 @@ async def update_ai_config(
     payload: AIConfigUpdate,
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> AIConfigResponse:
     """Update AI model configuration (provider, model, API key)."""
+    if settings.byok_rebuild_enabled:
+        v2_payload = v2.AIConfigUpdate(
+            provider=payload.provider,
+            model=payload.model,
+            api_key=payload.api_key,
+            base_url=payload.base_url,
+        )
+        v2_resp = await v2.update_ai_config_v2(v2_payload, current_user, db, request)
+        return AIConfigResponse(
+            provider=v2_resp.provider,
+            model=v2_resp.model,
+            base_url=v2_resp.base_url,
+            has_byok_key=v2_resp.has_byok_key,
+            is_key_valid=v2_resp.is_key_valid,
+            key_validated_at=v2_resp.key_validated_at,
+            key_error_message=v2_resp.key_error_message,
+            effective_provider=v2_resp.effective_provider,
+            effective_model=v2_resp.effective_model,
+        )
+
     # Validate provider
     valid_ids = {p["id"] for p in SUPPORTED_PROVIDERS}
     if payload.provider not in valid_ids:
@@ -319,8 +367,23 @@ async def validate_key(
 async def remove_byok_key(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> AIConfigResponse:
     """Remove BYOK key and revert to platform default."""
+    if settings.byok_rebuild_enabled:
+        v2_resp = await v2.remove_byok_key_v2(current_user, db, request)
+        return AIConfigResponse(
+            provider=v2_resp.provider,
+            model=v2_resp.model,
+            base_url=v2_resp.base_url,
+            has_byok_key=v2_resp.has_byok_key,
+            is_key_valid=v2_resp.is_key_valid,
+            key_validated_at=v2_resp.key_validated_at,
+            key_error_message=v2_resp.key_error_message,
+            effective_provider=v2_resp.effective_provider,
+            effective_model=v2_resp.effective_model,
+        )
+
     result = await db.execute(
         select(UserAIConfig)
         .where(UserAIConfig.user_id == current_user.id)
@@ -532,3 +595,41 @@ async def update_specialist_models(
     await db.commit()
 
     return SpecialistModelsResponse(specialist_models=payload.specialist_models)
+
+
+# ---- v2-only routes --------------------------------------------------------
+#
+# These exist only when the rebuild flag is on. We register them on the
+# same router with a flag guard so the feature flag really is a single
+# switch: flipping byok_rebuild_enabled=false makes the rebuild invisible
+# (the routes exist but 404 to any client).
+
+
+def _require_rebuild_enabled() -> None:
+    if not settings.byok_rebuild_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+
+@router.put("/scope", response_model=v2.AIConfigResponse)
+async def update_scope(
+    payload: v2.ScopeUpdate,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
+) -> v2.AIConfigResponse:
+    """Update governance scope (allowed models, spend/request caps) on the
+    user's active BYOK credential. v2-only."""
+    _require_rebuild_enabled()
+    return await v2.update_scope_v2(payload, current_user, db, request)
+
+
+@router.get("/audit", response_model=list[v2.AuditLogEntry])
+async def get_audit_log(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = 50,
+) -> list[v2.AuditLogEntry]:
+    """Return the user's credential audit log (most recent first).
+    v2-only."""
+    _require_rebuild_enabled()
+    return await v2.get_audit_log_v2(current_user, db, limit=limit)
