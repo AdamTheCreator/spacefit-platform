@@ -255,11 +255,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           <img
             src="/perigee-logo.png"
             alt="Perigee"
-            width={32}
-            height={32}
+            width={44}
+            height={44}
             className="rounded-full object-cover shrink-0"
           />
-          <span className="font-display font-bold text-[17px] text-industrial tracking-[0.02em]">
+          <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
             PERIGEE
           </span>
           <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
