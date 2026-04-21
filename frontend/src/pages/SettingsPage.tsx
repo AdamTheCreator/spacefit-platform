@@ -198,7 +198,9 @@ function AIPreferencesSection() {
     );
   }
 
-  if (optionsError || prefsError) {
+  // Only fall back to the error card if we have NOTHING to show. If we already
+  // have cached options+prefs, keep rendering them through a transient cold-start.
+  if ((optionsError && !options) || (prefsError && !preferences)) {
     return (
       <SectionError
         title="AI Preferences"
@@ -712,7 +714,10 @@ function AIModelSection() {
     );
   }
 
-  if (isError) {
+  // Only show the error card if we have no cached config to fall back to —
+  // otherwise a transient error (Render cold-start) would wipe the UI the user
+  // was already interacting with.
+  if (isError && !config) {
     return <SectionError title="AI Model" onRetry={() => refetch()} />;
   }
 
