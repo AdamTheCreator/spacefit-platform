@@ -40,16 +40,6 @@ export function ComingSoonPage({ title, description, mascot }: ComingSoonPagePro
   );
 }
 
-export function AnalyticsPage() {
-  return (
-    <ComingSoonPage
-      title="Analytics is on the launch pad"
-      description="Portfolio-wide performance, NOI & occupancy trends, by-market breakouts, top-performing assets, and lease expirations. On the way."
-      mascot="mechanic"
-    />
-  );
-}
-
 export function InsightsPage() {
   return (
     <ComingSoonPage
