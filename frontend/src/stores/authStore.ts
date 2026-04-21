@@ -95,14 +95,8 @@ export const useAuthStore = create<AuthStore>()(
       logout: async () => {
         const refreshToken = localStorage.getItem('refresh_token');
 
-        if (refreshToken) {
-          try {
-            await api.post('/auth/logout', { refresh_token: refreshToken });
-          } catch {
-            // Ignore errors during logout
-          }
-        }
-
+        // Clear local state first so the user is logged out immediately,
+        // even if the API call hangs or the interceptor fires
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
 
@@ -112,6 +106,15 @@ export const useAuthStore = create<AuthStore>()(
           isLoading: false,
           error: null,
         });
+
+        // Best-effort server-side token revocation
+        if (refreshToken) {
+          try {
+            await api.post('/auth/logout', { refresh_token: refreshToken });
+          } catch {
+            // Ignore — local logout already succeeded
+          }
+        }
       },
 
       checkAuth: async () => {

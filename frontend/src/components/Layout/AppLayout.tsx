@@ -538,7 +538,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
                   <div className="border-t border-[var(--border-subtle)] py-1">
                     <button
-                      onClick={handleLogout}
+                      onClick={() => { setDropdownOpen(false); handleLogout(); }}
                       role="menuitem"
                       tabIndex={focusedIndex === 4 ? 0 : -1}
                       className={`flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--color-error)] hover:bg-[var(--bg-error)] transition-colors w-full ${focusedIndex === 4 ? 'bg-[var(--bg-error)]' : ''}`}
