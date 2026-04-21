@@ -51,6 +51,31 @@ services:
         sync: false
       - key: STRIPE_ENTERPRISE_PRICE_ID
         sync: false
+      # Transactional email (Resend) — without this, password-reset and
+      # verification emails silently no-op. Set the actual key in the
+      # Render dashboard.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: noreply@perigee.ai
+      - key: RESEND_FROM_NAME
+        value: Perigee
+      # SMTP (Gmail / SendGrid / etc.) for the outreach worker. Optional
+      # — unset means the outreach sender path is disabled.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Perigee
+      - key: SMTP_USE_TLS
+        value: "true"
 
   # Frontend Static Site
   - type: web
@@ -77,3 +102,9 @@ services:
         # (see axios.ts, main.tsx prewarm, SocialLoginButtons, SharedReportPage).
         # Including the prefix here produces `/api/v1/api/v1/...` 404s.
         value: https://spacefit-api.onrender.com
+      - key: VITE_WS_URL
+        # Chat WebSocket host. useChat.ts appends /api/v1/chat/ws itself.
+        # Falls back to ws://localhost:8000 in dev; without an explicit
+        # value a blueprint-driven deploy would leave the bundle pointed
+        # at localhost and chat would silently fail in production.
+        value: wss://spacefit-api.onrender.com

@@ -55,10 +55,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware. Literal allow_origins covers the deployed SPA hosts;
+# the regex covers Render's per-PR preview URLs so ephemeral preview
+# deployments don't need the list updated on every PR.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

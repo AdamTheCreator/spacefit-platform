@@ -47,7 +47,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:8000/api/v1
+        # Host only — the frontend (axios.ts, main.tsx, useChat.ts, etc.)
+        # appends /api/v1 itself. Including the prefix here produces
+        # /api/v1/api/v1/... 404s in the dev container.
+        VITE_API_URL: http://localhost:8000
+        VITE_WS_URL: ws://localhost:8000
     ports:
       - "5173:80"
     depends_on:
