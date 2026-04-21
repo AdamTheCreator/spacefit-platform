@@ -48,7 +48,7 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/workflow', label: 'Workflow', icon: Kanban, matchPrefixes: ['/workflow', '/pipeline'] },
   { to: '/insights', label: 'Insights', icon: Sparkles },
-  { to: '/customers', label: 'Customers', icon: Users },
+  { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/outreach', label: 'Outreach', icon: Mail },
 ];
 
