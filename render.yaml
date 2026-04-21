@@ -73,4 +73,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://spacefit-api.onrender.com/api/v1
+        # Host only — consumers in the frontend append `/api/v1` themselves
+        # (see axios.ts, main.tsx prewarm, SocialLoginButtons, SharedReportPage).
+        # Including the prefix here produces `/api/v1/api/v1/...` 404s.
+        value: https://spacefit-api.onrender.com
