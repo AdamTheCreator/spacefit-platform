@@ -12,12 +12,6 @@ const VALUE_PROPS = [
 
 const TRUST_LOGOS = ['SUMMIT', 'NORTHFIELD', 'REDWOOD', 'HARBOR', 'VERTEX'];
 
-const FEATURE_CARDS: { mascot: string; title: string; desc: string; accent: string }[] = [
-  { mascot: '/mascots/goose-engineer.webp', title: 'BUILT TOOLS', desc: 'Powerful tools for real estate pros.', accent: '#3A5BA0' },
-  { mascot: '/mascots/goose-planner.webp', title: 'SEE MORE', desc: 'Surface opportunities others miss.', accent: '#FF8A3D' },
-  { mascot: '/mascots/goose-mechanic.webp', title: 'PLAN SMARTER', desc: 'Data-driven insights to confirm decisions.', accent: '#E5B85C' },
-  { mascot: '/mascots/goose-planet.webp', title: 'REACH FURTHER', desc: 'From deals on Earth to dreams beyond.', accent: '#3A5BA0' },
-];
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -86,29 +80,8 @@ export function LandingPage() {
 
       {/* ─── Hero Illustration ─── */}
       <section className="max-w-[900px] mx-auto px-6 mb-6">
-        <div className="relative rounded-2xl overflow-hidden" style={{
-          background: 'linear-gradient(180deg, #F0F4FA 0%, #E8EDF5 100%)',
-          border: '1px solid #D8DFE9',
-          padding: '40px 20px 20px',
-        }}>
-          {/* Space station scene with mascots */}
-          <div className="flex items-end justify-center gap-2 relative" style={{ minHeight: 220 }}>
-            <img src="/mascots/goose-engineer.webp" alt="" className="h-28 object-contain relative z-10" style={{ marginBottom: -4 }} />
-            <img src="/mascots/goose-welder.webp" alt="" className="h-32 object-contain relative z-10" style={{ marginBottom: -4 }} />
-            <div className="relative z-0 mx-4">
-              {/* Stylized space station core */}
-              <div className="relative">
-                <img src="/mascots/goose-solar.webp" alt="" className="h-40 object-contain" />
-              </div>
-            </div>
-            <img src="/mascots/goose-mechanic.webp" alt="" className="h-32 object-contain relative z-10" style={{ marginBottom: -4 }} />
-            <img src="/mascots/goose-planner.webp" alt="" className="h-28 object-contain relative z-10" style={{ marginBottom: -4 }} />
-          </div>
-          {/* Decorative orbit lines */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 900 280" fill="none">
-            <ellipse cx="450" cy="180" rx="380" ry="60" stroke="#C8D4E5" strokeWidth="1" strokeDasharray="6 4" opacity="0.5" />
-            <ellipse cx="450" cy="160" rx="300" ry="45" stroke="#C8D4E5" strokeWidth="1" strokeDasharray="4 6" opacity="0.3" />
-          </svg>
+        <div className="flex justify-center">
+          <img src="/mascots/landing-hero.png" alt="Perigee goose crew building a space station" className="w-full max-w-[700px] object-contain" />
         </div>
       </section>
 
@@ -145,26 +118,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Feature Cards ─── */}
-      <section className="max-w-[1100px] mx-auto px-6 pb-20">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {FEATURE_CARDS.map(card => (
-            <div key={card.title}
-              className="rounded-xl overflow-hidden border border-neutral-200 hover:shadow-lg transition-shadow"
-              style={{ background: '#FAFAFA' }}>
-              <div className="flex items-end justify-center pt-6 px-4" style={{ height: 160, background: `linear-gradient(180deg, ${card.accent}10, ${card.accent}05)` }}>
-                <img src={card.mascot} alt="" className="h-32 object-contain" />
-              </div>
-              <div className="p-4">
-                <h3 className="text-xs font-bold tracking-[0.1em] uppercase mb-1.5" style={{ color: card.accent }}>
-                  {card.title}
-                </h3>
-                <p className="text-sm text-neutral-500 leading-relaxed">{card.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* ─── Footer ─── */}
       <footer className="border-t border-neutral-200 py-8">
