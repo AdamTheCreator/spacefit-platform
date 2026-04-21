@@ -44,7 +44,7 @@ export function SearchPage() {
   const [thesis, setThesis] = useState<Thesis>('Core+');
   const [query, setQuery] = useState('Multifamily · Sun Belt · 80+ units');
 
-  const handleCardClick = () => navigate('/projects');
+  const goToProperty = (id: number) => navigate(`/property/${id}`);
 
   return (
     <AppLayout>
@@ -155,7 +155,7 @@ export function SearchPage() {
               </div>
               <div className="flex flex-col gap-2.5 overflow-auto max-h-[540px]">
                 {SAMPLE_PROPERTIES.map((p) => (
-                  <PropertyCard key={p.id} p={p} compact onClick={handleCardClick} />
+                  <PropertyCard key={p.id} p={p} compact onClick={() => goToProperty(p.id)} />
                 ))}
               </div>
             </div>
@@ -174,7 +174,7 @@ export function SearchPage() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={handleCardClick}
+                  onClick={() => goToProperty(p.id)}
                   className="grid grid-cols-[80px_2fr_1fr_0.8fr_0.8fr_0.8fr_80px] items-center px-5 py-3.5 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--bg-cream,var(--bg-tertiary))] transition-colors w-full text-left"
                 >
                   <div
@@ -214,7 +214,7 @@ export function SearchPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-8">
               {SAMPLE_PROPERTIES.map((p) => (
-                <PropertyCard key={p.id} p={p} onClick={handleCardClick} />
+                <PropertyCard key={p.id} p={p} onClick={() => goToProperty(p.id)} />
               ))}
             </div>
           )}
