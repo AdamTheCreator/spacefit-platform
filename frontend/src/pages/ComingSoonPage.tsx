@@ -40,16 +40,6 @@ export function ComingSoonPage({ title, description, mascot }: ComingSoonPagePro
   );
 }
 
-export function SearchPage() {
-  return (
-    <ComingSoonPage
-      title="Search is warming up"
-      description="A unified search across properties, comps, and people — with thesis filters and grid/list/map views. Shipping in the next release."
-      mascot="engineer"
-    />
-  );
-}
-
 export function AnalyticsPage() {
   return (
     <ComingSoonPage
