@@ -46,6 +46,8 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
   const pendingUserMessagesRef = useRef<Array<{ id: string; content: string }>>([]);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 3;
   const systemPromptIdRef = useRef<string | undefined>(systemPromptId);
   const projectIdRef = useRef<string | undefined>(projectId);
   const queryClient = useQueryClient();
@@ -126,6 +128,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
       setConnectionStatus('connected');
       console.log('Chat WebSocket connected');
     };
@@ -143,9 +146,9 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         return;
       }
 
-      if (shouldReconnectRef.current) {
+      if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        reconnectAttemptsRef.current += 1;
         setConnectionStatus('connecting');
-        // Reconnect after 3 seconds (unless auth failed)
         reconnectTimeoutRef.current = window.setTimeout(() => {
           connect();
         }, 3000);

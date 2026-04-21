@@ -188,25 +188,9 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
         </div>
       )}
 
-      {/* Connection Status */}
-      {!isConnected && (
-        <div className="flex-shrink-0 px-4 py-2.5 bg-[var(--bg-warning)] border-b border-[var(--color-warning)]/20" role="status" aria-live="polite">
-          <div className="chat-stage flex items-center gap-2 text-sm text-[var(--color-warning)]">
-            <span className="w-2 h-2 rounded-full bg-[var(--color-warning)] animate-pulse" />
-            Connecting to server...
-          </div>
-        </div>
-      )}
+      {/* Connection status is shown in the header dot — no banner needed */}
 
-      {/* Loading State */}
-      {isLoading && messages.length === 0 && (
-        <div className="flex-shrink-0 px-4 py-2.5 bg-[var(--bg-info)] border-b border-[var(--color-info)]/20" role="status" aria-live="polite">
-          <div className="chat-stage flex items-center gap-2 text-sm text-[var(--color-info)]">
-            <span className="w-2 h-2 rounded-full bg-[var(--color-info)] animate-pulse" />
-            Loading conversation...
-          </div>
-        </div>
-      )}
+      {/* Loading state is handled inline in the messages area */}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-6 scrollbar-thin">
@@ -352,7 +336,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
             disabled={!isConnected || isProcessing}
             placeholder={
               !isConnected
-                ? 'Connecting to server...'
+                ? 'Server offline — start the backend to chat'
                 : isProcessing
                 ? 'Processing your request...'
                 : 'Message Perigee...'
