@@ -11,3 +11,4 @@ export { PipelinePage } from './PipelinePage';
 export { DocumentsPage } from './DocumentsPage';
 export { OutreachPage } from './OutreachPage';
 export { PricingPage } from './PricingPage';
+export { ContactsPage } from './ContactsPage';

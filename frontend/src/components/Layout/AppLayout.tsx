@@ -161,7 +161,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const menuItems = useMemo(() => [
     { path: '/profile', label: 'Profile' },
-    { path: '/customers', label: 'Customers' },
+    { path: '/contacts', label: 'Contacts' },
     { path: '/connections', label: 'Data Library' },
     { path: '/settings', label: 'Settings' },
     { action: 'logout', label: 'Sign out' },

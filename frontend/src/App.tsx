@@ -12,6 +12,7 @@ const ChatPage = lazy(() => import('./pages/ChatPage').then(m => ({ default: m.C
 const DemoPage = lazy(() => import('./pages/DemoPage').then(m => ({ default: m.DemoPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const CustomersPage = lazy(() => import('./pages/CustomersPage').then(m => ({ default: m.CustomersPage })));
+const ContactsPage = lazy(() => import('./pages/ContactsPage').then(m => ({ default: m.ContactsPage })));
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then(m => ({ default: m.ConnectionsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const PipelinePage = lazy(() => import('./pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
@@ -88,6 +89,7 @@ function App() {
             <Route path="/archive" element={<ArchivedProjectsPage />} />
             <Route path="/outreach" element={<OutreachPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/connections" element={<ConnectionsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
