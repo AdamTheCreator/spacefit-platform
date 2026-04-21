@@ -59,7 +59,7 @@ export function LoginPage() {
 
         {/* Mascot */}
         <div className="relative z-10 flex items-end gap-4">
-          <img src="/mascots/goose-planner.webp" alt="" className="h-24 object-contain opacity-80" />
+          <img src="/mascots/goose-solar.webp" alt="" className="h-28 object-contain opacity-90" />
           <span className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
             v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
           </span>

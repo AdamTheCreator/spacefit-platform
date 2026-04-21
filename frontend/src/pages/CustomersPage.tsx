@@ -115,7 +115,7 @@ function EmptyState({
     <div className="card-industrial">
       <div className="p-8 text-center">
         <img
-          src="/mascots/goose-carriers.webp"
+          src="/mascots/goose-welder.webp"
           alt=""
           aria-hidden="true"
           className="w-28 h-28 mx-auto mb-3 object-contain select-none"

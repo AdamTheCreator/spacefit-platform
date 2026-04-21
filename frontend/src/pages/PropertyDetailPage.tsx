@@ -132,7 +132,7 @@ export function PropertyDetailPage() {
               {/* Thesis note with Planner goose */}
               <div className="bg-[var(--bg-cream,var(--bg-tertiary))] border border-[var(--border-subtle)] rounded-xl p-5 flex gap-3 items-center">
                 <img
-                  src="/mascots/goose-planner.webp"
+                  src="/mascots/goose-engineer.webp"
                   alt=""
                   aria-hidden="true"
                   className="w-[76px] h-[76px] object-contain shrink-0 select-none"

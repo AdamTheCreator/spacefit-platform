@@ -185,7 +185,7 @@ export function ProjectsPage() {
           ) : !data?.items.length ? (
             <div className="text-center py-16">
               <img
-                src="/mascots/goose-planner.webp"
+                src="/mascots/goose-mechanic.webp"
                 alt=""
                 aria-hidden="true"
                 className="w-28 h-28 mx-auto mb-3 object-contain select-none"

@@ -190,7 +190,7 @@ export function OutreachPage() {
           ) : filteredCampaigns.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <img
-                src="/mascots/goose-launch.webp"
+                src="/mascots/goose-carriers.webp"
                 alt=""
                 aria-hidden="true"
                 className="w-28 h-28 mx-auto mb-3 object-contain select-none"

@@ -380,7 +380,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             className="block relative mb-2 rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-cream,var(--bg-tertiary))] hover:shadow-sm transition-shadow group"
           >
             <img
-              src="/mascots/goose-solar.webp"
+              src="/mascots/goose-launch.webp"
               alt=""
               aria-hidden="true"
               className="absolute -right-3 -bottom-3 w-24 h-24 object-contain select-none pointer-events-none opacity-95"
