@@ -15,7 +15,7 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: free # Change to 'starter' ($7/mo) for always-on
+    plan: starter # $7/mo — always-on, no cold starts
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
