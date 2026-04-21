@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/v1\/?$/, '');
 
 const btnClass =
   'w-full py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2.5 transition-colors border';

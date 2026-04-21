@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Sparkles, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/v1\/?$/, '');
 
 interface SharedReport {
   title: string | null;

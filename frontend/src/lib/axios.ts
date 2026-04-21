@@ -1,6 +1,12 @@
 import axios, { AxiosError } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Strip a trailing `/api/v1` (with optional slash) so a misconfigured env var
+// that already includes the prefix — e.g. `https://host/api/v1` — doesn't
+// produce `/api/v1/api/v1/...` 404s for every call. The contract in
+// .env.example is host-only, but prod deploys have historically tripped on
+// this, so normalize defensively.
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = rawApiUrl.replace(/\/api\/v1\/?$/, '');
 
 export const api = axios.create({
   baseURL: `${API_URL}/api/v1`,
