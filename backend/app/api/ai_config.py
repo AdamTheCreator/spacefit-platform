@@ -24,7 +24,7 @@ from app.api.deps import CurrentUser, get_db
 from app.core.config import settings
 from app.core.security import encrypt_credential, generate_user_salt
 from app.db.models.credential import UserAIConfig
-from app.services.user_llm import PROVIDER_DEFAULT_MODELS
+from app.services.user_llm import PROVIDER_DEFAULT_MODELS, select_validation_model
 
 router = APIRouter(prefix="/ai-config", tags=["ai-config"])
 logger = logging.getLogger(__name__)
@@ -331,7 +331,11 @@ async def validate_key(
     from app.llm.types import LLMChatMessage, LLMChatRequest
 
     provider = payload.provider
-    model = payload.model or PROVIDER_DEFAULT_MODELS.get(provider, "")
+    # Always probe against the provider's cheapest / highest-RPM model,
+    # independent of what the user selected. Validating a fresh key
+    # against something like gpt-4o rate-limits on new accounts before
+    # we can prove the key works at all — see VALIDATION_MODELS.
+    model = select_validation_model(provider, payload.model)
 
     if not model:
         return ValidateKeyResponse(valid=False, error="Model is required for this provider")
@@ -343,11 +347,11 @@ async def validate_key(
             base_url=payload.base_url or "",
         )
 
-        # Lightweight test: generate a single token
-        response = await client.chat(
+        # Minimal probe: one token is enough to prove auth + model access.
+        await client.chat(
             LLMChatRequest(
                 model=model,
-                max_tokens=5,
+                max_tokens=1,
                 system="Reply with only the word 'ok'.",
                 messages=[LLMChatMessage(role="user", content="test")],
             )

@@ -682,10 +682,13 @@ function AIModelSection() {
 
   const handleValidate = async () => {
     if (!selectedProvider || !apiKey) return;
+    // Don't pin validation to the user's selected model — the backend
+    // probes against its own cheap validation model per provider to
+    // avoid rate-limiting brand-new keys on tier-gated premium models.
+    // base_url still flows through so openai_compatible endpoints work.
     const result = await validateMutation.mutateAsync({
       provider: selectedProvider,
       api_key: apiKey,
-      model: selectedModel || undefined,
       base_url: baseUrl || undefined,
     });
     setValidated(result.valid);
