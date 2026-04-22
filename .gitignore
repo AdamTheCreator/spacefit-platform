@@ -29,6 +29,8 @@ wheels/
 venv/
 .venv/
 ENV/
+# uv lockfile (not currently tracked in this repo)
+uv.lock
 
 # Testing
 .coverage

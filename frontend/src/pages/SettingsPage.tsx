@@ -651,12 +651,20 @@ function AIModelSection() {
   const [baseUrl, setBaseUrl] = useState('');
   const [validated, setValidated] = useState(false);
 
-  // Initialize form when config loads
+  // Initialize form when config loads.
+  // If /ai-config failed (or the user is on platform_default), reset the
+  // form to a blank slate so the provider dropdown, which is fed by the
+  // independent /ai-config/providers endpoint, stays usable even when
+  // the saved config can't be read.
   const initForm = () => {
     if (config && config.provider !== 'platform_default') {
       setSelectedProvider(config.provider);
       setSelectedModel(config.model || '');
       setBaseUrl(config.base_url || '');
+    } else {
+      setSelectedProvider('');
+      setSelectedModel('');
+      setBaseUrl('');
     }
   };
 
@@ -717,19 +725,34 @@ function AIModelSection() {
     );
   }
 
-  // Only show the error card if we have no cached config to fall back to —
-  // otherwise a transient error (Render cold-start) would wipe the UI the user
-  // was already interacting with.
-  if (isError && !config) {
-    return <SectionError title="AI Model" onRetry={() => refetch()} />;
-  }
+  // When /ai-config fails, keep the section rendered — the provider list
+  // comes from a separate endpoint that's still working, and a user with a
+  // broken config should still be able to pick a new one. A dismissible
+  // warning strip replaces the old full-card error state.
+  const configLoadFailed = isError && !config;
 
   const effectiveLabel = config
     ? `${PROVIDER_LABELS[config.effective_provider] || config.effective_provider} — ${config.effective_model}`
-    : 'Loading...';
+    : configLoadFailed
+      ? 'Platform default'
+      : 'Loading...';
 
   return (
     <div className="card-industrial">
+      {configLoadFailed && (
+        <div className="mb-4 flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[var(--bg-error)] text-[var(--color-error)]">
+          <AlertCircle size={14} className="shrink-0" />
+          <span className="flex-1">
+            Couldn't load your saved AI configuration. You can still configure a provider below.
+          </span>
+          <button
+            onClick={() => refetch()}
+            className="underline hover:no-underline shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
