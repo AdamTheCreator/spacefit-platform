@@ -21,6 +21,11 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from app.api.ai_config import _effective_provider_model, _get_active_ai_config
+from app.services.user_llm import (
+    PROVIDER_DEFAULT_MODELS,
+    VALIDATION_MODELS,
+    select_validation_model,
+)
 
 # --- _effective_provider_model ---------------------------------------------
 
@@ -131,6 +136,66 @@ async def test_get_active_ai_config_returns_row_on_happy_path() -> None:
     result = await _get_active_ai_config(db, "user-123")
 
     assert result is expected
+
+
+# --- select_validation_model -----------------------------------------------
+#
+# The /ai-config/validate-key endpoint has to probe the provider with *some*
+# model to prove the key works. Using whatever the user typed into the form
+# (e.g. gpt-4o on a brand-new OpenAI key) rate-limits on tier 0 before we can
+# even confirm the key is valid, so we override with a cheap high-RPM model
+# per provider. Regression tests for that selection logic live below.
+
+
+class TestSelectValidationModel:
+    def test_openai_uses_cheap_mini_model_not_user_selection(self) -> None:
+        """The original bug: user picks gpt-4o, backend probes against
+        gpt-4o, new key rate-limits. Must probe against gpt-4o-mini."""
+        assert select_validation_model("openai", "gpt-4o") == "gpt-4o-mini"
+
+    def test_openai_override_applies_even_when_user_model_is_none(self) -> None:
+        assert select_validation_model("openai", None) == "gpt-4o-mini"
+
+    def test_anthropic_uses_haiku_not_sonnet(self) -> None:
+        assert (
+            select_validation_model("anthropic", "claude-sonnet-4-6-20260320")
+            == VALIDATION_MODELS["anthropic"]
+        )
+
+    def test_google_uses_flash_lite(self) -> None:
+        result = select_validation_model("google", "gemini-1.5-pro")
+        assert result == "gemini-2.0-flash-lite"
+
+    def test_deepseek_falls_back_to_deepseek_chat(self) -> None:
+        assert (
+            select_validation_model("deepseek", "deepseek-reasoner") == "deepseek-chat"
+        )
+
+    def test_openai_compatible_passes_user_model_through(self) -> None:
+        """Custom OpenAI-compatible endpoints don't have a canonical
+        validation model — we have to trust whatever the user supplied."""
+        assert (
+            select_validation_model("openai_compatible", "custom/my-model")
+            == "custom/my-model"
+        )
+
+    def test_openai_compatible_no_model_falls_back_to_provider_default(self) -> None:
+        """PROVIDER_DEFAULT_MODELS['openai_compatible'] is empty, so this
+        returns '' — callers must treat empty as 'model required'."""
+        assert select_validation_model("openai_compatible", None) == ""
+
+    def test_unknown_provider_falls_back_to_user_model(self) -> None:
+        assert select_validation_model("wat", "some-model") == "some-model"
+
+    def test_unknown_provider_with_no_model_returns_empty(self) -> None:
+        assert select_validation_model("wat", None) == ""
+
+    def test_all_validation_models_are_covered_by_provider_defaults(self) -> None:
+        """Sanity check: every provider we have a validation model for
+        should also have a default model, so calls from non-validation
+        paths (e.g., the /usage estimator) keep working."""
+        for provider in VALIDATION_MODELS:
+            assert provider in PROVIDER_DEFAULT_MODELS
 
 
 @pytest.mark.asyncio

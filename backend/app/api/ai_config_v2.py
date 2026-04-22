@@ -277,10 +277,22 @@ async def _run_live_validation(
 ) -> tuple[bool, str | None]:
     """Make a cheap, idempotent call to the provider to verify the key.
 
+    ``model`` is the user's intended model and is stored by the caller
+    regardless of whether we probe against it. For most providers we
+    deliberately probe against the dedicated validation model (see
+    ``user_llm.select_validation_model``) — validating a brand-new key
+    against a premium model like gpt-4o rate-limits on the lowest tier
+    before we can confirm the key is valid at all. Fallback to the
+    user's model only for providers like ``openai_compatible`` where
+    we don't know which models the endpoint exposes.
+
     Returns ``(ok, error_message)``. Never logs the api_key.
     """
     from app.llm.client import get_or_create_client
     from app.llm.types import LLMChatMessage, LLMChatRequest
+    from app.services.user_llm import select_validation_model
+
+    probe_model = select_validation_model(provider, model)
 
     try:
         client = get_or_create_client(
@@ -290,8 +302,8 @@ async def _run_live_validation(
         )
         await client.chat(
             LLMChatRequest(
-                model=model,
-                max_tokens=5,
+                model=probe_model,
+                max_tokens=1,
                 system="Reply with only the word 'ok'.",
                 messages=[LLMChatMessage(role="user", content="test")],
             )

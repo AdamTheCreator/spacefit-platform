@@ -91,11 +91,11 @@ export function OnboardingPage() {
         api_key: byokKey.trim(),
         model: 'claude-haiku-4-5-20251001',
       });
-      // Validate it
+      // Validate it — model is omitted so the backend probes against
+      // its own cheap validation model (avoids rate-limiting new keys).
       const res = await api.post('/ai-config/validate-key', {
         provider: 'anthropic',
         api_key: byokKey.trim(),
-        model: 'claude-haiku-4-5-20251001',
       });
       setByokResult(res.data);
       if (res.data.valid) {
