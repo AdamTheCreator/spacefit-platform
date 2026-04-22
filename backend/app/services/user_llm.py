@@ -32,6 +32,39 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     "openai_compatible": "",
 }
 
+# Models used to probe a freshly-entered API key. Validation only needs to
+# confirm the key is alive, so we pick the cheapest / highest-RPM model
+# each provider offers — the user's preferred model may be on a tier
+# they haven't unlocked yet (e.g., gpt-4o on a new OpenAI key is rate
+# limited well below 3 RPM, so validating against it fails even when
+# the key itself is perfectly valid).
+#
+# Providers intentionally omitted:
+#   - openai_compatible: custom endpoint, only the user knows which
+#     models it accepts — fall through to whatever the user supplied.
+#   - platform_default: nothing to validate; this entry never reaches
+#     the validator.
+VALIDATION_MODELS: dict[str, str] = {
+    "anthropic": "claude-haiku-4-5-20251001",
+    "openai": "gpt-4o-mini",
+    "google": "gemini-2.0-flash-lite",
+    "deepseek": "deepseek-chat",
+}
+
+
+def select_validation_model(provider: str, user_model: str | None) -> str:
+    """Return the model to use when validating an API key.
+
+    Prefers the dedicated validation model when available; falls back to
+    the user's requested model (e.g. for ``openai_compatible`` where we
+    can't assume model names), and finally to the provider's default.
+    Returns an empty string if nothing is configured — callers must
+    check and reject validation in that case.
+    """
+    if provider in VALIDATION_MODELS:
+        return VALIDATION_MODELS[provider]
+    return user_model or PROVIDER_DEFAULT_MODELS.get(provider, "")
+
 
 @dataclass(frozen=True)
 class ResolvedLLM:

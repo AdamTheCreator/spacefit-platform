@@ -682,6 +682,11 @@ function AIModelSection() {
 
   const handleValidate = async () => {
     if (!selectedProvider || !apiKey) return;
+    // Always send the user's selected model. The backend overrides it with
+    // a cheap probe model for known providers (anthropic/openai/google/
+    // deepseek) to avoid rate-limiting brand-new keys on tier-gated
+    // premium models, but for openai_compatible there's no canonical probe
+    // model — it falls back to whatever we send and 400s on empty.
     const result = await validateMutation.mutateAsync({
       provider: selectedProvider,
       api_key: apiKey,
