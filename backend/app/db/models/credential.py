@@ -18,7 +18,12 @@ from app.db.base import Base
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    # Tables in this module declare DateTime columns (TIMESTAMP WITHOUT
+    # TIME ZONE). asyncpg raises DataError ("can't subtract offset-naive
+    # and offset-aware datetimes") when handed a tz-aware value for a
+    # naive column, which blew up every connector UPDATE. Return naive
+    # UTC so default=/onupdate= hooks produce values the columns accept.
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def uuid_str() -> str:

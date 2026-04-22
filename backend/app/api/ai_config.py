@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -430,8 +430,14 @@ async def remove_byok_key(
 @router.get("/providers", response_model=list[ProviderInfo])
 async def list_providers(
     current_user: CurrentUser,
+    response: Response,
 ) -> list[ProviderInfo]:
     """List supported AI providers with their capabilities."""
+    # Static metadata baked into the module — safe to cache for the
+    # session. Browser + Render edge can both hold onto it.
+    response.headers["Cache-Control"] = (
+        "public, max-age=3600, stale-while-revalidate=86400"
+    )
     return [ProviderInfo(**p) for p in SUPPORTED_PROVIDERS]
 
 
