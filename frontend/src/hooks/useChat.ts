@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '../stores/chatStore';
+import { projectKeys } from './useProjects';
 import api from '../lib/axios';
 import type { Message, WorkflowStep } from '../types/chat';
 
@@ -189,6 +190,9 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           : `/chat/${data.session_id}`;
         window.history.replaceState(null, '', nextUrl);
         queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
+        if (projectIdRef.current) {
+          queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectIdRef.current) });
+        }
         break;
       }
 
@@ -290,6 +294,9 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
 
       case 'title_update': {
         queryClient.invalidateQueries({ queryKey: ['chatSessions'] });
+        if (projectIdRef.current) {
+          queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectIdRef.current) });
+        }
         break;
       }
 
