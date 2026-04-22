@@ -92,6 +92,14 @@ services:
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
+      # Explicit CSP. No 'unsafe-eval' — the production bundle is eval-free
+      # (verified by scanning dist/ after `vite build`). Google Fonts (styles +
+      # glyphs) and the Google Places autocomplete endpoint used by
+      # AddressAutocomplete are the only cross-origin dependencies. If a new
+      # third-party origin is added to the SPA, allow it here.
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://spacefit-api.onrender.com wss://spacefit-api.onrender.com https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
     routes:
       - type: rewrite
         source: /*
