@@ -1,9 +1,12 @@
+import uuid
 from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
@@ -27,18 +30,47 @@ from app.api.admin import router as admin_router
 from app.api.imports import router as imports_router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.logging import install_request_id_filter, request_id_var
 from app.core.scrubbing import install_scrubbing_filter
 from app.llm.client import aclose_llm_client
 from app.mcp.server import mcp as perigee_mcp
 
 import logging
 
-# Install the secret-scrubbing log filter before anything else has a
-# chance to log — loads and DB connection messages can sometimes carry
-# credentials through tracebacks.
+# Install log filters before anything else has a chance to log. The
+# scrubbing filter protects against accidental secret leakage; the
+# request-ID filter attaches a per-request correlation ID that the
+# middleware below populates on every HTTP request.
 install_scrubbing_filter()
+install_request_id_filter()
 
 logger = logging.getLogger(__name__)
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Populate :data:`request_id_var` for every HTTP request and mirror
+    the value back on the response as ``X-Request-ID``.
+
+    If the client supplies an ``X-Request-ID`` we honor it (trimmed to a
+    reasonable length to cap log bloat); otherwise we mint a fresh UUID.
+    The ContextVar is reset on the way out so background tasks that
+    outlive the request don't inherit a stale ID.
+    """
+
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        incoming = request.headers.get("x-request-id")
+        rid = (incoming[:64] if incoming else uuid.uuid4().hex)
+        token = request_id_var.set(rid)
+        try:
+            response = await call_next(request)
+        finally:
+            request_id_var.reset(token)
+        response.headers["X-Request-ID"] = rid
+        return response
 
 
 @asynccontextmanager
@@ -54,6 +86,28 @@ fastapi_app = FastAPI(
     version="0.2.8.1",
     lifespan=lifespan,
 )
+
+fastapi_app.add_middleware(RequestIdMiddleware)
+
+
+@fastapi_app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Any exception that reaches here is one a route handler did not
+    # translate into an HTTPException. Log with the request ID so we
+    # can correlate the generic 500 the client sees with the traceback.
+    rid = request_id_var.get()
+    logger.exception(
+        "unhandled exception path=%s method=%s request_id=%s",
+        request.url.path,
+        request.method,
+        rid,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "request_id": rid},
+        headers={"X-Request-ID": rid},
+    )
+
 
 # Include routers
 fastapi_app.include_router(auth_router, prefix=settings.api_prefix)

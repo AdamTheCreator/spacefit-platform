@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -18,6 +19,8 @@ from app.models.user import (
     UserPasswordUpdate,
 )
 from app.services.auth import AuthService
+
+logger = logging.getLogger(__name__)
 
 
 class VerifyEmailRequest(BaseModel):
@@ -99,11 +102,17 @@ async def refresh_token(
     tokens = await auth_service.refresh_tokens(token_data.refresh_token)
 
     if tokens is None:
+        # Log at info (not warning) — this fires on any expired/invalidated
+        # refresh token, which is normal. The request_id injected by the
+        # logging filter is the key data point for correlating with the
+        # frontend axios.ts refresh branch.
+        logger.info("auth.refresh: rejected (invalid or expired refresh token)")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
 
+    logger.info("auth.refresh: ok")
     return tokens
 
 
