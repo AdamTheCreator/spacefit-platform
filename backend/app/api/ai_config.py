@@ -16,6 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import ai_config_v2 as v2
@@ -159,15 +160,28 @@ async def _get_active_ai_config(db: AsyncSession, user_id: str) -> UserAIConfig 
     (e.g., from old data before partial unique indexes were enforced).
     Using ``scalars().first()`` with an explicit ordering prevents
     ``MultipleResultsFound`` 500s on settings reads.
+
+    If the query itself fails (e.g., the ``status`` column from migration 028
+    is missing on an environment that hasn't upgraded yet), log and return
+    ``None`` so the caller falls back to the platform-default shape rather
+    than 500ing the whole settings page.
     """
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == user_id)
-        .where(UserAIConfig.status == "active")
-        .order_by(UserAIConfig.updated_at.desc(), UserAIConfig.created_at.desc())
-        .limit(1)
-    )
-    return result.scalars().first()
+    try:
+        result = await db.execute(
+            select(UserAIConfig)
+            .where(UserAIConfig.user_id == user_id)
+            .where(UserAIConfig.status == "active")
+            .order_by(UserAIConfig.updated_at.desc(), UserAIConfig.created_at.desc())
+            .limit(1)
+        )
+        return result.scalars().first()
+    except SQLAlchemyError:
+        logger.exception(
+            "failed to load active ai_config for user_id=%s; returning None",
+            user_id,
+        )
+        await db.rollback()
+        return None
 
 
 # --- Endpoints ---

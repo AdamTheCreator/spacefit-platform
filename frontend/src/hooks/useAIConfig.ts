@@ -92,6 +92,9 @@ export function useAIConfig() {
     queryFn: fetchAIConfig,
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
+    // 5xx here is deterministic (backend config resolution error), not transient —
+    // don't burn ~7s on the default 2 retries before the UI falls back.
+    retry: 1,
   });
 }
 
@@ -152,6 +155,7 @@ export function useUsage() {
     },
     enabled: !!user,
     staleTime: 1000 * 30, // 30s
+    retry: 1,
   });
 }
 

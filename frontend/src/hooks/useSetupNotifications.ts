@@ -6,11 +6,12 @@ import { useConnectorStatus } from './useConnectorHealth';
 const DISMISS_PREFIX = 'sf_notif_dismiss_';
 const TIP_PREFIX = 'sf_tip_seen_';
 
-// Connector feature descriptions for user-friendly messages
+// Connector feature descriptions for user-friendly messages.
+// Only connectors that still have a login flow appear here — CoStar and
+// SiteUSA are intentionally omitted (they're now file-upload sources),
+// and the setup toast is skipped entirely for sites not in this map.
 const CONNECTOR_FEATURES: Record<string, string> = {
-  costar: 'lease comps and tenant data',
   placer: 'foot traffic analytics',
-  siteusa: 'vehicle traffic counts',
 };
 
 function isDismissed(key: string): boolean {
@@ -48,10 +49,13 @@ export function useSetupNotifications() {
     // Don't show if user is already on the connections page
     if (location.pathname === '/connections') return;
 
-    // Find disconnected or errored connectors not yet dismissed
+    // Find disconnected or errored connectors not yet dismissed.
+    // Skip sites without a supported setup flow — otherwise we'd nag the
+    // user to "connect" something that has no login UI.
     const disconnected = connectors.filter(
       (c) =>
         (c.connector_status === 'error' || c.connector_status === 'needs_reauth') &&
+        CONNECTOR_FEATURES[c.site_name.toLowerCase()] !== undefined &&
         !isDismissed(c.site_name),
     );
 
@@ -59,7 +63,7 @@ export function useSetupNotifications() {
 
     // Show one notification then permanently dismiss it
     const toShow = disconnected[0];
-    const feature = CONNECTOR_FEATURES[toShow.site_name.toLowerCase()] || 'premium data';
+    const feature = CONNECTOR_FEATURES[toShow.site_name.toLowerCase()];
     const displayName = toShow.site_display_name || toShow.site_name;
 
     // Mark dismissed immediately so it never shows again

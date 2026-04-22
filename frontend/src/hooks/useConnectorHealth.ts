@@ -10,6 +10,15 @@ export const connectorKeys = {
   status: () => [...connectorKeys.all, 'status'] as const,
 };
 
+// Sites whose user-facing login flow has been retired — data now comes in
+// via direct file upload on the project property plan. The backend can
+// still report their credential status (e.g., "Login failed."), but we
+// don't want to nag users to "re-authenticate" when there's no login UI
+// for them to hit. Keep them out of the derived issues list only;
+// `useConnectorStatus` still returns them so the /connections upload
+// cards continue to render.
+const DEPRECATED_LOGIN_SITES = new Set(['costar', 'siteusa']);
+
 /**
  * Fetch health status for all of the user's connectors.
  *
@@ -69,7 +78,9 @@ export function useConnectorIssues() {
   const issues = useMemo(() => {
     if (!statuses) return [];
     return statuses.filter(
-      (s) => s.connector_status === 'needs_reauth' || s.connector_status === 'error',
+      (s) =>
+        !DEPRECATED_LOGIN_SITES.has(s.site_name.toLowerCase()) &&
+        (s.connector_status === 'needs_reauth' || s.connector_status === 'error'),
     );
   }, [statuses]);
 

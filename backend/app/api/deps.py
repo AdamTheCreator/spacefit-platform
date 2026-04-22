@@ -56,7 +56,10 @@ async def get_current_user(
 
     result = await db.execute(
         select(User)
-        .options(selectinload(User.onboarding_progress))
+        .options(
+            selectinload(User.onboarding_progress),
+            selectinload(User.subscription).selectinload(Subscription.plan),
+        )
         .where(User.id == user_id)
     )
     user = result.scalar_one_or_none()

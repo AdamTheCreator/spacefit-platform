@@ -49,7 +49,10 @@ export function useCredentialAudit(limit = 20) {
     },
     enabled: !!user,
     staleTime: 1000 * 30, // 30s — activity should feel fresh
-    retry: 1,
+    // 404 (feature flag off) is deterministic; queryFn already coerces it
+    // to []. Don't retry on any other status either — audit failures are
+    // informational and shouldn't slow the Settings page down.
+    retry: 0,
   });
 }
 
