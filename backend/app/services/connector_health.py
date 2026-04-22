@@ -278,8 +278,9 @@ async def run_health_probe(
     meta.probe.last_probe_at = _now_iso()
     meta.probe.last_probe_duration_ms = duration_ms
 
-    # Persist to DB
-    now = datetime.now(timezone.utc)
+    # Persist to DB. site_credentials columns are TIMESTAMP WITHOUT TIME
+    # ZONE, so strip tzinfo to avoid asyncpg DataError on the adaptation.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.execute(
         update(SiteCredential)
         .where(SiteCredential.id == credential.id)
@@ -287,6 +288,7 @@ async def run_health_probe(
             connector_status=new_status,
             health_meta=meta.to_json(),
             last_probe_at=now,
+            updated_at=now,
         )
     )
     await db.commit()
@@ -414,7 +416,9 @@ async def update_connector_on_success(
     meta.probe.last_success_at = _now_iso()
     meta.probe.last_probe_at = _now_iso()
 
-    now = datetime.now(timezone.utc)
+    # site_credentials columns are TIMESTAMP WITHOUT TIME ZONE — see
+    # comment in run_health_probe above.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.execute(
         update(SiteCredential)
         .where(SiteCredential.id == credential.id)
@@ -425,6 +429,7 @@ async def update_connector_on_success(
             session_status="valid",
             session_last_checked=now,
             session_error_message=None,
+            updated_at=now,
         )
     )
     await db.commit()

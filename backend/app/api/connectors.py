@@ -61,7 +61,9 @@ async def disable_connector(
 ) -> ConnectorStatusResponse:
     """Disable a connector. It will not be used for analysis until re-enabled."""
     credential = await _get_user_credential(credential_id, user.id, db)
-    now = datetime.now(timezone.utc)
+    # site_credentials columns are TIMESTAMP WITHOUT TIME ZONE; strip
+    # tzinfo so asyncpg doesn't raise DataError on the adaptation.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     await db.execute(
         update(SiteCredential)
@@ -70,6 +72,7 @@ async def disable_connector(
             connector_status="disabled",
             disabled_at=now,
             disabled_reason="Disabled by user",
+            updated_at=now,
         )
     )
     await db.commit()
@@ -91,6 +94,7 @@ async def enable_connector(
     """Re-enable a disabled connector. Resets to stale so a probe will run."""
     credential = await _get_user_credential(credential_id, user.id, db)
 
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.execute(
         update(SiteCredential)
         .where(SiteCredential.id == credential.id)
@@ -98,6 +102,7 @@ async def enable_connector(
             connector_status="stale",
             disabled_at=None,
             disabled_reason=None,
+            updated_at=now,
         )
     )
     await db.commit()

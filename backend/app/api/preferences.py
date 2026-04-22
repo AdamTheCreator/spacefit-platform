@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -151,8 +151,15 @@ async def _get_user_preferences(db: AsyncSession, user_id: str) -> UserPreferenc
 
 
 @router.get("/options", response_model=PreferencesOptionsResponse)
-async def get_preference_options() -> PreferencesOptionsResponse:
+async def get_preference_options(response: Response) -> PreferencesOptionsResponse:
     """Get available options for preference fields."""
+    # These lists are compiled into the module; a redeploy is required to
+    # change them, so they're safe to cache aggressively in the browser
+    # (React Query) and at the edge. 1h TTL with stale-while-revalidate
+    # keeps navigation snappy without pinning a stale copy forever.
+    response.headers["Cache-Control"] = (
+        "public, max-age=3600, stale-while-revalidate=86400"
+    )
     return PreferencesOptionsResponse(
         roles=ROLE_OPTIONS,
         property_types=PROPERTY_TYPE_OPTIONS,
