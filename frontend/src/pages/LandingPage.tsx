@@ -25,9 +25,9 @@ export function LandingPage() {
     <div className="min-h-screen bg-white text-[var(--color-neutral-900)]" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* ─── Top Nav ─── */}
       <nav className="max-w-[1200px] mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <img src="/perigee-logo.png" alt="Perigee" width={28} height={28} className="rounded-full object-cover" />
-          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.04em' }}>PERIGEE</span>
+        <div className="flex items-center gap-3">
+          <img src="/perigee-logo.png" alt="Perigee" width={50} height={50} className="rounded-full object-cover" />
+          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: '0.04em' }}>PERIGEE</span>
         </div>
         <div className="hidden md:flex items-center gap-8">
           {NAV_LINKS.map(l => (
@@ -79,9 +79,9 @@ export function LandingPage() {
       </section>
 
       {/* ─── Hero Illustration ─── */}
-      <section className="max-w-[900px] mx-auto px-6 mb-6">
+      <section className="w-full px-6 md:px-12 lg:px-20 mb-6">
         <div className="flex justify-center">
-          <img src="/mascots/landing-hero.png" alt="Perigee goose crew building a space station" className="w-full max-w-[700px] object-contain" />
+          <img src="/mascots/landing-hero.png" alt="Perigee goose crew building a space station" className="w-full max-w-[1400px] object-contain" style={{ height: 'clamp(300px, 50vw, 700px)' }} />
         </div>
       </section>
 
