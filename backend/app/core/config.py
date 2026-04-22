@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="sqlite+aiosqlite:///./perigee.db"
     )
+    # SQLAlchemy async engine pool sizing. The old defaults (5 / 10) were
+    # too small for production; under moderate concurrency + a slow
+    # wake-from-sleep on Render Free Postgres, requests queued for a
+    # connection and timed out. db_pool_timeout is the max seconds a
+    # request will wait for a connection before failing fast (vs the
+    # SQLAlchemy default of 30s, which is long enough to look like a
+    # server hang to the client).
+    db_pool_size: int = Field(default=20)
+    db_max_overflow: int = Field(default=20)
+    db_pool_timeout: int = Field(default=10)
 
     # JWT Authentication
     secret_key: str = Field(default="development-secret-key-change-in-production")

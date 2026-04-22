@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -104,7 +105,14 @@ class AuthService:
         )
 
     async def refresh_tokens(self, refresh_token: str) -> TokenResponse | None:
-        """Refresh access token using refresh token."""
+        """Refresh access token using refresh token.
+
+        Wraps the two DB lookups in ``asyncio.wait_for`` so a cold or
+        saturated Postgres doesn't hold the request long enough for the
+        frontend's axios interceptor to give up and bounce the user to
+        /login. 5s is well above the warm p99 and well below the user's
+        perception of "stuck".
+        """
         payload = verify_token(refresh_token)
 
         if payload is None or payload.get("type") != "refresh":
@@ -116,14 +124,23 @@ class AuthService:
         if user_id is None or jti is None:
             return None
 
-        result = await self.db.execute(
-            select(RefreshToken).where(
-                RefreshToken.user_id == user_id,
-                RefreshToken.token_hash.startswith(jti),
-                RefreshToken.revoked == False,
-                RefreshToken.expires_at > datetime.utcnow(),
+        try:
+            result = await asyncio.wait_for(
+                self.db.execute(
+                    select(RefreshToken).where(
+                        RefreshToken.user_id == user_id,
+                        RefreshToken.token_hash.startswith(jti),
+                        RefreshToken.revoked == False,
+                        RefreshToken.expires_at > datetime.utcnow(),
+                    )
+                ),
+                timeout=5.0,
             )
-        )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "auth.refresh_tokens: db lookup timed out user_id=%s", user_id
+            )
+            return None
         token_record = result.scalar_one_or_none()
 
         if token_record is None:
@@ -131,9 +148,18 @@ class AuthService:
 
         token_record.revoked = True
 
-        result = await self.db.execute(
-            select(User).where(User.id == user_id, User.is_active == True)
-        )
+        try:
+            result = await asyncio.wait_for(
+                self.db.execute(
+                    select(User).where(User.id == user_id, User.is_active == True)
+                ),
+                timeout=5.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "auth.refresh_tokens: user lookup timed out user_id=%s", user_id
+            )
+            return None
         user = result.scalar_one_or_none()
 
         if user is None:
