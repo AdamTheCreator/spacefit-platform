@@ -33,7 +33,7 @@ DO NOT answer questions about local businesses from memory - ALWAYS use this too
                 },
                 "location": {
                     "type": "string",
-                    "description": "City, town, address, or area to search in (e.g., 'Westport, CT', 'downtown Fairfield')"
+                    "description": "Concrete street address, city, or neighborhood to search around (e.g., '2425 S 6th Ave, Tucson, AZ' or 'downtown Fairfield'). If the current session is scoped to a project, default to that project's property address unless the user explicitly names a different place. Do NOT pass vague placeholders like 'the location' or 'this property' — if no concrete address is available from the user or project context, ask the user for one instead of calling the tool."
                 },
                 "radius_miles": {
                     "type": "number",
@@ -58,7 +58,7 @@ USE THIS TOOL WHEN:
             "properties": {
                 "address": {
                     "type": "string",
-                    "description": "Address or location to analyze demographics for"
+                    "description": "Concrete street address to analyze demographics for. If the session is scoped to a project, default to the project's property address unless the user names another place. Do NOT pass vague placeholders like 'the property' — ask the user for an address instead of calling the tool without one."
                 },
                 "radius_miles": {
                     "type": "number",
@@ -83,7 +83,7 @@ USE THIS TOOL WHEN:
             "properties": {
                 "address": {
                     "type": "string",
-                    "description": "Address of the shopping center or commercial property"
+                    "description": "Concrete street address of the shopping center or commercial property. If the session is scoped to a project, default to that project's property address unless the user names another place. Do NOT pass vague placeholders — ask the user for an address instead."
                 },
                 "radius_miles": {
                     "type": "number",
@@ -110,7 +110,7 @@ NOTE: This tool works best when demographics and tenant data have already been g
             "properties": {
                 "address": {
                     "type": "string",
-                    "description": "Address of the property to analyze"
+                    "description": "Concrete street address of the property to analyze. If the session is scoped to a project, default to that project's property address unless the user names another place. Do NOT pass vague placeholders — ask the user for an address instead."
                 },
                 "radius_miles": {
                     "type": "number",

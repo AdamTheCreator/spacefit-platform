@@ -538,12 +538,60 @@ async def handle_tool_calls(
     # Tool execution timeout (seconds)
     TOOL_TIMEOUT_SECONDS = 45
 
+    # Tools whose primary geographic argument should fall back to the active
+    # project's property address when the model didn't (or couldn't) supply
+    # one. Maps tool_name -> the param key that holds the address/location.
+    _LOCATION_PARAM_BY_TOOL = {
+        "business_search": "location",
+        "demographics_analysis": "address",
+        "tenant_roster": "address",
+        "void_analysis": "address",
+    }
+
+    def _is_unusable_location(value: object) -> bool:
+        """True when a tool's location/address arg clearly can't be geocoded.
+
+        Catches empty strings and the vague placeholder phrasings models fall
+        back to when they read 'the location' or 'this property' out of the
+        system prompt without a concrete address to paste in.
+        """
+        if not isinstance(value, str):
+            return True
+        stripped = value.strip().lower()
+        if not stripped:
+            return True
+        _VAGUE = {
+            "the location", "this location", "the property", "this property",
+            "the address", "here", "unknown", "n/a", "na", "none",
+        }
+        return stripped in _VAGUE
+
     # Execute tools in parallel
     async def execute_single_tool(tool_call: dict) -> dict:
         tool_name = tool_call["name"]
         tool_input = tool_call["input"]
         tool_input_keys = list(tool_input.keys()) if isinstance(tool_input, dict) else []
         logger.debug("[handle_tools] execute tool=%s input_keys=%s", tool_name, tool_input_keys)
+
+        # Fill the location/address arg from the project's property address
+        # when the model omitted it or passed a vague placeholder. The address
+        # lives in project_context as unstructured prose in the system prompt,
+        # so without this fallback a weak extraction sends Google Places a
+        # query with no geographic signal and we get global junk results.
+        param_key = _LOCATION_PARAM_BY_TOOL.get(tool_name)
+        if (
+            param_key
+            and isinstance(tool_input, dict)
+            and project_context
+            and isinstance(project_context.get("property"), dict)
+        ):
+            proj_addr = project_context["property"].get("address")
+            if proj_addr and _is_unusable_location(tool_input.get(param_key)):
+                logger.info(
+                    "[handle_tools] enriching tool=%s %s from project address (was=%r)",
+                    tool_name, param_key, tool_input.get(param_key),
+                )
+                tool_input = {**tool_input, param_key: proj_addr}
 
         try:
             result = await asyncio.wait_for(
