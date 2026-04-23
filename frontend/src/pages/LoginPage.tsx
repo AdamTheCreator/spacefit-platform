@@ -20,7 +20,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex" style={{ background: '#F8F8F7' }}>
-      {/* Left Panel — Perigee branding */}
+      {/* Left Panel — Space Goose branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #0F1B2D 0%, #1A2D4A 100%)' }}>
         {/* Decorative orbit */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06]" viewBox="0 0 600 800" fill="none">
@@ -30,8 +30,8 @@ export function LoginPage() {
 
         {/* Logo */}
         <Link to="/" className="relative z-10 flex items-center gap-2.5">
-          <img src="/perigee-logo.png" alt="Perigee" width={32} height={32} className="rounded-full object-cover" />
-          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.04em', color: 'white' }}>PERIGEE</span>
+          <img src="/spacegoose-logo.png" alt="Space Goose" width={32} height={32} className="rounded-full object-cover" />
+          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.04em', color: 'white' }}>SPACE GOOSE</span>
         </Link>
 
         {/* Tagline + mascot */}
@@ -77,8 +77,8 @@ export function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
-            <img src="/perigee-logo.png" alt="Perigee" width={28} height={28} className="rounded-full object-cover" />
-            <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, color: '#0F1B2D' }}>PERIGEE</span>
+            <img src="/spacegoose-logo.png" alt="Space Goose" width={28} height={28} className="rounded-full object-cover" />
+            <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, color: '#0F1B2D' }}>SPACE GOOSE</span>
           </div>
 
           <div className="mb-8 text-center lg:text-left">

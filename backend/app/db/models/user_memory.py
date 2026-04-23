@@ -27,7 +27,7 @@ def uuid_str() -> str:
 
 class UserMemory(Base):
     """
-    Per-user memory that Perigee uses to personalize responses.
+    Per-user memory that Space Goose uses to personalize responses.
 
     Attributes:
         analyzed_properties: List of dicts with:

@@ -4,15 +4,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: spacefit
-      POSTGRES_PASSWORD: spacefit_dev_password
-      POSTGRES_DB: spacefit
+      POSTGRES_USER: spacegoose
+      POSTGRES_PASSWORD: spacegoose_dev_password
+      POSTGRES_DB: spacegoose
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U spacefit -d spacefit"]
+      test: ["CMD-SHELL", "pg_isready -U spacegoose -d spacegoose"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,7 +24,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://spacefit:spacefit_dev_password@db:5432/spacefit
+      DATABASE_URL: postgresql+asyncpg://spacegoose:spacegoose_dev_password@db:5432/spacegoose
       SECRET_KEY: ${SECRET_KEY:-development-secret-key-change-in-production}
       ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-development-encryption-key-32bytes!}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

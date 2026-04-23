@@ -1,4 +1,4 @@
-"""Perigee agents — specialist-based multi-agent orchestration.
+"""Space Goose agents — specialist-based multi-agent orchestration.
 
 The old BaseAgent/OutreachAgent class hierarchy has been removed.
 New agents live in agents/specialists/ and use SpecialistConfig.

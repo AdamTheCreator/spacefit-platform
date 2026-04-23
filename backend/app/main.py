@@ -33,7 +33,7 @@ from app.core.database import engine
 from app.core.logging import install_request_id_filter, request_id_var
 from app.core.scrubbing import install_scrubbing_filter
 from app.llm.client import aclose_llm_client
-from app.mcp.server import mcp as perigee_mcp
+from app.mcp.server import mcp as spacegoose_mcp
 
 import logging
 
@@ -134,13 +134,13 @@ fastapi_app.include_router(admin_router, prefix=settings.api_prefix)
 fastapi_app.include_router(imports_router, prefix=settings.api_prefix)
 
 # Mount MCP HTTP+SSE transport -- external MCP clients (Claude Desktop, Cursor)
-# can connect at /mcp.  Internal agents use PerigeeMCPClient (in-process).
-fastapi_app.mount("/mcp", perigee_mcp.sse_app())
+# can connect at /mcp.  Internal agents use SpacegooseMCPClient (in-process).
+fastapi_app.mount("/mcp", spacegoose_mcp.sse_app())
 
 
 @fastapi_app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "Perigee API", "version": fastapi_app.version}
+    return {"message": "Space Goose API", "version": fastapi_app.version}
 
 
 @fastapi_app.get("/health")

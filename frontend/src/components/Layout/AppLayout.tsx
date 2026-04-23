@@ -33,7 +33,7 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-// Perigee sidebar nav definitions
+// Space Goose sidebar nav definitions
 type NavItem = {
   to: string;
   label: string;
@@ -248,21 +248,21 @@ export function AppLayout({ children }: AppLayoutProps) {
           app-sidebar flex flex-col border-r border-[var(--border-subtle)] overflow-hidden
         `}
       >
-        {/* Sidebar Header — Perigee logo + wordmark */}
+        {/* Sidebar Header — Space Goose logo + wordmark */}
         <Link
           to="/dashboard"
           onClick={() => isMobile && setSidebarOpen(false)}
           className="flex items-center gap-2.5 px-4 py-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-tertiary)]/40 transition-colors"
         >
           <img
-            src="/perigee-logo.png"
-            alt="Perigee"
+            src="/spacegoose-logo.png"
+            alt="Space Goose"
             width={44}
             height={44}
             className="rounded-full object-cover shrink-0"
           />
           <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
-            PERIGEE
+            SPACE GOOSE
           </span>
           <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
             v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
@@ -422,14 +422,14 @@ export function AppLayout({ children }: AppLayoutProps) {
           })()}
 
           <a
-            href="mailto:support-perigee@agentmail.to"
+            href="mailto:support-spacegoose@agentmail.to"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <HelpCircle size={16} />
             <span>Support</span>
           </a>
           <div className="px-3 pt-2">
-             <p className="text-[10px] text-industrial-muted">Perigee v{import.meta.env.VITE_APP_VERSION}</p>
+             <p className="text-[10px] text-industrial-muted">Space Goose v{import.meta.env.VITE_APP_VERSION}</p>
           </div>
         </div>
       </div>

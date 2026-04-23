@@ -34,7 +34,7 @@ SUPPORTED_PROVIDERS = [
     {
         "id": "platform_default",
         "name": "Platform Default",
-        "description": "Uses Perigee's built-in AI (Gemini Flash for free, Claude for paid)",
+        "description": "Uses Space Goose's built-in AI (Gemini Flash for free, Claude for paid)",
         "requires_key": False,
         "requires_base_url": False,
         "default_model": "",

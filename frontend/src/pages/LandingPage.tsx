@@ -26,8 +26,8 @@ export function LandingPage() {
       {/* ─── Top Nav ─── */}
       <nav className="max-w-[1200px] mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/perigee-logo.png" alt="Perigee" width={50} height={50} className="rounded-full object-cover" />
-          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: '0.04em' }}>PERIGEE</span>
+          <img src="/spacegoose-logo.png" alt="Space Goose" width={50} height={50} className="rounded-full object-cover" />
+          <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: '0.04em' }}>SPACE GOOSE</span>
         </div>
         <div className="hidden md:flex items-center gap-8">
           {NAV_LINKS.map(l => (
@@ -59,7 +59,7 @@ export function LandingPage() {
           color: '#0F1B2D',
           marginBottom: 20,
         }}>
-          PERIGEE
+          SPACE GOOSE
         </h1>
         <p className="text-lg text-neutral-500 max-w-md mx-auto mb-8" style={{ lineHeight: 1.6 }}>
           Playful intelligence for<br />modern real estate.
@@ -81,7 +81,7 @@ export function LandingPage() {
       {/* ─── Hero Illustration ─── */}
       <section className="w-full px-6 md:px-12 lg:px-20 mb-6">
         <div className="flex justify-center">
-          <img src="/mascots/landing-hero.png" alt="Perigee goose crew building a space station" className="w-full max-w-[1400px] object-contain" style={{ height: 'clamp(300px, 50vw, 700px)' }} />
+          <img src="/mascots/landing-hero.png" alt="Space Goose goose crew building a space station" className="w-full max-w-[1400px] object-contain" style={{ height: 'clamp(300px, 50vw, 700px)' }} />
         </div>
       </section>
 
@@ -123,8 +123,8 @@ export function LandingPage() {
       <footer className="border-t border-neutral-200 py-8">
         <div className="max-w-[1200px] mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/perigee-logo.png" alt="Perigee" width={20} height={20} className="rounded-full object-cover" />
-            <span className="text-xs text-neutral-400">&copy; 2026 Perigee. All rights reserved.</span>
+            <img src="/spacegoose-logo.png" alt="Space Goose" width={20} height={20} className="rounded-full object-cover" />
+            <span className="text-xs text-neutral-400">&copy; 2026 Space Goose. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6">
             <button className="text-xs text-neutral-400 hover:text-neutral-600">Privacy</button>

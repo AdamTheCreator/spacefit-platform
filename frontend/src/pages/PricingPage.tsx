@@ -243,7 +243,7 @@ export function PricingPage() {
 
         <div className="mt-12 text-center">
           <p className="font-mono text-xs text-industrial-muted">Need a custom plan for your team?</p>
-          <a href="mailto:sales@perigee.ai" className="font-mono text-xs text-[var(--accent)] hover:underline uppercase tracking-wide">
+          <a href="mailto:sales@spacegoose.ai" className="font-mono text-xs text-[var(--accent)] hover:underline uppercase tracking-wide">
             Contact us for Enterprise pricing
           </a>
         </div>

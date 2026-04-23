@@ -237,7 +237,7 @@ function AIPreferencesSection() {
       </div>
 
       <p className="text-sm text-industrial-secondary mb-6 leading-relaxed">
-        Help Perigee AI understand your business to provide more relevant analysis and recommendations.
+        Help Space Goose AI understand your business to provide more relevant analysis and recommendations.
       </p>
 
       <div className="space-y-6">
@@ -423,7 +423,7 @@ function MemorySection() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-industrial">Perigee Memory</h2>
+            <h2 className="text-sm font-semibold text-industrial">Space Goose Memory</h2>
             <span className="text-[10px] font-semibold tracking-wider uppercase text-industrial-muted px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)]">
               Advanced
             </span>
@@ -442,7 +442,7 @@ function MemorySection() {
           <div className="text-xs text-industrial-secondary leading-relaxed mb-5 space-y-2">
             <p>
               <strong className="text-industrial">What is this?</strong> When you run tenant-gap
-              analyses, underwrite properties, or talk to Perigee about your book of business, it
+              analyses, underwrite properties, or talk to Space Goose about your book of business, it
               quietly saves key facts — the markets you work, the tenant types you care about, the
               properties you've touched — so future answers fit your workflow instead of starting
               from scratch.
@@ -479,7 +479,7 @@ function MemorySection() {
               <Brain size={32} className="text-industrial-muted mx-auto mb-3" />
               <p className="text-sm text-industrial-muted">No memory yet</p>
               <p className="text-xs text-industrial-muted mt-1">
-                It'll fill in automatically as you analyze properties and chat with Perigee.
+                It'll fill in automatically as you analyze properties and chat with Space Goose.
               </p>
             </div>
           )}
@@ -603,7 +603,7 @@ function MemorySection() {
           <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] p-6 max-w-sm mx-4 shadow-xl">
             <h3 className="text-sm font-semibold text-industrial mb-2">Clear Memory?</h3>
             <p className="text-xs text-industrial-secondary mb-4">
-              This will permanently delete all your analysis history, property data, and inferred preferences. Perigee will start fresh.
+              This will permanently delete all your analysis history, property data, and inferred preferences. Space Goose will start fresh.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -780,7 +780,7 @@ function AIModelSection() {
       <p className="text-sm text-industrial-secondary mb-4 leading-relaxed">
         {config?.has_byok_key
           ? 'Using your own API key. Chat requests go directly to your provider.'
-          : 'Using Perigee\'s built-in AI. Bring your own key to use any provider.'}
+          : 'Using Space Goose\'s built-in AI. Bring your own key to use any provider.'}
       </p>
 
       {/* Expand/collapse toggle */}
@@ -1386,7 +1386,7 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {/* Advanced: Perigee Memory (collapsed by default) */}
+          {/* Advanced: Space Goose Memory (collapsed by default) */}
           <MemorySection />
 
           {/* Danger Zone */}

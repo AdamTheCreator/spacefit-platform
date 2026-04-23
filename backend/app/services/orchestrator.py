@@ -1,5 +1,5 @@
 """
-Perigee AI Orchestrator Service
+Space Goose AI Orchestrator Service
 
 Uses Claude's native tool calling to coordinate specialized agents.
 This replaces keyword-matching with structured tool use for reliable data retrieval.
@@ -25,7 +25,7 @@ from app.services.prompt_registry import (
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are the Perigee AI assistant, an expert in commercial real estate analysis for shopping malls and retail centers.
+SYSTEM_PROMPT = """You are the Space Goose AI assistant, an expert in commercial real estate analysis for shopping malls and retail centers.
 
 Your role is to help users analyze properties and find business information by:
 1. Understanding what property or location they want to analyze
@@ -108,7 +108,7 @@ def build_void_analysis_system_prompt(document_context: dict) -> str:
     total_sf = property_info.get("total_sf", "")
     prop_type = property_info.get("property_type", "")
 
-    prompt = f"""You are the Perigee AI Void Analysis Agent, an expert in commercial real estate tenant mix optimization.
+    prompt = f"""You are the Space Goose AI Void Analysis Agent, an expert in commercial real estate tenant mix optimization.
 
 You are analyzing a property based on data extracted from an uploaded {doc_type.replace('_', ' ')}. Your goal is to perform a comprehensive void analysis and identify the best tenant categories and specific tenants to fill available spaces.
 
@@ -362,15 +362,15 @@ async def execute_tool(
 
     This is a thin compatibility shim. All real logic lives in
     ``app.mcp.server`` (tool implementations) and ``app.mcp.gateway``
-    (audit + rate-limit). New code should use ``PerigeeMCPClient``
+    (audit + rate-limit). New code should use ``SpacegooseMCPClient``
     directly instead of calling this function.
     """
-    from app.mcp.client import PerigeeMCPClient
+    from app.mcp.client import SpacegooseMCPClient
 
     if not isinstance(tool_input, dict):
         return "Invalid tool input (expected an object)."
 
-    client = PerigeeMCPClient(
+    client = SpacegooseMCPClient(
         user_id=user_id or "system",
         session_id=session_id,
     )

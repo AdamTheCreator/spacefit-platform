@@ -8,7 +8,7 @@ interface ComingSoonPageProps {
 }
 
 // Reusable "coming soon" shell for nav items whose full screens haven't
-// been ported yet from the Perigee design bundle. Keeps the sidebar
+// been ported yet from the Space Goose design bundle. Keeps the sidebar
 // structure coherent and on-brand while the real pages ship later.
 export function ComingSoonPage({ title, description, mascot }: ComingSoonPageProps) {
   return (

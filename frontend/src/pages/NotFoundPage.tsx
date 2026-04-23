@@ -12,7 +12,7 @@ export function NotFoundPage() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-sm bg-[var(--accent)]" />
-            <span className="text-sm font-semibold text-industrial">Perigee</span>
+            <span className="text-sm font-semibold text-industrial">Space Goose</span>
           </Link>
         </div>
       </header>
@@ -69,7 +69,7 @@ export function NotFoundPage() {
       {/* Footer */}
       <footer className="relative z-10 border-t border-[var(--border-subtle)] p-4">
         <div className="flex items-center justify-center max-w-7xl mx-auto">
-          <span className="text-xs text-industrial-muted">Perigee v{import.meta.env.VITE_APP_VERSION}</span>
+          <span className="text-xs text-industrial-muted">Space Goose v{import.meta.env.VITE_APP_VERSION}</span>
         </div>
       </footer>
     </div>

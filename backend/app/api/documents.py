@@ -1023,7 +1023,7 @@ async def export_tenant_gap_report(
         demographics=request.demographics,
     )
 
-    filename = f"Perigee_Report_{request.property_name or 'Property'}.pdf".replace(" ", "_")
+    filename = f"Spacegoose_Report_{request.property_name or 'Property'}.pdf".replace(" ", "_")
 
     return Response(
         content=pdf_bytes,

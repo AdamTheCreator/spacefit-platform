@@ -1,5 +1,5 @@
 """
-Perigee AI Tools Definition
+Space Goose AI Tools Definition
 
 Defines all available tools for Claude's native tool calling.
 This replaces the keyword-matching approach with structured tool use.
@@ -8,7 +8,7 @@ This replaces the keyword-matching approach with structured tool use.
 from typing import Any
 
 # Tool definitions following Anthropic's tool_use schema
-PERIGEE_TOOLS: list[dict[str, Any]] = [
+SPACEGOOSE_TOOLS: list[dict[str, Any]] = [
     {
         "name": "business_search",
         "description": """Search for businesses by type and location using real-time data from Google Places.
@@ -228,7 +228,7 @@ def get_tools_for_context(
     Phase 2 will add import-gated tools (costar_import, placer_import, draft_outreach).
     For now, all remaining tools are always available.
     """
-    return list(PERIGEE_TOOLS)
+    return list(SPACEGOOSE_TOOLS)
 
 
 # Query classification to determine if tools should be forced

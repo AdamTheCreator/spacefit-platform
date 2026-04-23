@@ -1,4 +1,4 @@
-"""Specialist system prompts for the Perigee multi-agent orchestrator."""
+"""Specialist system prompts for the Space Goose multi-agent orchestrator."""
 
 from app.agents.prompts.orchestrator import ORCHESTRATOR_SYSTEM_PROMPT
 from app.agents.prompts.scout import SCOUT_SYSTEM_PROMPT

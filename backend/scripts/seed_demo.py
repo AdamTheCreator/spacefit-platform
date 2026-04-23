@@ -7,7 +7,7 @@ Usage:
     python -m scripts.seed_demo --reset   # Delete and recreate from scratch
 
 Creates:
-    - User: demo@perigee.test / perigeedemo
+    - User: demo@spacegoose.test / spacegoosedemo
     - A clean chat session ready for the demo
     - One sample CoStar CSV import
     - One sample SiteUSA CSV import
@@ -30,8 +30,8 @@ from app.db.models.credential import OnboardingProgress
 from app.db.models.chat import ChatSession
 from app.db.models.import_job import ImportJob
 
-DEMO_EMAIL = "demo@perigee.test"
-DEMO_PASSWORD = "perigeedemo"
+DEMO_EMAIL = "demo@spacegoose.test"
+DEMO_PASSWORD = "spacegoosedemo"
 DEMO_FIRST = "Demo"
 DEMO_LAST = "Broker"
 
@@ -168,7 +168,7 @@ async def seed_demo(reset: bool = False) -> None:
         print(f"  Password: {DEMO_PASSWORD}")
         print()
         print("Demo script:")
-        print('  1. Log in as demo@perigee.test')
+        print('  1. Log in as demo@spacegoose.test')
         print('  2. Upload a leasing flyer PDF (or use seeded data)')
         print('  3. Ask: "Find me 5 strong tenant candidates for the 4,200 SF endcap with drive-thru"')
         print('  4. Watch Scout -> Analyst -> Matchmaker specialists run')

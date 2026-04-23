@@ -51,8 +51,8 @@ export function DraftsReviewModal({
         property_address: propertyAddress,
         subject: drafts[0].subject,
         body_template: drafts[0].body,
-        from_name: 'Perigee AI',
-        from_email: 'outreach@perigee.test',
+        from_name: 'Space Goose AI',
+        from_email: 'outreach@spacegoose.test',
         recipients: drafts.map((d) => ({
           tenant_name: d.tenant_name,
           contact_email: d.recipient_email || `${d.tenant_name.toLowerCase().replace(/\s+/g, '.')}@example.com`,

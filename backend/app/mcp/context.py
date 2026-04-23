@@ -1,6 +1,6 @@
 """Context variables for MCP tool attribution.
 
-The PerigeeMCPClient sets these before calling a tool; the gateway
+The SpacegooseMCPClient sets these before calling a tool; the gateway
 reads them for audit logging and rate limiting. This avoids polluting
 tool function signatures with internal parameters (MCP SDK rejects
 parameter names starting with '_').

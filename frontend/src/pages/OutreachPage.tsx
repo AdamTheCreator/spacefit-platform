@@ -198,7 +198,7 @@ export function OutreachPage() {
               />
               <h3 className="font-mono text-sm font-semibold uppercase tracking-wide text-industrial mb-2">Ready to launch</h3>
               <p className="font-mono text-xs text-industrial-muted mb-6 max-w-md">
-                Create your first outreach campaign from a tenant gap analysis. Ask Perigee to
+                Create your first outreach campaign from a tenant gap analysis. Ask Space Goose to
                 find tenant gaps and then reach out to the identified tenants.
               </p>
               <Link

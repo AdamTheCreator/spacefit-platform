@@ -1,5 +1,5 @@
-// Perigee mini-chart helpers. Tiny hand-rolled SVG charts matching the
-// Perigee design bundle. No runtime library.
+// Space Goose mini-chart helpers. Tiny hand-rolled SVG charts matching the
+// Space Goose design bundle. No runtime library.
 
 interface LineChartProps {
   data: number[];

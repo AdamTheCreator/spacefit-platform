@@ -22,7 +22,7 @@ interface MarkdownRendererProps {
   agentType?: string;
 }
 
-// Chart color palette — Perigee brand-aligned
+// Chart color palette — Space Goose brand-aligned
 const CHART_COLORS = [
   '#FF8A3D', // orbit orange (accent)
   '#3A5BA0', // orbit blue
