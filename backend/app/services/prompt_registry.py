@@ -797,6 +797,15 @@ def format_project_context_block(project_context: dict) -> str:
     lines.append(f"\n### Property: {prop_name} — {prop_addr}")
     if parts:
         lines.append(" | ".join(parts))
+    if prop_addr and prop_addr != "Unknown":
+        lines.append(
+            f"When the user asks about things 'near here', 'nearby', 'around the property', "
+            f"'within N miles', or otherwise refers to the location without naming a place, "
+            f"pass this exact address as the `location`/`address` argument to location-aware "
+            f"tools (business_search, demographics_analysis, tenant_roster, void_analysis): "
+            f"\"{prop_addr}\". If the user names a different place, use that instead. If no "
+            f"concrete address is available, ask the user for one rather than guessing."
+        )
 
     # Documents list
     if documents:

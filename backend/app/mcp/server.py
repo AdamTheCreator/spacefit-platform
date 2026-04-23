@@ -39,7 +39,10 @@ mcp = FastMCP("perigee")
 @mcp.tool(
     description="Search for businesses by type and location using real-time Google Places data. "
     "Use when the user asks about businesses in a specific location, nearby competitors, "
-    "restaurants, stores, or any commercial establishments."
+    "restaurants, stores, or any commercial establishments. `location` must be a concrete "
+    "address/city/neighborhood — if the session is scoped to a project, default it to the "
+    "project's property address unless the user names another place; never pass vague "
+    "placeholders like 'the location' or 'this property'."
 )
 @audit_and_limit("business_search")
 async def business_search(
@@ -62,7 +65,9 @@ async def business_search(
 @mcp.tool(
     description="Analyze trade area demographics using Census ACS data. "
     "Use for population, income, age distribution, household size in a geographic area. "
-    "Default radius is 3 miles. Supported: 1, 3, 5, 10."
+    "Default radius is 3 miles. Supported: 1, 3, 5, 10. `address` must be a concrete "
+    "street address — default to the project's property address when the session is "
+    "scoped to a project, and never pass vague placeholders."
 )
 @audit_and_limit("demographics_analysis")
 async def demographics_analysis(
@@ -78,7 +83,9 @@ async def demographics_analysis(
 
 @mcp.tool(
     description="Get the current tenant roster for a shopping center or commercial property "
-    "from Google Places. For deeper lease details, use costar_import instead."
+    "from Google Places. For deeper lease details, use costar_import instead. `address` must "
+    "be a concrete street address — default to the project's property address when the "
+    "session is scoped to a project, and never pass vague placeholders."
 )
 @audit_and_limit("tenant_roster")
 async def tenant_roster(
@@ -99,7 +106,9 @@ async def tenant_roster(
 
 @mcp.tool(
     description="Identify missing tenant categories and opportunities for a property. "
-    "Best after demographics and tenant roster have been gathered."
+    "Best after demographics and tenant roster have been gathered. `address` must be a "
+    "concrete street address — default to the project's property address when the "
+    "session is scoped to a project, and never pass vague placeholders."
 )
 @audit_and_limit("void_analysis")
 async def void_analysis(
