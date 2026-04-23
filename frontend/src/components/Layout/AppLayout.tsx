@@ -27,6 +27,7 @@ import { useChatSessions } from '../../hooks/useChatSessions';
 import { usePreferences } from '../../hooks/usePreferences';
 import { ConnectorHealthBanner } from '../ConnectorHealthBanner';
 import { useSetupNotifications } from '../../hooks/useSetupNotifications';
+import { useApiHealth } from '../../hooks/useApiHealth';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -133,7 +134,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { clearChat, connectionStatus } = useChatStore();
+  const { clearChat } = useChatStore();
+  const connectionStatus = useApiHealth();
   const navigate = useNavigate();
   const location = useLocation();
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
@@ -374,30 +376,50 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-[var(--border-subtle)] space-y-0.5">
           {/* Upgrade card — always shown; /pricing handles current-plan state */}
-          <Link
-            to="/pricing"
-            onClick={() => isMobile && setSidebarOpen(false)}
-            className="block relative mb-2 rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-cream,var(--bg-tertiary))] hover:shadow-sm transition-shadow group"
-          >
-            <img
-              src="/mascots/goose-launch.webp"
-              alt=""
-              aria-hidden="true"
-              className="absolute -right-3 -bottom-3 w-24 h-24 object-contain select-none pointer-events-none opacity-95"
-              draggable={false}
-            />
-            <div className="relative z-10 p-3 pr-16 max-w-[160px]">
-              <p className="font-display text-[12px] font-semibold text-industrial leading-tight">
-                Ready for more orbit?
-              </p>
-              <p className="text-[11px] text-industrial-secondary leading-snug mt-1">
-                Unlimited chats, imports, and outreach on Pro.
-              </p>
-              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-[var(--accent)] group-hover:underline">
-                Upgrade →
-              </span>
-            </div>
-          </Link>
+          {(() => {
+            const mascotMap: Record<string, { src: string; label: string }> = {
+              '/dashboard':  { src: '/mascots/goose-planner.webp',  label: 'Plan smarter' },
+              '/chat':       { src: '/mascots/goose-engineer.webp', label: 'Build faster' },
+              '/search':     { src: '/mascots/goose-solar.webp',    label: 'Search deeper' },
+              '/projects':   { src: '/mascots/goose-carriers.webp', label: 'Move deals' },
+              '/analytics':  { src: '/mascots/goose-planet.webp',   label: 'See further' },
+              '/workflow':   { src: '/mascots/goose-mechanic.webp', label: 'Ship faster' },
+              '/insights':   { src: '/mascots/goose-solar.webp',    label: 'Think bigger' },
+              '/contacts':   { src: '/mascots/goose-carriers.webp', label: 'Grow your network' },
+              '/outreach':   { src: '/mascots/goose-welder.webp',   label: 'Close more' },
+              '/settings':   { src: '/mascots/goose-mechanic.webp', label: 'Fine-tune' },
+            };
+            const match = Object.entries(mascotMap).find(([prefix]) =>
+              location.pathname === prefix || location.pathname.startsWith(prefix + '/')
+            );
+            const mascot = match ? match[1] : { src: '/mascots/goose-launch.webp', label: 'Level up' };
+            return (
+              <Link
+                to="/pricing"
+                onClick={() => isMobile && setSidebarOpen(false)}
+                className="block relative mb-2 rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-cream,var(--bg-tertiary))] hover:shadow-sm transition-shadow group"
+              >
+                <img
+                  src={mascot.src}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute -right-3 -bottom-3 w-24 h-24 object-contain select-none pointer-events-none opacity-95"
+                  draggable={false}
+                />
+                <div className="relative z-10 p-4 pr-20">
+                  <p className="font-display text-[13px] font-semibold text-industrial leading-tight">
+                    Ready for more orbit?
+                  </p>
+                  <p className="text-[11px] text-industrial-secondary leading-snug mt-1.5">
+                    Unlimited chats, imports, and outreach on Pro. {mascot.label}.
+                  </p>
+                  <span className="inline-flex items-center gap-1 mt-2.5 text-[11px] font-semibold text-[var(--accent)] group-hover:underline">
+                    Upgrade →
+                  </span>
+                </div>
+              </Link>
+            );
+          })()}
 
           <a
             href="mailto:support-perigee@agentmail.to"
