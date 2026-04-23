@@ -22,6 +22,7 @@ from app.models.project import (
     ProjectResponse,
     ProjectUpdate,
 )
+from app.services.chat_titles import backfill_session_title
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +169,13 @@ async def get_project(
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    backfilled = False
+    for s in project.sessions:
+        if backfill_session_title(s):
+            backfilled = True
+    if backfilled:
+        await db.commit()
 
     # Build session briefs with message counts
     session_briefs = [
@@ -344,6 +352,13 @@ async def list_project_sessions(
         .order_by(ChatSession.updated_at.desc())
     )
     sessions = result.scalars().all()
+
+    backfilled = False
+    for s in sessions:
+        if backfill_session_title(s):
+            backfilled = True
+    if backfilled:
+        await db.commit()
 
     return [
         ChatSessionBrief(

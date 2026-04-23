@@ -22,6 +22,7 @@ from app.models.chat import (
     WorkflowStep,
     WorkflowStepStatus,
 )
+from app.services.chat_titles import backfill_session_title
 from app.services.orchestrator import execute_tool
 from app.services.analytics import get_analytics, MetricType, MetricEvent
 from app.services.user_llm import resolve_user_llm, ResolvedLLM
@@ -80,6 +81,13 @@ async def list_chat_sessions(
         .order_by(ChatSession.updated_at.desc())
     )
     sessions = result.scalars().all()
+
+    backfilled = False
+    for s in sessions:
+        if backfill_session_title(s):
+            backfilled = True
+    if backfilled:
+        await db.commit()
 
     return [
         ChatSessionResponse(
