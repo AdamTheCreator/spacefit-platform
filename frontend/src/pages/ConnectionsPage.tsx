@@ -29,7 +29,7 @@ export function ConnectionsPage() {
           </h3>
           <p className="font-mono text-xs text-industrial-secondary">
             Export data from your CoStar, Placer.ai, or SiteUSA account, then
-            upload the file here. Perigee parses and structures the data so the
+            upload the file here. Space Goose parses and structures the data so the
             AI can use it during analysis. No passwords or login credentials are
             stored.
           </p>

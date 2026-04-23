@@ -68,7 +68,7 @@ def _get_tool_registry() -> dict[str, Any]:
     return registry
 
 
-class PerigeeMCPClient:
+class SpacegooseMCPClient:
     """In-process MCP client. Each chat turn gets its own instance with
     the user + session attribution baked in."""
 
@@ -77,7 +77,7 @@ class PerigeeMCPClient:
         self.session_id = session_id
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
-        """Call a Perigee tool by name.
+        """Call a Space Goose tool by name.
 
         Sets contextvars for user attribution, then calls the tool
         function directly. Gateway middleware (rate limit, audit log)

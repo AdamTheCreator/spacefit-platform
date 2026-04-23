@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "Perigee"
+    app_name: str = "Space Goose"
     debug: bool = Field(default=False)
     api_prefix: str = "/api/v1"
 
@@ -15,27 +15,23 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:3000",
-        # Production (spacefit era — still live during the perigee rename).
-        "https://spacefit.app",
-        "https://www.spacefit.app",
-        "https://spacefit.onrender.com",
-        # Production (perigee era — rename target per render.yaml docs).
-        "https://perigee.ai",
-        "https://www.perigee.ai",
-        "https://app.perigee.ai",
+        "https://spacegoose.ai",
+        "https://www.spacegoose.ai",
+        "https://app.spacegoose.ai",
+        "https://spacegoose.onrender.com",
     ]
     # Regex-based origin check for Render's per-PR preview URLs
     # (pullRequestPreviewsEnabled: true in render.yaml). FastAPI's
     # CORSMiddleware matches this against the Origin header when a
     # literal allow_origins match fails. Leaving empty disables it.
-    cors_origin_regex: str = r"^https://(spacefit|perigee)-pr-\d+\.onrender\.com$"
+    cors_origin_regex: str = r"^https://spacegoose-pr-\d+\.onrender\.com$"
 
     # WebSocket
     ws_heartbeat_interval: int = 30
 
     # Database (SQLite for dev, PostgreSQL for production)
     database_url: str = Field(
-        default="sqlite+aiosqlite:///./perigee.db"
+        default="sqlite+aiosqlite:///./spacegoose.db"
     )
     # SQLAlchemy async engine pool sizing. The old defaults (5 / 10) were
     # too small for production; under moderate concurrency + a slow
@@ -163,7 +159,7 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="")
     smtp_use_tls: bool = Field(default=True)
     smtp_from_email: str = Field(default="")  # Default sender email
-    smtp_from_name: str = Field(default="Perigee")
+    smtp_from_name: str = Field(default="Space Goose")
 
     # File Upload
     upload_dir: str = Field(default="./uploads")
@@ -177,8 +173,8 @@ class Settings(BaseSettings):
 
     # Resend Email (transactional emails)
     resend_api_key: str = Field(default="")
-    resend_from_email: str = Field(default="noreply@perigee.ai")
-    resend_from_name: str = Field(default="Perigee")
+    resend_from_email: str = Field(default="noreply@spacegoose.ai")
+    resend_from_name: str = Field(default="Space Goose")
 
     # ATTOM Data API (title/owner lookup)
     attom_api_key: str = Field(default="")

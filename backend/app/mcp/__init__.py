@@ -1,13 +1,13 @@
-"""Perigee MCP layer.
+"""Space Goose MCP layer.
 
 Every tool call in the platform flows through `mcp.server`, decorated
-with `gateway.audit_and_limit`. Specialists use `mcp.client.PerigeeMCPClient`
+with `gateway.audit_and_limit`. Specialists use `mcp.client.SpacegooseMCPClient`
 to call tools -- no direct imports of services/* from agents/*.
 
 External MCP clients (Claude Desktop, Cursor) can connect to the same
 server over HTTP+SSE at /mcp.
 """
 
-from app.mcp.client import PerigeeMCPClient
+from app.mcp.client import SpacegooseMCPClient
 
-__all__ = ["PerigeeMCPClient"]
+__all__ = ["SpacegooseMCPClient"]

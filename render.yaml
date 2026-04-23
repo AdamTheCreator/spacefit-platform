@@ -2,16 +2,16 @@
 # Documentation: https://render.com/docs/blueprint-spec
 
 databases:
-  - name: spacefit-db
+  - name: spacegoose-db
     plan: free # Change to 'starter' ($7/mo) for production
-    databaseName: spacefit
-    user: spacefit
+    databaseName: spacegoose
+    user: spacegoose
     ipAllowList: [] # Allow all IPs (default for Render internal)
 
 services:
   # Backend API Service
   - type: web
-    name: spacefit-api
+    name: spacegoose-api
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -20,7 +20,7 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: spacefit-db
+          name: spacegoose-db
           property: connectionString
         # Transform to asyncpg URL
       - key: SECRET_KEY
@@ -38,11 +38,11 @@ services:
       - key: CENSUS_API_KEY
         sync: false
       - key: FRONTEND_URL
-        value: https://spacefit.onrender.com
+        value: https://spacegoose.onrender.com
       - key: GOOGLE_REDIRECT_URI
-        value: https://spacefit-api.onrender.com/api/v1/auth/google/callback
+        value: https://spacegoose-api.onrender.com/api/v1/auth/google/callback
       - key: GMAIL_REDIRECT_URI
-        value: https://spacefit-api.onrender.com/api/v1/auth/gmail/callback
+        value: https://spacegoose-api.onrender.com/api/v1/auth/gmail/callback
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
@@ -57,9 +57,9 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_FROM_EMAIL
-        value: noreply@perigee.ai
+        value: noreply@spacegoose.ai
       - key: RESEND_FROM_NAME
-        value: Perigee
+        value: Space Goose
       # SMTP (Gmail / SendGrid / etc.) for the outreach worker. Optional
       # — unset means the outreach sender path is disabled.
       - key: SMTP_HOST
@@ -73,13 +73,13 @@ services:
       - key: SMTP_FROM_EMAIL
         sync: false
       - key: SMTP_FROM_NAME
-        value: Perigee
+        value: Space Goose
       - key: SMTP_USE_TLS
         value: "true"
 
   # Frontend Static Site
   - type: web
-    name: spacefit
+    name: spacegoose
     runtime: static
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
@@ -99,7 +99,7 @@ services:
       # third-party origin is added to the SPA, allow it here.
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://spacefit-api.onrender.com wss://spacefit-api.onrender.com https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://spacegoose-api.onrender.com wss://spacegoose-api.onrender.com https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
     routes:
       - type: rewrite
         source: /*
@@ -109,10 +109,10 @@ services:
         # Host only — consumers in the frontend append `/api/v1` themselves
         # (see axios.ts, main.tsx prewarm, SocialLoginButtons, SharedReportPage).
         # Including the prefix here produces `/api/v1/api/v1/...` 404s.
-        value: https://spacefit-api.onrender.com
+        value: https://spacegoose-api.onrender.com
       - key: VITE_WS_URL
         # Chat WebSocket host. useChat.ts appends /api/v1/chat/ws itself.
         # Falls back to ws://localhost:8000 in dev; without an explicit
         # value a blueprint-driven deploy would leave the bundle pointed
         # at localhost and chat would silently fail in production.
-        value: wss://spacefit-api.onrender.com
+        value: wss://spacegoose-api.onrender.com

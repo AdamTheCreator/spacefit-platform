@@ -40,7 +40,7 @@ export interface AgentInfo {
 export const AGENTS: Record<AgentType, AgentInfo> = {
   orchestrator: {
     type: 'orchestrator',
-    name: 'Perigee Assistant',
+    name: 'Space Goose Assistant',
     description: 'Main orchestrator that coordinates all agents',
     color: 'bg-blue-500',
   },

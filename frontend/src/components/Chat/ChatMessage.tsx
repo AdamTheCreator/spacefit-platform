@@ -22,7 +22,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
                 U
               </div>
             ) : (
-              <img src="/perigee-logo.png" alt="" className="w-7 h-7 rounded-full object-cover" />
+              <img src="/spacegoose-logo.png" alt="" className="w-7 h-7 rounded-full object-cover" />
             )}
           </div>
 
@@ -30,7 +30,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-bold text-industrial">
-                {isUser ? 'You' : agent?.name || 'Perigee'}
+                {isUser ? 'You' : agent?.name || 'Space Goose'}
               </span>
               {!isUser && message.isStreaming && (
                 <span className="text-[10px] font-medium text-[var(--accent)] uppercase tracking-wider animate-pulse">

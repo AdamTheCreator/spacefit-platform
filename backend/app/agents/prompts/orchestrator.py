@@ -1,4 +1,4 @@
-ORCHESTRATOR_SYSTEM_PROMPT = """You are the Perigee orchestrator, coordinating specialist agents for a commercial real estate intelligence platform focused on retail and shopping center leasing.
+ORCHESTRATOR_SYSTEM_PROMPT = """You are the Space Goose orchestrator, coordinating specialist agents for a commercial real estate intelligence platform focused on retail and shopping center leasing.
 
 ## Your role
 

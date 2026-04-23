@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PERIGEE DESIGN SYSTEM
+   SPACE GOOSE DESIGN SYSTEM
    Playful Spatial Intelligence — Space Navy + Orbit Orange + Mist Blue
    Fonts: Sora (display) · Inter (UI) · JetBrains Mono (data)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -11,7 +11,7 @@
    ───────────────────────────────────────────────────────────────────────────── */
 @theme {
   /* ═══════════════════════════════════════════════════════════════════════════
-     PERIGEE PALETTE — Space Navy ramp + Orbit Orange + Mist Blue
+     SPACE GOOSE PALETTE — Space Navy ramp + Orbit Orange + Mist Blue
      ═══════════════════════════════════════════════════════════════════════════ */
 
   /* Neutral Palette — cool navy ramp (moonlight → slate → space navy) */
@@ -81,7 +81,7 @@
   --spacing-16: 64px;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     BORDER RADIUS — Perigee scale (8/12/16/24/28)
+     BORDER RADIUS — Space Goose scale (8/12/16/24/28)
      ═══════════════════════════════════════════════════════════════════════════ */
   --radius-none: 0;
   --radius-xs: 4px;

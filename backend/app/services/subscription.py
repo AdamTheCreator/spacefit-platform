@@ -45,7 +45,7 @@ class SubscriptionService:
             free_plan = SubscriptionPlan(
                 tier=SubscriptionTier.FREE,
                 name="Free",
-                description="Get started with Perigee",
+                description="Get started with Space Goose",
                 price_monthly=0,
                 chat_sessions_per_month=10,
                 void_analyses_per_month=3,
@@ -271,7 +271,7 @@ class SubscriptionService:
             SubscriptionPlan(
                 tier=SubscriptionTier.FREE,
                 name="Free",
-                description="Get started with Perigee",
+                description="Get started with Space Goose",
                 price_monthly=0,
                 chat_sessions_per_month=10,
                 void_analyses_per_month=3,

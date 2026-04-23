@@ -1,7 +1,7 @@
 [project]
-name = "perigee-backend"
+name = "spacegoose-backend"
 version = "0.1.0"
-description = "Perigee AI Backend - Commercial Real Estate Intelligence Platform"
+description = "Space Goose AI Backend - Commercial Real Estate Intelligence Platform"
 requires-python = ">=3.11"
 dependencies = [
     # Web framework

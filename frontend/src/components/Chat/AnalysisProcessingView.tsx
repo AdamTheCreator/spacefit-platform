@@ -35,9 +35,9 @@ export function AnalysisProcessingView({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-md mx-auto animate-fade-in">
-      {/* Perigee icon with pulse ring */}
+      {/* Space Goose icon with pulse ring */}
       <div className="relative mb-8">
-        <img src="/perigee-logo.png" alt="" className="w-14 h-14 rounded-full object-cover shadow-lg shadow-[var(--accent)]/20" />
+        <img src="/spacegoose-logo.png" alt="" className="w-14 h-14 rounded-full object-cover shadow-lg shadow-[var(--accent)]/20" />
         <span className="absolute inset-0 rounded-full border-2 border-[var(--accent)]/40 animate-pulse-slow" />
       </div>
 

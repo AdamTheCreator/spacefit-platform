@@ -1,4 +1,4 @@
-# Perigee Design System — Minimalist AI Assistant
+# Space Goose Design System — Minimalist AI Assistant
 
 > **Mandatory reading for any agent touching the frontend.**
 > Violating these principles will be reverted. When in doubt, do less.
@@ -7,7 +7,7 @@
 
 ## Product Role
 
-Perigee is an AI-driven commercial real estate workbench. The UI follows the UX patterns of modern AI interfaces (ChatGPT, Claude) — not traditional SaaS dashboards. The conversation *is* the product.
+Space Goose is an AI-driven commercial real estate workbench. The UI follows the UX patterns of modern AI interfaces (ChatGPT, Claude) — not traditional SaaS dashboards. The conversation *is* the product.
 
 ---
 

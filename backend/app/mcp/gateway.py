@@ -8,7 +8,7 @@ Every tool goes through `audit_and_limit(tool_name)`:
   5. Analytics metric emission
 
 User attribution is passed via contextvars (see mcp.context) — the
-PerigeeMCPClient sets them before calling, so tool function signatures
+SpacegooseMCPClient sets them before calling, so tool function signatures
 stay clean (MCP SDK rejects parameter names starting with '_').
 """
 
@@ -99,7 +99,7 @@ async def _log_tool_call(
 def audit_and_limit(tool_name: str) -> Callable:
     """Decorator: wraps an MCP tool with rate limiting, authz, audit, and metrics.
 
-    Reads user attribution from contextvars (set by PerigeeMCPClient).
+    Reads user attribution from contextvars (set by SpacegooseMCPClient).
     """
 
     def decorator(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

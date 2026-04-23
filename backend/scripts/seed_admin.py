@@ -42,7 +42,7 @@ from app.db.models.user import User
 from app.db.models.credential import SiteCredential, OnboardingProgress
 
 
-ADMIN_EMAIL = "admin@perigee.com"
+ADMIN_EMAIL = "admin@spacegoose.ai"
 ADMIN_FIRST_NAME = "Admin"
 ADMIN_LAST_NAME = "Tester"
 

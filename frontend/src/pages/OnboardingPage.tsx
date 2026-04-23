@@ -138,7 +138,7 @@ export function OnboardingPage() {
                 draggable={false}
               />
               <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">
-                Welcome to Perigee, {user?.first_name || 'there'}!
+                Welcome to Space Goose, {user?.first_name || 'there'}!
               </h1>
               <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
                 Let&apos;s get you set up. This will only take a few minutes and you can
@@ -362,7 +362,7 @@ export function OnboardingPage() {
               />
               <h1 className="font-mono text-2xl font-bold tracking-tight text-industrial mb-4">You&apos;re cleared for launch!</h1>
               <p className="font-mono text-sm text-industrial-secondary mb-8 max-w-md mx-auto">
-                Your mission control is ready. Start chatting with Perigee to analyze
+                Your mission control is ready. Start chatting with Space Goose to analyze
                 properties and find the perfect matches for your clients.
               </p>
               <div className="flex justify-center gap-4">
@@ -385,7 +385,7 @@ export function OnboardingPage() {
                     </>
                   ) : (
                     <>
-                      Start using Perigee AI
+                      Start using Space Goose AI
                       <ArrowRight size={18} />
                     </>
                   )}

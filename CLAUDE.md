@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product
 
-**Perigee** — an AI-driven commercial real estate workbench. Recently rebranded from "Spacefit." The core motion is conversational: the user talks to a specialist-routed agent that can analyze properties, surface tenant gaps, pull comps, and draft outreach. Dashboards and kanban boards exist, but the chat is the product.
+**Space Goose** (domain `spacegoose.ai`) — an AI-driven commercial real estate workbench. Rename history: "Spacefit" → "Perigee" → "Space Goose." Most brand-owned strings, service names, and domains have been migrated; a few legacy touchpoints (e.g. the orphaned `backend/spacefit.db` SQLite file, the `-industrial` CSS class names) are intentionally preserved and called out below. The core motion is conversational: the user talks to a specialist-routed agent that can analyze properties, surface tenant gaps, pull comps, and draft outreach. Dashboards and kanban boards exist, but the chat is the product.
 
 ## Repository shape
 
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 frontend/   React 19 + TS + Vite 7 + Tailwind v4 SPA
 backend/    FastAPI + Python 3.11 + PostgreSQL 16
 docker-compose.yml    local dev (db + backend + frontend)
-render.yaml           Render blueprint (perigee-api on Starter, perigee-db on Free)
+render.yaml           Render blueprint (spacegoose-api on Starter, spacegoose-db on Free)
 ```
 
 No workspace tooling. `npm` runs inside `frontend/`, `uv`/`pip` inside `backend/`.
@@ -36,7 +36,7 @@ There are **no frontend tests wired up.** `npm run build` doubles as the only ty
 ```
 uv pip install -e .                                   # or: pip install -e .
 playwright install --with-deps chromium               # required once for scraping/imports
-alembic upgrade head                                  # apply migrations (latest is 027)
+alembic upgrade head                                  # apply migrations (latest is 030)
 alembic revision --autogenerate -m "description"      # new migration
 uvicorn app.main:app --reload --port 8000             # dev server
 pytest tests/                                         # run all tests
@@ -57,7 +57,7 @@ The `backend` container runs `alembic upgrade head` on boot, so a fresh DB conve
 
 - `seed_admin.py` — create/promote an admin user from env vars.
 - `seed_demo.py` — populate demo data.
-- `byok_verify.py` — end-to-end BYOK verification helper. Given `PERIGEE_API` + `PERIGEE_TOKEN` env vars, snapshots `/ai-config/usage` before + after a user-triggered chat and reports a PASS/FAIL verdict on whether platform token counters stayed flat (the BYOK zero-platform-tokens guarantee).
+- `byok_verify.py` — end-to-end BYOK verification helper. Given `SPACEGOOSE_API` + `SPACEGOOSE_TOKEN` env vars, snapshots `/ai-config/usage` before + after a user-triggered chat and reports a PASS/FAIL verdict on whether platform token counters stayed flat (the BYOK zero-platform-tokens guarantee).
 
 ## Architecture
 
@@ -65,9 +65,9 @@ The `backend` container runs `alembic upgrade head` on boot, so a fresh DB conve
 
 - **Routing:** `react-router-dom` v7. Top-level routes are defined in `src/App.tsx`; each page is lazily imported. All protected routes are nested inside `<ProtectedRoute />` which reads from `authStore`. Public root `/` is the `LandingPage` (redirects to `/dashboard` when authenticated).
 - **State:** Zustand stores in `src/stores/` for cross-cutting concerns (auth, chat session, connection status). React Query owns server state — avoid duplicating server data into Zustand. Query defaults are set in `main.tsx`: `refetchOnWindowFocus: false`, `staleTime: 5min`, `retry: 2` with exponential backoff. **Do not re-enable refetch-on-focus** — it caused a request storm every time users came back to Settings while the backend was cold-starting.
-- **Layout:** `components/Layout/AppLayout.tsx` wraps every protected page. It owns the Perigee sidebar (WORKSPACE + STATES sections), the topbar, and the mobile-drawer behavior. Page components compose `<AppLayout><PageContent/></AppLayout>` rather than being routed through a parent layout element — intentional, gives per-page control over scroll containers.
-- **Pages that exist today:** Dashboard, Chat (+ per-session), Search, Analytics, Insights, Workflow (Perigee-design kanban at `/workflow` — distinct from legacy `/pipeline`), Projects + ProjectDetail + ProjectChat, PropertyDetail (`/property/:id`), Contacts (Directory + CompanyDetail + ContactDetail), Customers (legacy), Outreach, Archive, Settings, Connections, Profile, Admin, Pricing, Onboarding, Login/Register/ResetPassword/VerifyEmail, Landing, AuthCallback.
-- **Design system is monolithic:** `src/index.css` is a single ~1.4k-line file that holds the entire theme (Tailwind v4 `@theme` block, CSS variables for light/dark, and dozens of utility classes like `btn-industrial`, `card-industrial`, `input-industrial`, `nav-industrial`). The class names are **legacy from the Spacefit era and intentionally preserved** — components still reference them across the codebase. The Perigee rebrand was done by swapping the underlying tokens (colors, fonts, radii), not by renaming classes. Don't rename `-industrial` classes without a coordinated migration.
+- **Layout:** `components/Layout/AppLayout.tsx` wraps every protected page. It owns the Space Goose sidebar (WORKSPACE + STATES sections), the topbar, and the mobile-drawer behavior. Page components compose `<AppLayout><PageContent/></AppLayout>` rather than being routed through a parent layout element — intentional, gives per-page control over scroll containers.
+- **Pages that exist today:** Dashboard, Chat (+ per-session), Search, Analytics, Insights, Workflow (Space Goose-design kanban at `/workflow` — distinct from legacy `/pipeline`), Projects + ProjectDetail + ProjectChat, PropertyDetail (`/property/:id`), Contacts (Directory + CompanyDetail + ContactDetail), Customers (legacy), Outreach, Archive, Settings, Connections, Profile, Admin, Pricing, Onboarding, Login/Register/ResetPassword/VerifyEmail, Landing, AuthCallback.
+- **Design system is monolithic:** `src/index.css` is a single ~1.4k-line file that holds the entire theme (Tailwind v4 `@theme` block, CSS variables for light/dark, and dozens of utility classes like `btn-industrial`, `card-industrial`, `input-industrial`, `nav-industrial`). The class names are **legacy from the Spacefit era and intentionally preserved** — components still reference them across the codebase. The Space Goose rebrand was done by swapping the underlying tokens (colors, fonts, radii), not by renaming classes. Don't rename `-industrial` classes without a coordinated migration.
 - **Fonts:** Sora (display/headings) + Inter (UI) + JetBrains Mono (data). Loaded via Google Fonts in `index.html`.
 - **Mascots:** `public/mascots/*.webp` (the "goose crew": planner, engineer, welder, mechanic, carriers, launch, solar, planet). **Placement is rule-governed, not decorative**:
   - ✅ Onboarding tour steps, 404/empty states, sidebar upgrade card, Dashboard welcome hero, Insights cards, Workflow closing-column empty slot, Property detail thesis-note card.
@@ -76,8 +76,8 @@ The `backend` container runs `alembic upgrade head` on boot, so a fresh DB conve
 
 ### Backend
 
-- **Entry point:** `app/main.py`. FastAPI app mounts REST routers under `/api/v1/*`, serves OAuth callbacks, and exposes an MCP (Model Context Protocol) endpoint aliased as `perigee_mcp`.
-- **Database:** SQLAlchemy 2.0 async with `asyncpg`. Models live in `app/db/models/`. Migrations in `backend/alembic/versions/` follow numeric prefixes (001..027 as of the rebrand); there is one hash-named migration `5c7681bfc694` wedged between 004 and 005 due to a historical branch. **Never edit a committed migration** — fix forward with a new one (see `027_rebrand_plan_description_to_perigee.py` for the pattern).
+- **Entry point:** `app/main.py`. FastAPI app mounts REST routers under `/api/v1/*`, serves OAuth callbacks, and exposes an MCP (Model Context Protocol) endpoint aliased as `spacegoose_mcp`.
+- **Database:** SQLAlchemy 2.0 async with `asyncpg`. Models live in `app/db/models/`. Migrations in `backend/alembic/versions/` follow numeric prefixes (001..030 as of the Space Goose rebrand); there is one hash-named migration `5c7681bfc694` wedged between 004 and 005 due to a historical branch. **Never edit a committed migration** — fix forward with a new one (see `030_rebrand_perigee_to_spacegoose.py` for the pattern).
 - **Agents & LLM:** the chat orchestrator uses **specialist agents** behind a feature flag (introduced mid-project; see the `phase-3-specialist-agents` commits). All LLM tools route through the **MCP gateway** for audit logging + rate limiting — don't call Claude directly from new code, register a tool with the gateway.
 - **BYOK (Bring Your Own Key):** users configure provider + key via `/api/v1/ai-config`. Providers supported: Anthropic, OpenAI, Google Gemini, DeepSeek, openai_compatible. Per-specialist model overrides stored as JSON in `user_ai_configs.specialist_models_json`. Key resolution runs through `app/services/user_llm.py::resolve_user_llm()` which returns a `ResolvedLLM { client, provider, model, is_byok, specialist_models }`. **Zero-platform-tokens guarantee:** when `is_byok=True`, the orchestrator routes through the user's client AND `app/services/guardrails.py` skips the classifier fallback (`_classify_with_haiku` honors `resolved_llm`) AND skips `record_token_usage` + `check_token_budget`. Any new code path that calls Claude/OpenAI must accept and honor a `resolved_llm` — otherwise it'll leak tokens to the platform key.
 - **Email:** transactional mail via Resend (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`). Outbound open/click tracking lives in `app/api/tracking.py` (pixel + link wrapping). Outreach campaigns are throttled in the sender worker.
@@ -108,11 +108,11 @@ Treat `frontend/DESIGN.md` as canon for visual decisions. The summary:
 
 ## Infrastructure caveats
 
-- **render.yaml still references `spacefit-*` service names** (`spacefit-api`, `spacefit-db`, frontend service `spacefit`). The full rename lives on the unmerged branch `perigee/phase-4-infra` and is blocked on a coordinated DB dump/restore + GCP OAuth URI update. Do not casually merge a Render rename.
-- **Plans:** `perigee-api` is on Starter ($7/mo, always-on, no cold starts). The database is still on Free (90-day expiry, limited resources). Bump the DB separately when it becomes a bottleneck.
-- **`backend/spacefit.db`** is a leftover local SQLite file from early dev — `.gitignore` covers it going forward, but the committed file is orphaned. Do not write new code that targets SQLite; Postgres async is the supported path.
-- **Domain:** `perigee.ai` is the canonical email domain (`sales@`, `noreply@`, `api.`). Any new copy should use it.
-- **OAuth:** Google sign-in + Gmail (for Outreach) both require authorized redirect URIs registered in the GCP console. `render.yaml` owns the env-var mapping; the production client has been pre-configured with both spacefit-era and perigee-era callbacks during the rename transition.
+- **render.yaml now matches the Space Goose brand** (`spacegoose-api`, `spacegoose-db`, frontend service `spacegoose`). Deploying the rename to an existing Render account is **not automatic** — the blueprint will provision a new database named `spacegoose-db` alongside the old `spacefit-db` rather than renaming it. Cutover requires: (a) `pg_dump` the old `spacefit-db` and restore into `spacegoose-db` before promoting the new `spacegoose-api`; (b) GCP OAuth console: add the new redirect URIs `https://spacegoose-api.onrender.com/api/v1/auth/{google,gmail}/callback` and keep the old `spacefit-api.onrender.com` ones until the DNS flip is verified; (c) Resend: verify the `spacegoose.ai` sender domain before `RESEND_FROM_EMAIL=noreply@spacegoose.ai` starts actually sending.
+- **Plans:** `spacegoose-api` is on Starter ($7/mo, always-on, no cold starts). The database is still on Free (90-day expiry, limited resources). Bump the DB separately when it becomes a bottleneck.
+- **`backend/spacefit.db`** is a leftover local SQLite file from the original Spacefit era — `.gitignore` covers it going forward, but the committed file is orphaned. Do not write new code that targets SQLite; Postgres async is the supported path.
+- **Domain:** `spacegoose.ai` is the canonical email domain (`sales@`, `noreply@`, `api.`). Any new copy should use it. The legacy `perigee.ai` and `spacefit.app` domains are no longer referenced in code; the CORS allowlist only accepts `spacegoose.ai` hosts.
+- **OAuth:** Google sign-in + Gmail (for Outreach) both require authorized redirect URIs registered in the GCP console. `render.yaml` owns the env-var mapping; the production client must have the `spacegoose-api.onrender.com` callbacks added before the new service goes live.
 
 ## When adding a new page
 
@@ -121,5 +121,5 @@ Treat `frontend/DESIGN.md` as canon for visual decisions. The summary:
 3. Wrap the page component in `<AppLayout>…</AppLayout>` — it owns the sidebar + topbar.
 4. For scrollable pages, wrap body content in `<div className="h-full overflow-y-auto">` — AppLayout's main region is `flex-1 overflow-hidden`, so pages without this can't scroll (a Settings-page bug caught in April 2026).
 5. Reuse existing design-system classes (`btn-industrial-primary`, `card-industrial`, `input-industrial`). For tokens, use `var(--accent)`, `var(--bg-secondary)`, `var(--border-subtle)`, `var(--color-neutral-900)` (space navy), `var(--color-mist)` (mist blue), `var(--color-orbit)` (orbit blue).
-6. For tiny charts reuse `components/Dashboard/MiniCharts.tsx` (`LineChart`, `BarChart`). For heavier viz use Recharts — a small shared chart-color palette lives in `components/Chat/MarkdownRenderer.tsx` (Perigee-aligned).
+6. For tiny charts reuse `components/Dashboard/MiniCharts.tsx` (`LineChart`, `BarChart`). For heavier viz use Recharts — a small shared chart-color palette lives in `components/Chat/MarkdownRenderer.tsx` (Space Goose-aligned).
 7. Handle loading + error states explicitly: when a section depends on a React Query fetch, use `if (isError && !data) → SectionError` rather than `if (isError)`. This keeps cached UI visible through transient errors instead of falling to the error card. See `pages/SettingsPage.tsx::AIModelSection` for the pattern.

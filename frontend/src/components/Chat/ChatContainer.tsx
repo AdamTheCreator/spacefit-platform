@@ -339,7 +339,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
                 ? 'Server offline — start the backend to chat'
                 : isProcessing
                 ? 'Processing your request...'
-                : 'Message Perigee...'
+                : 'Message Space Goose...'
             }
           />
           <p className="text-xs text-industrial-muted mt-3 text-center">

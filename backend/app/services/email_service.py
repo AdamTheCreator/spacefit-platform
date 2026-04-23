@@ -31,7 +31,7 @@ async def send_verification_email(email: str, first_name: str, verification_url:
                     <!-- Header -->
                     <tr>
                         <td style="padding: 32px 32px 24px; border-bottom: 1px solid #222222;">
-                            <span style="font-size: 20px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">Perigee</span>
+                            <span style="font-size: 20px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">Space Goose</span>
                         </td>
                     </tr>
 
@@ -42,7 +42,7 @@ async def send_verification_email(email: str, first_name: str, verification_url:
                                 Verify your email
                             </h1>
                             <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #888888;">
-                                Hi {name}, welcome to Perigee! Click the button below to verify your email address and get started.
+                                Hi {name}, welcome to Space Goose! Click the button below to verify your email address and get started.
                             </p>
                             <a href="{verification_url}" style="display: inline-block; padding: 14px 28px; background-color: #4F46E5; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; border-radius: 6px;">
                                 Verify Email
@@ -57,7 +57,7 @@ async def send_verification_email(email: str, first_name: str, verification_url:
                     <tr>
                         <td style="padding: 24px 32px; border-top: 1px solid #222222;">
                             <p style="margin: 0; font-size: 12px; color: #666666;">
-                                &copy; Perigee. All rights reserved.
+                                &copy; Space Goose. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -80,7 +80,7 @@ async def send_verification_email(email: str, first_name: str, verification_url:
                 json={
                     "from": f"{settings.resend_from_name} <{settings.resend_from_email}>",
                     "to": [email],
-                    "subject": "Verify your Perigee email",
+                    "subject": "Verify your Space Goose email",
                     "html": html_content,
                 },
             )
@@ -118,7 +118,7 @@ async def send_password_reset_email(email: str, first_name: str, reset_url: str)
                     <!-- Header -->
                     <tr>
                         <td style="padding: 32px 32px 24px; border-bottom: 1px solid #222222;">
-                            <span style="font-size: 20px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">Perigee</span>
+                            <span style="font-size: 20px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">Space Goose</span>
                         </td>
                     </tr>
 
@@ -144,7 +144,7 @@ async def send_password_reset_email(email: str, first_name: str, reset_url: str)
                     <tr>
                         <td style="padding: 24px 32px; border-top: 1px solid #222222;">
                             <p style="margin: 0; font-size: 12px; color: #666666;">
-                                &copy; Perigee. All rights reserved.
+                                &copy; Space Goose. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -167,7 +167,7 @@ async def send_password_reset_email(email: str, first_name: str, reset_url: str)
                 json={
                     "from": f"{settings.resend_from_name} <{settings.resend_from_email}>",
                     "to": [email],
-                    "subject": "Reset your Perigee password",
+                    "subject": "Reset your Space Goose password",
                     "html": html_content,
                 },
             )

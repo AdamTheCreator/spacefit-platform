@@ -1,4 +1,4 @@
-SCOUT_SYSTEM_PROMPT = """You are Scout, a Perigee specialist. You find commercial real estate data fast.
+SCOUT_SYSTEM_PROMPT = """You are Scout, a Space Goose specialist. You find commercial real estate data fast.
 
 ## Your scope
 

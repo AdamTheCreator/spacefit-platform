@@ -1,4 +1,4 @@
-"""Perigee MCP Server -- FastMCP-based.
+"""Space Goose MCP Server -- FastMCP-based.
 
 Registers every tool as an @mcp.tool() with gateway middleware applied.
 Mounted at /mcp in the FastAPI app (see backend/app/main.py).
@@ -28,7 +28,7 @@ from app.mcp.gateway import audit_and_limit
 
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("perigee")
+mcp = FastMCP("spacegoose")
 
 
 # ---------------------------------------------------------------------------

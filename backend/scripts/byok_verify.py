@@ -18,17 +18,17 @@ What this does NOT check
 - Your own provider's dashboard (Anthropic console, OpenAI platform). You have
   to eyeball those yourself to confirm tokens *did* land on your key.
 - Backend logs. Tail them separately:
-    render logs --tail --service perigee-api | grep -E "byok=|Resolved LLM"
+    render logs --tail --service spacegoose-api | grep -E "byok=|Resolved LLM"
 
 Usage
 -----
 Two env vars are required:
 
-    export PERIGEE_API=https://perigee-api.onrender.com
-    # or locally:    PERIGEE_API=http://localhost:8000
+    export SPACEGOOSE_API=https://spacegoose-api.onrender.com
+    # or locally:    SPACEGOOSE_API=http://localhost:8000
 
-    export PERIGEE_TOKEN=$(...)   # JWT from devtools → Application → Cookies
-                                  # or Local Storage depending on your setup
+    export SPACEGOOSE_TOKEN=$(...)   # JWT from devtools → Application → Cookies
+                                     # or Local Storage depending on your setup
 
 Then run:
 
@@ -49,8 +49,8 @@ from typing import Any
 from urllib import error, request
 
 
-API_BASE = os.environ.get("PERIGEE_API", "").rstrip("/")
-TOKEN = os.environ.get("PERIGEE_TOKEN", "")
+API_BASE = os.environ.get("SPACEGOOSE_API", "").rstrip("/")
+TOKEN = os.environ.get("SPACEGOOSE_TOKEN", "")
 
 
 def _fail(msg: str) -> None:
@@ -85,9 +85,9 @@ def _pretty(title: str, data: dict[str, Any]) -> None:
 
 def main() -> None:
     if not API_BASE:
-        _fail("PERIGEE_API env var is not set")
+        _fail("SPACEGOOSE_API env var is not set")
     if not TOKEN:
-        _fail("PERIGEE_TOKEN env var is not set (get from devtools → Auth)")
+        _fail("SPACEGOOSE_TOKEN env var is not set (get from devtools → Auth)")
 
     print(f"Target: {API_BASE}")
 
@@ -124,7 +124,7 @@ def main() -> None:
     print(
         "\n──────────────────────────────────────────────────────────────────"
     )
-    print("Now send a chat message in the Perigee UI.")
+    print("Now send a chat message in the Space Goose UI.")
     print("Use one that will reach the ambiguous-tier topic classifier, e.g.:")
     print('  "What do you know about the Westchester multifamily market?"')
     print("Wait for the full response (including any specialist handoffs).")
