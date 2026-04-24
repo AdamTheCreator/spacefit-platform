@@ -37,11 +37,11 @@ services:
       - key: CENSUS_API_KEY
         sync: false
       - key: FRONTEND_URL
-        value: https://spacegoose.onrender.com
+        value: https://spacegoose.ai
       - key: GOOGLE_REDIRECT_URI
-        value: https://spacegoose-api.onrender.com/api/v1/auth/google/callback
+        value: https://api.spacegoose.ai/api/v1/auth/google/callback
       - key: GMAIL_REDIRECT_URI
-        value: https://spacegoose-api.onrender.com/api/v1/auth/gmail/callback
+        value: https://api.spacegoose.ai/api/v1/auth/gmail/callback
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
@@ -93,7 +93,7 @@ services:
         value: nosniff
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://spacegoose-api.onrender.com wss://spacegoose-api.onrender.com https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.spacegoose.ai wss://api.spacegoose.ai https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
     routes:
       - type: rewrite
         source: /*
@@ -101,7 +101,7 @@ services:
     envVars:
       - key: VITE_API_URL
         # Host only — consumers in the frontend append `/api/v1` themselves
-        value: https://spacegoose-api.onrender.com
+        value: https://api.spacegoose.ai
       - key: VITE_WS_URL
         # Chat WebSocket host. useChat.ts appends /api/v1/chat/ws itself.
-        value: wss://spacegoose-api.onrender.com
+        value: wss://api.spacegoose.ai
