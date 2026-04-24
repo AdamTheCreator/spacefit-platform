@@ -1279,6 +1279,160 @@ textarea.input-industrial {
    UTILITY CLASSES
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   PILLS / BADGES — Small inline status tags
+   ───────────────────────────────────────────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pill-gold {
+  background: rgba(229, 184, 92, 0.14);
+  color: var(--color-gold);
+}
+
+.pill-mist {
+  background: rgba(167, 199, 247, 0.18);
+  color: var(--color-orbit);
+}
+
+.pill-accent {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EYEBROW — Section label above headings
+   ───────────────────────────────────────────────────────────────────────────── */
+.eyebrow {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-orbit);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AVATAR — User/entity circle with gradient fallback
+   ───────────────────────────────────────────────────────────────────────────── */
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-orbit), var(--color-mist));
+  color: #fff;
+  font-weight: 600;
+  font-family: var(--font-display);
+}
+
+.avatar-sm { width: 32px; height: 32px; font-size: 12px; }
+.avatar-md { width: 40px; height: 40px; font-size: 14px; }
+.avatar-lg { width: 48px; height: 48px; font-size: 16px; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FILTER CHIPS — Inline tag-style filters
+   ───────────────────────────────────────────────────────────────────────────── */
+.filter-chip {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.filter-chip:hover {
+  border-color: var(--text-secondary);
+}
+
+.filter-chip.active {
+  background: var(--color-neutral-900);
+  color: #fff;
+  border-color: var(--color-neutral-900);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DECORATIVE STARS — Scattered accent dots for landing/empty states
+   ───────────────────────────────────────────────────────────────────────────── */
+.star {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-orbit);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.star.sm { width: 4px; height: 4px; }
+.star.mist { background: var(--color-mist); opacity: 0.6; }
+.star.gold { background: var(--color-gold); opacity: 0.55; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ORBIT RINGS — Decorative ellipses for hero / illustrations
+   ───────────────────────────────────────────────────────────────────────────── */
+.orbit-ring {
+  position: absolute;
+  border: 1px solid rgba(58, 91, 160, 0.18);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MONOSPACE UTILITY
+   ───────────────────────────────────────────────────────────────────────────── */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BTN-ACCENT — Orbit orange CTA (alias for high-emphasis actions)
+   ───────────────────────────────────────────────────────────────────────────── */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  background: var(--accent);
+  color: var(--color-neutral-900);
+  transition: all var(--duration-fast) var(--ease-out);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-accent:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  box-shadow: var(--shadow-md);
+}
+
 /* Text utilities */
 .text-balance { text-wrap: balance; }
 .text-pretty { text-wrap: pretty; }
