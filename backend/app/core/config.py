@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -21,9 +21,6 @@ class Settings(BaseSettings):
         "https://spacegoose.onrender.com",
     ]
     # Regex-based origin check for Render's per-PR preview URLs
-    # (pullRequestPreviewsEnabled: true in render.yaml). FastAPI's
-    # CORSMiddleware matches this against the Origin header when a
-    # literal allow_origins match fails. Leaving empty disables it.
     cors_origin_regex: str = r"^https://spacegoose-pr-\d+\.onrender\.com$"
 
     # WebSocket
@@ -33,6 +30,16 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="sqlite+aiosqlite:///./spacegoose.db"
     )
+
+    @model_validator(mode="after")
+    def _normalize_database_url(self) -> "Settings":
+        # Render provides postgresql:// — rewrite to postgresql+asyncpg://
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            self.database_url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            self.database_url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return self
     # SQLAlchemy async engine pool sizing. The old defaults (5 / 10) were
     # too small for production; under moderate concurrency + a slow
     # wake-from-sleep on Render Free Postgres, requests queued for a

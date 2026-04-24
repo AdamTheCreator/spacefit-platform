@@ -22,7 +22,6 @@ services:
         fromDatabase:
           name: spacegoose-db
           property: connectionString
-        # Transform to asyncpg URL
       - key: SECRET_KEY
         generateValue: true
       - key: ENCRYPTION_MASTER_KEY
@@ -92,11 +91,6 @@ services:
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
-      # Explicit CSP. No 'unsafe-eval' — the production bundle is eval-free
-      # (verified by scanning dist/ after `vite build`). Google Fonts (styles +
-      # glyphs) and the Google Places autocomplete endpoint used by
-      # AddressAutocomplete are the only cross-origin dependencies. If a new
-      # third-party origin is added to the SPA, allow it here.
       - path: /*
         name: Content-Security-Policy
         value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://spacegoose-api.onrender.com wss://spacegoose-api.onrender.com https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
@@ -107,12 +101,7 @@ services:
     envVars:
       - key: VITE_API_URL
         # Host only — consumers in the frontend append `/api/v1` themselves
-        # (see axios.ts, main.tsx prewarm, SocialLoginButtons, SharedReportPage).
-        # Including the prefix here produces `/api/v1/api/v1/...` 404s.
         value: https://spacegoose-api.onrender.com
       - key: VITE_WS_URL
         # Chat WebSocket host. useChat.ts appends /api/v1/chat/ws itself.
-        # Falls back to ws://localhost:8000 in dev; without an explicit
-        # value a blueprint-driven deploy would leave the bundle pointed
-        # at localhost and chat would silently fail in production.
         value: wss://spacegoose-api.onrender.com
