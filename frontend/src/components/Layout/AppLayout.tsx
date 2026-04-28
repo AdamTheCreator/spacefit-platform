@@ -20,6 +20,8 @@ import {
   Building2,
   BarChart3,
   Star,
+  Layers,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -43,19 +45,24 @@ type NavItem = {
 
 const WORKSPACE_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: Home },
-  { to: '/chat', label: 'Chat', icon: MessageSquare, matchPrefixes: ['/chat'] },
-  { to: '/search', label: 'Search', icon: SearchIcon },
-  { to: '/projects', label: 'Properties', icon: Building2, matchPrefixes: ['/projects'] },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/workflow', label: 'Workflow', icon: Kanban, matchPrefixes: ['/workflow', '/pipeline'] },
-  { to: '/insights', label: 'Insights', icon: Sparkles },
-  { to: '/contacts', label: 'Contacts', icon: Users },
+  { to: '/search', label: 'Find properties', icon: SearchIcon },
+  { to: '/properties', label: 'Properties', icon: Building2, matchPrefixes: ['/properties', '/property'] },
+  { to: '/projects', label: 'Projects', icon: Layers, matchPrefixes: ['/projects'] },
   { to: '/outreach', label: 'Outreach', icon: Mail },
+  { to: '/contacts', label: 'Contacts', icon: Users },
+  { to: '/chat', label: 'Chat', icon: MessageSquare, matchPrefixes: ['/chat'] },
 ];
 
-const STATES_NAV: NavItem[] = [
-  { to: '/onboarding', label: 'Onboarding', icon: Star },
+const ACCOUNT_NAV: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+const DEMO_NAV: NavItem[] = [
+  { to: '/analytics', label: 'Analytics (legacy)', icon: BarChart3 },
+  { to: '/workflow', label: 'Workflow (legacy)', icon: Kanban, matchPrefixes: ['/workflow', '/pipeline'] },
+  { to: '/insights', label: 'Insights (legacy)', icon: Sparkles },
+  { to: '/onboarding', label: 'Onboarding state', icon: Star },
+  { to: '/empty', label: 'Empty state', icon: Layers },
 ];
 
 function isNavActive(pathname: string, to: string, prefixes?: string[]): boolean {
@@ -130,6 +137,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' && window.innerWidth >= 768
   );
+  const [demoOpen, setDemoOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -286,17 +294,17 @@ export function AppLayout({ children }: AppLayoutProps) {
           </nav>
         </div>
 
-        {/* States section */}
+        {/* Account section */}
         <div className="px-3 pt-3 pb-1">
-          <SectionLabel>States</SectionLabel>
+          <SectionLabel>Account</SectionLabel>
           <nav className="space-y-0.5 mt-1">
-            {STATES_NAV.map((item) => (
+            {ACCOUNT_NAV.map((item) => (
               <SidebarLink
                 key={item.to}
                 to={item.to}
                 icon={item.icon}
                 label={item.label}
-                active={isNavActive(location.pathname, item.to)}
+                active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
                 onClick={() => isMobile && setSidebarOpen(false)}
               />
             ))}
@@ -310,6 +318,37 @@ export function AppLayout({ children }: AppLayoutProps) {
               />
             )}
           </nav>
+        </div>
+
+        {/* Demo screens — collapsed by default */}
+        <div className="px-3 pt-3 pb-1">
+          <button
+            type="button"
+            onClick={() => setDemoOpen((v) => !v)}
+            aria-expanded={demoOpen}
+            aria-controls="demo-screens-nav"
+            className="w-full flex items-center gap-1.5 px-3 py-1 text-[10.5px] font-semibold tracking-[0.1em] text-industrial-muted uppercase hover:text-industrial-secondary transition-colors"
+          >
+            <ChevronRight
+              size={11}
+              className={`transition-transform duration-200 ${demoOpen ? 'rotate-90' : ''}`}
+            />
+            <span>Demo screens</span>
+          </button>
+          {demoOpen && (
+            <nav id="demo-screens-nav" className="space-y-0.5 mt-1">
+              {DEMO_NAV.map((item) => (
+                <SidebarLink
+                  key={item.to}
+                  to={item.to}
+                  icon={item.icon}
+                  label={item.label}
+                  active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
+                  onClick={() => isMobile && setSidebarOpen(false)}
+                />
+              ))}
+            </nav>
+          )}
         </div>
 
         {/* New Chat quick-action */}
@@ -381,6 +420,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               '/dashboard':  { src: '/mascots/goose-planner.webp',  label: 'Plan smarter' },
               '/chat':       { src: '/mascots/goose-engineer.webp', label: 'Build faster' },
               '/search':     { src: '/mascots/goose-solar.webp',    label: 'Search deeper' },
+              '/properties': { src: '/mascots/goose-planet.webp',   label: 'See further' },
               '/projects':   { src: '/mascots/goose-carriers.webp', label: 'Move deals' },
               '/analytics':  { src: '/mascots/goose-planet.webp',   label: 'See further' },
               '/workflow':   { src: '/mascots/goose-mechanic.webp', label: 'Ship faster' },
