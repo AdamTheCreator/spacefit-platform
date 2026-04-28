@@ -84,6 +84,9 @@ function App() {
             <Route path="/property/:propertyId" element={<PropertyDetailPage />} />
             <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/pipeline/:dealId" element={<PipelinePage />} />
+            <Route path="/properties" element={<ProjectsPage />} />
+            <Route path="/properties/:projectId" element={<ProjectDetailPage />} />
+            <Route path="/empty" element={<NotFoundPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/projects/:projectId/chat/:sessionId" element={<ErrorBoundary><ProjectChatPage /></ErrorBoundary>} />
