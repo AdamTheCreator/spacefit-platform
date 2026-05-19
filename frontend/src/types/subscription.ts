@@ -1,4 +1,12 @@
-export type SubscriptionTier = 'free' | 'individual' | 'enterprise';
+export type SubscriptionTier =
+  | 'free'
+  | 'starter'
+  | 'pro'
+  | 'max'
+  | 'enterprise'
+  | 'individual'; // legacy — old subscriptions may still report this
+
+export type BillingInterval = 'monthly' | 'yearly';
 
 export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'trialing' | 'paused';
 
@@ -8,6 +16,10 @@ export interface Plan {
   name: string;
   description: string | null;
   price_monthly: number;
+  price_yearly: number;
+  billing_interval_default: BillingInterval;
+  is_purchasable: boolean;
+  monthly_token_budget: number;
   chat_sessions_per_month: number;
   void_analyses_per_month: number;
   demographics_reports_per_month: number;
@@ -49,6 +61,7 @@ export interface CheckoutRequest {
   tier: SubscriptionTier;
   success_url: string;
   cancel_url: string;
+  interval?: BillingInterval;
 }
 
 export interface CheckoutResponse {
