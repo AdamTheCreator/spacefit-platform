@@ -1690,6 +1690,241 @@ async def _stream_specialist_to_ws(
     }
 
 
+async def _run_specialist_routing_turn(
+    websocket: WebSocket,
+    *,
+    user_id: str,
+    session_id: str,
+    user_content: str,
+    conversation_history: list[dict[str, str]],
+    proj_context: dict | None,
+    doc_context: dict | None,
+    user_context: str | None,
+    memory_context: str | None,
+    has_imported_data: dict[str, bool],
+    s_prompt_id: str | None,
+    s_analysis_type: str | None,
+    user_resolved_llm: ResolvedLLM | None,
+) -> dict:
+    """Drive the specialist routing branch end-to-end for one user turn.
+
+    Extracted from the ``/ws`` loop so the orchestration can be unit-
+    tested independently of FastAPI's WebSocket lifecycle. Side-effects:
+        * Emits ``workflow_init`` / ``workflow_update`` / per-specialist
+          streaming frames to ``websocket``.
+        * Calls ``handle_tool_calls`` for any tool requests a specialist
+          returns.
+        * Persists each specialist bubble to the transcript and, when a
+          synthesis runs, persists the synth message too.
+        * Mutates ``conversation_history`` in place with the final
+          assistant message (so the caller can keep using it).
+        * Schedules best-effort fact extraction on the final content.
+        * Records token usage with BYOK awareness.
+
+    Returns a summary dict::
+
+        {
+            "specialist_plan": [...],
+            "specialist_outputs": [{"specialist": ..., "content": ...}, ...],
+            "final_content": str,
+            "input_tokens": int,
+            "output_tokens": int,
+            "synthesized": bool,
+        }
+    """
+    from app.services.orchestrator import plan_workflow
+
+    planning_context: dict = {}
+    if proj_context:
+        planning_context.update(proj_context)
+    if doc_context:
+        planning_context["document_context"] = doc_context
+    specialist_plan = await plan_workflow(
+        user_content,
+        context=planning_context or None,
+        resolved_llm=user_resolved_llm,
+    )
+    logger.info("[chat-ws] specialist plan: %s", specialist_plan)
+
+    workflow_steps_payload = [
+        {
+            "id": f"specialist-{spec_name}",
+            "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
+                spec_name, AgentType.ORCHESTRATOR
+            ).value,
+            "status": "pending",
+            "description": _SPECIALIST_DESCRIPTIONS.get(
+                spec_name, f"{spec_name.title()} working…"
+            ),
+        }
+        for spec_name in specialist_plan
+    ]
+    if workflow_steps_payload:
+        await send_ws_message(websocket, "workflow_init", workflow_steps_payload)
+
+    spec_outputs: list[dict] = []
+    spec_total_in = 0
+    spec_total_out = 0
+    for spec_name in specialist_plan:
+        step_id = f"specialist-{spec_name}"
+        await send_ws_message(
+            websocket,
+            "workflow_update",
+            {
+                "step_id": step_id,
+                "status": "running",
+                "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
+                    spec_name, AgentType.ORCHESTRATOR
+                ).value,
+            },
+        )
+
+        spec_messages = list(conversation_history)
+        for prev in spec_outputs:
+            if prev.get("content"):
+                spec_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": f"[{prev['specialist'].title()} findings]:\n{prev['content']}",
+                    }
+                )
+                spec_messages.append(
+                    {
+                        "role": "user",
+                        "content": "Continue the analysis using the above findings.",
+                    }
+                )
+
+        spec_result = await _stream_specialist_to_ws(
+            websocket,
+            name=spec_name,
+            session_id=session_id,
+            user_id=user_id,
+            conversation_history=spec_messages,
+            project_context=proj_context,
+            document_context=doc_context,
+            resolved_llm=user_resolved_llm,
+        )
+        spec_total_in += spec_result.get("input_tokens", 0)
+        spec_total_out += spec_result.get("output_tokens", 0)
+
+        if spec_result.get("tool_calls"):
+            await handle_tool_calls(
+                websocket=websocket,
+                tool_calls=spec_result["tool_calls"],
+                session_id=session_id,
+                user_id=user_id,
+                conversation_history=spec_messages,
+                user_context=user_context,
+                has_imported_data=has_imported_data,
+                document_context=doc_context,
+                project_context=proj_context,
+                system_prompt_id=s_prompt_id,
+                analysis_type=s_analysis_type,
+                resolved_llm=user_resolved_llm,
+            )
+
+        spec_outputs.append(spec_result)
+        await send_ws_message(
+            websocket,
+            "workflow_update",
+            {"step_id": step_id, "status": "completed"},
+        )
+
+        if spec_result.get("content"):
+            await save_message_to_db(
+                session_id,
+                "agent",
+                spec_result["content"],
+                spec_name,
+            )
+
+    synthesized = False
+    final_content = ""
+    if len(spec_outputs) > 1:
+        synthesized = True
+        synthesis_input = "\n\n---\n\n".join(
+            f"### {o['specialist'].title()} findings\n{o['content']}"
+            for o in spec_outputs
+            if o.get("content")
+        )
+        synth_history = list(conversation_history)
+        if synthesis_input:
+            synth_history.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Synthesize the specialist findings into a "
+                        "single concise answer for the user:\n\n"
+                        + synthesis_input
+                    ),
+                }
+            )
+        synth = await _stream_orchestrator_to_ws(
+            websocket,
+            session_id=session_id,
+            user_id=user_id,
+            conversation_history=synth_history,
+            user_context=user_context,
+            has_imported_data=has_imported_data,
+            document_context=doc_context,
+            project_context=proj_context,
+            system_prompt_id=s_prompt_id,
+            analysis_type=s_analysis_type,
+            memory_context=memory_context,
+            resolved_llm=user_resolved_llm,
+        )
+        final_content = synth.get("content", "")
+        spec_total_in += synth.get("input_tokens", 0)
+        spec_total_out += synth.get("output_tokens", 0)
+        if final_content:
+            await save_message_to_db(
+                session_id, "agent", final_content, "orchestrator"
+            )
+            conversation_history.append(
+                {"role": "assistant", "content": final_content}
+            )
+            _schedule_fact_extraction(
+                websocket,
+                user_id=user_id,
+                session_id=session_id,
+                user_message=user_content,
+                assistant_response=final_content,
+                resolved_llm=user_resolved_llm,
+            )
+    else:
+        only = spec_outputs[0] if spec_outputs else {}
+        if only.get("content"):
+            final_content = only["content"]
+            conversation_history.append(
+                {"role": "assistant", "content": final_content}
+            )
+            _schedule_fact_extraction(
+                websocket,
+                user_id=user_id,
+                session_id=session_id,
+                user_message=user_content,
+                assistant_response=final_content,
+                resolved_llm=user_resolved_llm,
+            )
+
+    await record_token_usage(
+        user_id,
+        spec_total_in,
+        spec_total_out,
+        is_byok=bool(user_resolved_llm and user_resolved_llm.is_byok),
+    )
+
+    return {
+        "specialist_plan": specialist_plan,
+        "specialist_outputs": spec_outputs,
+        "final_content": final_content,
+        "input_tokens": spec_total_in,
+        "output_tokens": spec_total_out,
+        "synthesized": synthesized,
+    }
+
+
 @router.websocket("/ws")
 async def websocket_chat_endpoint(
     websocket: WebSocket,
@@ -1919,204 +2154,20 @@ async def websocket_chat_endpoint(
             # ----------------------------------------------------------------
             if settings.enable_specialist_routing:
                 try:
-                    from app.services.orchestrator import plan_workflow
-
-                    planning_context: dict = {}
-                    if proj_context:
-                        planning_context.update(proj_context)
-                    if doc_context:
-                        planning_context["document_context"] = doc_context
-                    specialist_plan = await plan_workflow(
-                        user_content,
-                        context=planning_context or None,
-                        resolved_llm=user_resolved_llm,
-                    )
-                    logger.info("[chat-ws] specialist plan: %s", specialist_plan)
-
-                    # Initialize the workflow strip with one step per specialist.
-                    workflow_steps_payload = [
-                        {
-                            "id": f"specialist-{spec_name}",
-                            "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
-                                spec_name, AgentType.ORCHESTRATOR
-                            ).value,
-                            "status": "pending",
-                            "description": _SPECIALIST_DESCRIPTIONS.get(
-                                spec_name, f"{spec_name.title()} working…"
-                            ),
-                        }
-                        for spec_name in specialist_plan
-                    ]
-                    if workflow_steps_payload:
-                        await send_ws_message(
-                            websocket, "workflow_init", workflow_steps_payload
-                        )
-
-                    spec_outputs: list[dict] = []
-                    spec_total_in = 0
-                    spec_total_out = 0
-                    for spec_name in specialist_plan:
-                        step_id = f"specialist-{spec_name}"
-                        await send_ws_message(
-                            websocket,
-                            "workflow_update",
-                            {
-                                "step_id": step_id,
-                                "status": "running",
-                                "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
-                                    spec_name, AgentType.ORCHESTRATOR
-                                ).value,
-                            },
-                        )
-
-                        # Carry prior specialist outputs into the next
-                        # specialist's context as assistant messages so
-                        # downstream agents can build on what came before.
-                        spec_messages = list(conversation_history)
-                        for prev in spec_outputs:
-                            if prev.get("content"):
-                                spec_messages.append(
-                                    {
-                                        "role": "assistant",
-                                        "content": f"[{prev['specialist'].title()} findings]:\n{prev['content']}",
-                                    }
-                                )
-                                spec_messages.append(
-                                    {
-                                        "role": "user",
-                                        "content": "Continue the analysis using the above findings.",
-                                    }
-                                )
-
-                        spec_result = await _stream_specialist_to_ws(
-                            websocket,
-                            name=spec_name,
-                            session_id=session_id,
-                            user_id=user_id,
-                            conversation_history=spec_messages,
-                            project_context=proj_context,
-                            document_context=doc_context,
-                            resolved_llm=user_resolved_llm,
-                        )
-                        spec_total_in += spec_result.get("input_tokens", 0)
-                        spec_total_out += spec_result.get("output_tokens", 0)
-
-                        if spec_result.get("tool_calls"):
-                            await handle_tool_calls(
-                                websocket=websocket,
-                                tool_calls=spec_result["tool_calls"],
-                                session_id=session_id,
-                                user_id=user_id,
-                                conversation_history=spec_messages,
-                                user_context=user_context,
-                                has_imported_data=has_imported_data,
-                                document_context=doc_context,
-                                project_context=proj_context,
-                                system_prompt_id=s_prompt_id,
-                                analysis_type=s_analysis_type,
-                                resolved_llm=user_resolved_llm,
-                            )
-
-                        spec_outputs.append(spec_result)
-                        await send_ws_message(
-                            websocket,
-                            "workflow_update",
-                            {"step_id": step_id, "status": "completed"},
-                        )
-
-                        # Persist each specialist's content to the
-                        # transcript so the history endpoint reproduces
-                        # the multi-bubble view.
-                        if spec_result.get("content"):
-                            await save_message_to_db(
-                                session_id,
-                                "agent",
-                                spec_result["content"],
-                                spec_name,
-                            )
-
-                    # Final assistant content for conversation history.
-                    if len(spec_outputs) > 1:
-                        # Multi-specialist plans get a streaming
-                        # synthesis pass so the chat ends with the
-                        # orchestrator's consolidated take.
-                        synthesis_input = "\n\n---\n\n".join(
-                            f"### {o['specialist'].title()} findings\n{o['content']}"
-                            for o in spec_outputs
-                            if o.get("content")
-                        )
-                        synth_history = list(conversation_history)
-                        if synthesis_input:
-                            synth_history.append(
-                                {
-                                    "role": "user",
-                                    "content": (
-                                        "Synthesize the specialist findings "
-                                        "into a single concise answer for "
-                                        "the user:\n\n" + synthesis_input
-                                    ),
-                                }
-                            )
-                        synth = await _stream_orchestrator_to_ws(
-                            websocket,
-                            session_id=session_id,
-                            user_id=user_id,
-                            conversation_history=synth_history,
-                            user_context=user_context,
-                            has_imported_data=has_imported_data,
-                            document_context=doc_context,
-                            project_context=proj_context,
-                            system_prompt_id=s_prompt_id,
-                            analysis_type=s_analysis_type,
-                            memory_context=memory_context,
-                            resolved_llm=user_resolved_llm,
-                        )
-                        final_content = synth.get("content", "")
-                        spec_total_in += synth.get("input_tokens", 0)
-                        spec_total_out += synth.get("output_tokens", 0)
-                        if final_content:
-                            await save_message_to_db(
-                                session_id, "agent", final_content, "orchestrator"
-                            )
-                            conversation_history.append(
-                                {"role": "assistant", "content": final_content}
-                            )
-                            _schedule_fact_extraction(
-                                websocket,
-                                user_id=user_id,
-                                session_id=session_id,
-                                user_message=user_content,
-                                assistant_response=final_content,
-                                resolved_llm=user_resolved_llm,
-                            )
-                    else:
-                        # Single specialist: append its content as the
-                        # turn's assistant message; transcript was
-                        # already saved above.
-                        only = spec_outputs[0] if spec_outputs else {}
-                        if only.get("content"):
-                            conversation_history.append(
-                                {
-                                    "role": "assistant",
-                                    "content": only["content"],
-                                }
-                            )
-                            _schedule_fact_extraction(
-                                websocket,
-                                user_id=user_id,
-                                session_id=session_id,
-                                user_message=user_content,
-                                assistant_response=only["content"],
-                                resolved_llm=user_resolved_llm,
-                            )
-
-                    await record_token_usage(
-                        user_id,
-                        spec_total_in,
-                        spec_total_out,
-                        is_byok=bool(
-                            user_resolved_llm and user_resolved_llm.is_byok
-                        ),
+                    await _run_specialist_routing_turn(
+                        websocket,
+                        user_id=user_id,
+                        session_id=session_id,
+                        user_content=user_content,
+                        conversation_history=conversation_history,
+                        proj_context=proj_context,
+                        doc_context=doc_context,
+                        user_context=user_context,
+                        memory_context=memory_context,
+                        has_imported_data=has_imported_data,
+                        s_prompt_id=s_prompt_id,
+                        s_analysis_type=s_analysis_type,
+                        user_resolved_llm=user_resolved_llm,
                     )
                     continue
                 except Exception as e:

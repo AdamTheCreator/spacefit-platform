@@ -444,12 +444,21 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
 
   // Cancel an in-flight orchestrator turn. The server task is wrapped in
   // ``asyncio.create_task`` and a ``{"type":"cancel"}`` event raises
-  // ``CancelledError`` inside the streaming generator.
+  // ``CancelledError`` inside the streaming generator. We also finalize
+  // any local streaming bubbles so the UI doesn't show a spinner for
+  // text the server has already stopped producing.
   const cancelInflight = useCallback(() => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return;
     wsRef.current.send(JSON.stringify({ type: 'cancel' }));
+
+    // Finalize any messages that are still flagged as streaming locally.
+    const ids = Array.from(streamingMessageIdsRef.current);
+    streamingMessageIdsRef.current.clear();
+    for (const id of ids) {
+      updateMessage(id, { isStreaming: false });
+    }
     setIsProcessing(false);
-  }, [setIsProcessing]);
+  }, [setIsProcessing, updateMessage]);
 
   // Connect on mount
   useEffect(() => {

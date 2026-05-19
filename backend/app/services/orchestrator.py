@@ -6,6 +6,7 @@ This replaces keyword-matching with structured tool use for reliable data retrie
 """
 
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -656,6 +657,8 @@ async def call_specialist(
 
     Returns dict with 'content', 'tool_calls', 'stop_reason', token counts.
     """
+    from app.services.specialist_metrics import get_specialist_metrics
+
     request_id = uuid.uuid4().hex[:8]
     request, llm, effective_model = _build_specialist_request(
         name=name,
@@ -675,20 +678,62 @@ async def call_specialist(
         len(request.messages),
     )
 
-    response = await llm.chat(request)
+    started_at = time.monotonic()
+    metrics = get_specialist_metrics()
+    is_byok = bool(resolved_llm and getattr(resolved_llm, "is_byok", False))
 
+    try:
+        response = await llm.chat(request)
+    except Exception as e:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        metrics.record(
+            name=name,
+            model=effective_model,
+            input_tokens=0,
+            output_tokens=0,
+            elapsed_ms=elapsed_ms,
+            success=False,
+            is_byok=is_byok,
+            error=str(e)[:200],
+        )
+        logger.warning(
+            "[specialist:%s:%s] failed model=%s elapsed_ms=%d err=%s",
+            name,
+            request_id,
+            effective_model,
+            elapsed_ms,
+            e,
+        )
+        raise
+
+    elapsed_ms = int((time.monotonic() - started_at) * 1000)
     tool_calls = [
         {"id": tc.id, "name": tc.name, "input": tc.input}
         for tc in response.tool_calls
     ]
 
+    metrics.record(
+        name=name,
+        model=effective_model,
+        input_tokens=response.input_tokens,
+        output_tokens=response.output_tokens,
+        elapsed_ms=elapsed_ms,
+        success=True,
+        is_byok=is_byok,
+    )
+
     logger.info(
-        "[specialist:%s:%s] stop=%s tools=%d chars=%d",
+        "[specialist:%s:%s] stop=%s tools=%d chars=%d elapsed_ms=%d "
+        "input_tokens=%d output_tokens=%d byok=%s",
         name,
         request_id,
         response.stop_reason,
         len(tool_calls),
         len(response.content),
+        elapsed_ms,
+        response.input_tokens,
+        response.output_tokens,
+        is_byok,
     )
 
     return {
@@ -714,6 +759,8 @@ async def call_specialist_stream(
     carries token usage; consumers should accumulate text + collect
     ``tool_use_end`` chunks to mirror the buffered return shape.
     """
+    from app.services.specialist_metrics import get_specialist_metrics
+
     request_id = uuid.uuid4().hex[:8]
     request, llm, effective_model = _build_specialist_request(
         name=name,
@@ -733,20 +780,67 @@ async def call_specialist_stream(
         len(request.messages),
     )
 
+    started_at = time.monotonic()
+    metrics = get_specialist_metrics()
+    is_byok = bool(resolved_llm and getattr(resolved_llm, "is_byok", False))
+
     max_chunks = max(1, int(getattr(settings, "streaming_max_chunks", 4000)))
     chunk_count = 0
-    async for chunk in llm.chat_stream(request):
-        chunk_count += 1
-        if chunk_count > max_chunks:
-            logger.warning(
-                "[specialist:%s:%s] streaming_max_chunks=%d exceeded; cutting stream",
-                name,
-                request_id,
-                max_chunks,
-            )
-            yield LLMStreamChunk(kind="message_stop", stop_reason="max_chunks")
-            return
-        yield chunk
+    input_tokens_seen = 0
+    output_tokens_seen = 0
+    stop_reason: str | None = None
+    success = True
+    error: str | None = None
+
+    try:
+        async for chunk in llm.chat_stream(request):
+            chunk_count += 1
+            if chunk.kind == "message_stop":
+                # Terminal envelope carries final token usage; capture it
+                # so we can record metrics even though we're a generator.
+                input_tokens_seen = chunk.input_tokens or 0
+                output_tokens_seen = chunk.output_tokens or 0
+                stop_reason = chunk.stop_reason
+            if chunk_count > max_chunks:
+                logger.warning(
+                    "[specialist:%s:%s] streaming_max_chunks=%d exceeded; cutting stream",
+                    name,
+                    request_id,
+                    max_chunks,
+                )
+                stop_reason = "max_chunks"
+                yield LLMStreamChunk(kind="message_stop", stop_reason="max_chunks")
+                return
+            yield chunk
+    except Exception as e:
+        success = False
+        error = str(e)[:200]
+        raise
+    finally:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        metrics.record(
+            name=name,
+            model=effective_model,
+            input_tokens=input_tokens_seen,
+            output_tokens=output_tokens_seen,
+            elapsed_ms=elapsed_ms,
+            success=success,
+            is_byok=is_byok,
+            error=error,
+        )
+        logger.info(
+            "[specialist:%s:%s] streaming done stop=%s chunks=%d elapsed_ms=%d "
+            "input_tokens=%d output_tokens=%d byok=%s success=%s",
+            name,
+            request_id,
+            stop_reason,
+            chunk_count,
+            elapsed_ms,
+            input_tokens_seen,
+            output_tokens_seen,
+            is_byok,
+            success,
+        )
 
 
 async def synthesize_specialist_outputs(

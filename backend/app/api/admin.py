@@ -410,3 +410,16 @@ async def get_abuse(admin: AdminUser, db: DBSession):
         )
 
     return AdminAbuse(flags=flags)
+
+
+@router.get("/metrics/specialists")
+async def get_specialist_metrics_endpoint(admin: AdminUser) -> dict:
+    """Per-specialist call counters: tokens, latency, success/failure, BYOK split.
+
+    Process-local — when we shard the API across workers, swap the
+    backing store in ``app/services/specialist_metrics.py`` for Redis
+    and this endpoint stays the same.
+    """
+    from app.services.specialist_metrics import get_specialist_metrics
+
+    return get_specialist_metrics().snapshot()

@@ -36,7 +36,7 @@ There are **no frontend tests wired up.** `npm run build` doubles as the only ty
 ```
 uv pip install -e .                                   # or: pip install -e .
 playwright install --with-deps chromium               # required once for scraping/imports
-alembic upgrade head                                  # apply migrations (latest is 033)
+alembic upgrade head                                  # apply migrations (latest is 034)
 alembic revision --autogenerate -m "description"      # new migration
 uvicorn app.main:app --reload --port 8000             # dev server
 pytest tests/                                         # run all tests
@@ -82,7 +82,7 @@ The `backend` container runs `alembic upgrade head` on boot, so a fresh DB conve
 ### Backend
 
 - **Entry point:** `app/main.py`. FastAPI app mounts REST routers under `/api/v1/*`, serves OAuth callbacks, and exposes an MCP (Model Context Protocol) endpoint aliased as `spacegoose_mcp`.
-- **Database:** SQLAlchemy 2.0 async with `asyncpg`. Models live in `app/db/models/`. Migrations in `backend/alembic/versions/` follow numeric prefixes (001..033 currently); there is one hash-named migration `5c7681bfc694` wedged between 004 and 005 due to a historical branch. **Never edit a committed migration** — fix forward with a new one (see `030_rebrand_perigee_to_spacegoose.py` or `031_foundry_pricing_tiers.py` for the pattern).
+- **Database:** SQLAlchemy 2.0 async with `asyncpg`. Models live in `app/db/models/`. Migrations in `backend/alembic/versions/` follow numeric prefixes (001..034 currently); there is one hash-named migration `5c7681bfc694` wedged between 004 and 005 due to a historical branch. **Never edit a committed migration** — fix forward with a new one (see `030_rebrand_perigee_to_spacegoose.py` or `031_foundry_pricing_tiers.py` for the pattern).
 - **Enum columns are NOT native Postgres ENUMs.** Migration 005 created `subscription_plans.tier`, `subscriptions.status`, `usage_records.usage_type` etc. as plain `VARCHAR`. The SQLAlchemy models must therefore declare these columns with `Enum(MyEnum, native_enum=False, length=N, values_callable=lambda e: [v.value for v in e])` — otherwise asyncpg tries to cast bind parameters to a nonexistent PG type (`type "subscriptiontier" does not exist`) and every query by enum value 500s. Same rule applies to the new `sales_leads.status`. When adding a new enum-backed column, either (a) create a real PG ENUM in the migration AND drop `native_enum=False`, or (b) keep VARCHAR and keep the `native_enum=False` declaration consistent.
 - **Agents & LLM:** the chat orchestrator uses **specialist agents** behind a feature flag (introduced mid-project; see the `phase-3-specialist-agents` commits). All LLM tools route through the **MCP gateway** for audit logging + rate limiting — don't call Claude directly from new code, register a tool with the gateway.
 - **BYOK (Bring Your Own Key):** users configure provider + key via `/api/v1/ai-config`. Providers supported: Anthropic, OpenAI, Google Gemini, DeepSeek, openai_compatible. Per-specialist model overrides stored as JSON in `user_ai_configs.specialist_models_json`. Key resolution runs through `app/services/user_llm.py::resolve_user_llm()` which returns a `ResolvedLLM { client, provider, model, is_byok, specialist_models }`. **Zero-platform-tokens guarantee:** when `is_byok=True`, the orchestrator routes through the user's client AND `app/services/guardrails.py` skips the classifier fallback (`_classify_with_haiku` honors `resolved_llm`) AND skips `record_token_usage` + `check_token_budget`. Any new code path that calls Claude/OpenAI must accept and honor a `resolved_llm` — otherwise it'll leak tokens to the platform key.
@@ -204,6 +204,40 @@ REST endpoints (under `/api/v1/users/me/memory`):
 - `DELETE /facts/{id}` — archives (soft delete; `204 No Content`).
 
 When you add a new extraction signal (e.g. extracting from outreach replies, not just chat turns), reuse `extract_facts_from_turn` so the dedupe + cap + redaction logic stays in one place. The Jaccard threshold and `_MAX_FACTS_PER_TURN` are constants at the top of `fact_extractor.py` — tune there.
+
+## Project document Q&A (chunking + tsvector search)
+
+Project chats (`/projects/{id}/chat/{session}`) can now answer "what does the OM say about the loan covenant?" with actual quotes. Before Initiative 5 the chat only saw the parser's structured `extracted_data` summary; now every successfully-parsed document gets sliced into searchable chunks.
+
+Pipeline (per document):
+
+1. **Parser commits** in `app/api/documents.py::_process_document` (sets `status=COMPLETED` and stores `extracted_data`).
+2. **Chunker runs immediately after** as a best-effort step inside the same task. A chunker failure rolls back only the chunk attempt; the parse stays committed.
+3. **`document_chunks` rows** carry the slice text, page number, chunk index, denormalized `user_id`/`project_id` (so the auth + scope filter on the search tool is a single indexed lookup), and a `GENERATED ALWAYS AS to_tsvector('english', text) STORED` column for full-text search. There's also a `BYTEA embedding` placeholder — when we switch to pgvector, alter that column to `vector(N)` without changing anything else.
+
+`app/services/document_chunker.py` is the chunker:
+
+- `extract_raw_text(path, mime)` → `[(page_number, text), ...]`. PDFs via `pypdf` (declared in `pyproject.toml`); plain text / markdown / json read verbatim. Returns `[]` on any failure — never raises.
+- `chunk_text(pages, target_tokens=800, overlap=100)` → token-aware sliding window using `len(text)//4` as the tokenizer-free heuristic. **Chunks never span page boundaries** so citations are unambiguous. Hard cap: `MAX_CHUNKS_PER_DOCUMENT = 600` per doc.
+- `index_document(db, document_id)` wipes old chunks for the doc, persists new ones, commits. Idempotent — re-running replaces.
+
+`app/services/document_search.py` is the retrieval primitive:
+
+- `search_document_chunks(db, query, project_id, user_id, document_id?, limit?)` returns ranked `SearchHit` rows. Uses `func.plainto_tsquery` + `func.ts_rank`; hard limit clamp at 15. **Always filtered by `user_id`** — that's the auth boundary, the gateway shouldn't be the only line of defense.
+- `format_hits_for_chat(hits)` renders results as a markdown block with `[source:<doc_id>:<page>]` citation tags. The chat surface should promote those into clickable chips.
+
+`app/mcp/server.py` exposes the tool as `document_search(query, project_id, document_id="", limit=5)` under the standard gateway envelope (rate limiting, audit log, circuit breaker). Listed in `SPACEGOOSE_TOOLS` and added to `scout` + `analyst` specialists' `allowed_tools`.
+
+Prompt rendering: `format_project_context_block` now appends a "Document search" instruction block with the hard-coded `project_id` — but only when at least one of the project's documents has indexed chunks. Without that gate the LLM would call the tool and always get "no matches", which is worse than not knowing the tool exists.
+
+When you add a new document type or extend the chunker:
+
+1. Add the MIME / extension handling inside `extract_raw_text`.
+2. Make sure `MIN_CHUNK_CHARS` / `MAX_CHUNKS_PER_DOCUMENT` still make sense for the new format.
+3. Backfill existing documents with `python -m scripts.reindex_documents` (per-user or per-doc flags supported; the script opens a fresh session per doc so a single failure doesn't poison the run).
+4. The smoke test at `scripts/smoke_project_chat.py` is the fastest way to verify a chunker change end-to-end without booting the chat UI.
+
+Known gotcha: the `Computed(persisted=True)` declaration on `DocumentChunk.search_vector` works at runtime but `alembic revision --autogenerate` will think the column drifted. Delete that hunk from any autogenerated migration — the column was created by migration 034 as a Postgres generated column and isn't ORM-managed.
 
 ## When adding a new page
 

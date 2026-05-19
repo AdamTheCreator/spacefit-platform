@@ -92,6 +92,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
     isConnected,
     isLoading,
     sendMessage,
+    cancelInflight,
     currentSessionId,
   } = useChat(initialSessionId, selectedMode, projectId);
 
@@ -331,6 +332,28 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
       {/* Input Area */}
       <div className="chat-input-shell flex-shrink-0 px-3 sm:px-5 py-4 border-t border-[var(--border-subtle)]">
         <div className="chat-stage">
+          {isProcessing && (
+            <div className="flex justify-center mb-3">
+              <button
+                type="button"
+                onClick={cancelInflight}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-sm text-industrial-secondary hover:text-industrial-primary hover:border-industrial-primary transition-colors"
+                aria-label="Stop generating"
+                title="Stop generating"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="2" width="8" height="8" rx="1" />
+                </svg>
+                Stop generating
+              </button>
+            </div>
+          )}
           <ChatInput
             onSend={handleSendMessage}
             disabled={!isConnected || isProcessing}
