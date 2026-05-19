@@ -21,6 +21,10 @@ class AgentType(str, Enum):
     FOOT_TRAFFIC = "foot-traffic"
     VOID_ANALYSIS = "void-analysis"
     NOTIFICATION = "notification"
+    # Specialist roles (Phase 3 — true multi-agent loop).
+    SCOUT = "scout"
+    ANALYST = "analyst"
+    MATCHMAKER = "matchmaker"
     # Data source agents
     PLACER = "placer"  # Placer.ai for visitor traffic and customer profiles
     SITEUSA = "siteusa"  # SiteUSA for vehicle traffic (VPD) and demographics

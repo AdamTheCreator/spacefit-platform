@@ -9,7 +9,10 @@ export type AgentType =
   | 'placer'
   | 'siteusa'
   | 'costar'
-  | 'outreach';
+  | 'outreach'
+  | 'scout'
+  | 'analyst'
+  | 'matchmaker';
 
 export type MessageRole = 'user' | 'agent' | 'system';
 
@@ -111,8 +114,26 @@ export const AGENTS: Record<AgentType, AgentInfo> = {
   },
   outreach: {
     type: 'outreach',
-    name: 'Outreach Agent',
-    description: 'Email campaign management',
+    name: 'Outreach',
+    description: 'Drafts outreach emails to candidate tenants',
     color: 'bg-pink-500',
+  },
+  scout: {
+    type: 'scout',
+    name: 'Scout',
+    description: 'Finds properties and nearby businesses',
+    color: 'bg-sky-500',
+  },
+  analyst: {
+    type: 'analyst',
+    name: 'Analyst',
+    description: 'Analyzes the trade area and tenant gaps',
+    color: 'bg-violet-500',
+  },
+  matchmaker: {
+    type: 'matchmaker',
+    name: 'Matchmaker',
+    description: 'Matches gaps to candidate tenants',
+    color: 'bg-fuchsia-500',
   },
 };

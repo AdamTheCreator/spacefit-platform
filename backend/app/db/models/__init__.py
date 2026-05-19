@@ -29,6 +29,7 @@ from app.db.models.subscription import (
     UsageType,
 )
 from app.db.models.user import OAuthAccount, RefreshToken, SSOConfiguration, User
+from app.db.models.user_fact import UserFact
 from app.db.models.user_memory import UserMemory
 
 __all__ = [
@@ -63,6 +64,7 @@ __all__ = [
     "SubscriptionStatus",
     "UsageType",
     "UserMemory",
+    "UserFact",
     "Project",
     "ImportJob",
     "SalesLead",

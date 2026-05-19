@@ -78,6 +78,24 @@ const AgentIcons: Record<AgentType, React.ReactNode> = {
       <polyline points="22,6 12,13 2,6" />
     </svg>
   ),
+  scout: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  ),
+  analyst: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  ),
+  matchmaker: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  ),
 };
 
 // Color mappings for Tailwind classes
@@ -148,6 +166,24 @@ const colorMap: Record<AgentType, { bg: string; text: string; glow: string; shad
     glow: 'shadow-pink-500/50',
     shadow: 'shadow-[0_0_20px_rgba(236,72,153,0.5)]',
   },
+  scout: {
+    bg: 'bg-sky-500',
+    text: 'text-sky-400',
+    glow: 'shadow-sky-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(14,165,233,0.5)]',
+  },
+  analyst: {
+    bg: 'bg-violet-500',
+    text: 'text-violet-400',
+    glow: 'shadow-violet-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(139,92,246,0.5)]',
+  },
+  matchmaker: {
+    bg: 'bg-fuchsia-500',
+    text: 'text-fuchsia-400',
+    glow: 'shadow-fuchsia-500/50',
+    shadow: 'shadow-[0_0_20px_rgba(217,70,239,0.5)]',
+  },
 };
 
 export function AgentActivityPanel({
@@ -169,6 +205,9 @@ export function AgentActivityPanel({
       siteusa: 'idle',
       costar: 'idle',
       outreach: 'idle',
+      scout: 'idle',
+      analyst: 'idle',
+      matchmaker: 'idle',
     };
 
     // If processing but no workflow steps, orchestrator is thinking

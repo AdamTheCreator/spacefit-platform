@@ -1455,6 +1455,239 @@ async def _stream_orchestrator_to_ws(
     }
 
 
+# Map specialist names to the right ``AgentType`` so the UI badges them
+# distinctly in chat bubbles and the workflow strip.
+_SPECIALIST_TO_AGENT_TYPE: dict[str, AgentType] = {
+    "scout": AgentType.SCOUT,
+    "analyst": AgentType.ANALYST,
+    "matchmaker": AgentType.MATCHMAKER,
+    "outreach": AgentType.OUTREACH,
+}
+
+_SPECIALIST_DESCRIPTIONS: dict[str, str] = {
+    "scout": "Scout is searching nearby businesses and demographics…",
+    "analyst": "Analyst is reviewing the trade area for gaps…",
+    "matchmaker": "Matchmaker is identifying candidate tenants…",
+    "outreach": "Outreach is drafting candidate emails…",
+}
+
+
+async def _extract_and_notify_facts(
+    websocket: WebSocket,
+    *,
+    user_id: str,
+    session_id: str,
+    user_message: str,
+    assistant_response: str,
+    resolved_llm: ResolvedLLM | None,
+) -> None:
+    """Run the fact extractor and notify the client of any new candidates.
+
+    Best-effort: runs to completion in the background but any failure
+    is swallowed so the chat surface stays clean. Awaited by a wrapping
+    ``asyncio.create_task`` in the caller — never block the response.
+    """
+    from app.services.fact_extractor import extract_facts_from_turn
+
+    if not assistant_response or not user_message:
+        return
+    try:
+        persisted = await extract_facts_from_turn(
+            user_id=user_id,
+            user_message=user_message,
+            assistant_response=assistant_response,
+            session_id=session_id,
+            resolved_llm=resolved_llm,
+        )
+    except Exception:
+        logger.exception("[chat-ws] fact extraction failed")
+        return
+    if not persisted:
+        return
+    try:
+        await send_ws_message(
+            websocket,
+            "fact_candidates",
+            {
+                "facts": [
+                    {
+                        "id": f.id,
+                        "text": f.text,
+                        "category": f.category,
+                        "confidence": f.confidence,
+                    }
+                    for f in persisted
+                ],
+            },
+        )
+    except Exception:
+        # Connection may have closed before we got back to it. The DB
+        # rows are still there for the user to review later.
+        logger.debug(
+            "[chat-ws] could not push fact_candidates over closed WS"
+        )
+
+
+def _schedule_fact_extraction(
+    websocket: WebSocket,
+    *,
+    user_id: str,
+    session_id: str,
+    user_message: str,
+    assistant_response: str,
+    resolved_llm: ResolvedLLM | None,
+) -> None:
+    """Fire-and-forget; surface candidate fact set via ``fact_candidates`` WS event."""
+    if not assistant_response or not user_message:
+        return
+    asyncio.create_task(
+        _extract_and_notify_facts(
+            websocket,
+            user_id=user_id,
+            session_id=session_id,
+            user_message=user_message,
+            assistant_response=assistant_response,
+            resolved_llm=resolved_llm,
+        )
+    )
+
+
+async def _stream_specialist_to_ws(
+    websocket: WebSocket,
+    *,
+    name: str,
+    session_id: str,
+    user_id: str,
+    conversation_history: list[dict[str, str]],
+    project_context: dict | None,
+    document_context: dict | None,
+    resolved_llm: ResolvedLLM | None,
+) -> dict:
+    """Stream a single specialist turn to the WebSocket.
+
+    Mirrors ``_stream_orchestrator_to_ws`` but uses ``call_specialist_stream``
+    and tags every emitted event with the specialist's ``AgentType`` so the
+    frontend renders a colored, distinct bubble per specialist.
+
+    Returns the buffered-style ``{specialist, content, tool_calls,
+    stop_reason, input_tokens, output_tokens}`` dict the existing
+    routing branch was already designed around.
+    """
+    from app.llm.types import LLMStreamChunk
+    from app.services.orchestrator import (
+        call_specialist,
+        call_specialist_stream,
+    )
+
+    agent_type = _SPECIALIST_TO_AGENT_TYPE.get(name, AgentType.ORCHESTRATOR)
+
+    if not bool(getattr(settings, "streaming_enabled", True)):
+        return await call_specialist(
+            name=name,
+            messages=conversation_history,
+            resolved_llm=resolved_llm,
+            project_context=project_context,
+            document_context=document_context,
+        )
+
+    msg_id = uuid.uuid4().hex
+    await send_ws_message(
+        websocket,
+        "message_start",
+        {"msg_id": msg_id, "role": "agent", "agent_type": agent_type.value},
+    )
+
+    text_buffer: list[str] = []
+    tool_calls_out: list[dict] = []
+    stop_reason: str | None = None
+    input_tokens = 0
+    output_tokens = 0
+
+    try:
+        async for chunk in call_specialist_stream(
+            name=name,
+            messages=conversation_history,
+            resolved_llm=resolved_llm,
+            project_context=project_context,
+            document_context=document_context,
+        ):
+            if chunk.kind == "text_delta":
+                text_buffer.append(chunk.text)
+                await send_ws_message(
+                    websocket,
+                    "text_delta",
+                    {"msg_id": msg_id, "delta": chunk.text},
+                )
+            elif chunk.kind == "tool_use_start":
+                await send_ws_message(
+                    websocket,
+                    "tool_use_start",
+                    {
+                        "msg_id": msg_id,
+                        "tool_id": chunk.tool_id,
+                        "tool_name": chunk.tool_name,
+                    },
+                )
+            elif chunk.kind == "tool_use_end" and chunk.tool_call is not None:
+                tool_calls_out.append(
+                    {
+                        "id": chunk.tool_call.id,
+                        "name": chunk.tool_call.name,
+                        "input": chunk.tool_call.input,
+                    }
+                )
+            elif chunk.kind == "message_stop":
+                stop_reason = chunk.stop_reason
+                input_tokens = chunk.input_tokens
+                output_tokens = chunk.output_tokens
+    except Exception as e:
+        logger.exception(
+            "[chat-ws] specialist=%s streaming failed for session=%s",
+            name,
+            session_id,
+        )
+        await send_ws_message(
+            websocket,
+            "message_end",
+            {
+                "msg_id": msg_id,
+                "content": "".join(text_buffer),
+                "stop_reason": "stream_error",
+                "tool_calls": [],
+                "error": str(e),
+            },
+        )
+        return await call_specialist(
+            name=name,
+            messages=conversation_history,
+            resolved_llm=resolved_llm,
+            project_context=project_context,
+            document_context=document_context,
+        )
+
+    content = "".join(text_buffer)
+    await send_ws_message(
+        websocket,
+        "message_end",
+        {
+            "msg_id": msg_id,
+            "content": content,
+            "stop_reason": stop_reason,
+            "tool_calls": tool_calls_out,
+            "agent_type": agent_type.value,
+        },
+    )
+
+    return {
+        "specialist": name,
+        "content": content,
+        "tool_calls": tool_calls_out,
+        "stop_reason": stop_reason,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+    }
+
+
 @router.websocket("/ws")
 async def websocket_chat_endpoint(
     websocket: WebSocket,
@@ -1674,6 +1907,222 @@ async def websocket_chat_endpoint(
             # Phase 1: hardcoded — Phase 2 wires up real import detection
             has_imported_data = {"costar": False, "placer": False}
 
+            # ----------------------------------------------------------------
+            # Specialist routing branch. When enabled, we ask plan_workflow
+            # for a list of specialists, stream each in turn (own bubble +
+            # agent badge), then either use the last specialist's content
+            # directly (single-specialist plan) or run a final streaming
+            # synthesis. Falls back to the monolithic orchestrator path on
+            # any failure so a routing bug never blocks chat.
+            # ----------------------------------------------------------------
+            if settings.enable_specialist_routing:
+                try:
+                    from app.services.orchestrator import plan_workflow
+
+                    planning_context: dict = {}
+                    if proj_context:
+                        planning_context.update(proj_context)
+                    if doc_context:
+                        planning_context["document_context"] = doc_context
+                    specialist_plan = await plan_workflow(
+                        user_content,
+                        context=planning_context or None,
+                        resolved_llm=user_resolved_llm,
+                    )
+                    logger.info("[chat-ws] specialist plan: %s", specialist_plan)
+
+                    # Initialize the workflow strip with one step per specialist.
+                    workflow_steps_payload = [
+                        {
+                            "id": f"specialist-{spec_name}",
+                            "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
+                                spec_name, AgentType.ORCHESTRATOR
+                            ).value,
+                            "status": "pending",
+                            "description": _SPECIALIST_DESCRIPTIONS.get(
+                                spec_name, f"{spec_name.title()} working…"
+                            ),
+                        }
+                        for spec_name in specialist_plan
+                    ]
+                    if workflow_steps_payload:
+                        await send_ws_message(
+                            websocket, "workflow_init", workflow_steps_payload
+                        )
+
+                    spec_outputs: list[dict] = []
+                    spec_total_in = 0
+                    spec_total_out = 0
+                    for spec_name in specialist_plan:
+                        step_id = f"specialist-{spec_name}"
+                        await send_ws_message(
+                            websocket,
+                            "workflow_update",
+                            {
+                                "step_id": step_id,
+                                "status": "running",
+                                "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
+                                    spec_name, AgentType.ORCHESTRATOR
+                                ).value,
+                            },
+                        )
+
+                        # Carry prior specialist outputs into the next
+                        # specialist's context as assistant messages so
+                        # downstream agents can build on what came before.
+                        spec_messages = list(conversation_history)
+                        for prev in spec_outputs:
+                            if prev.get("content"):
+                                spec_messages.append(
+                                    {
+                                        "role": "assistant",
+                                        "content": f"[{prev['specialist'].title()} findings]:\n{prev['content']}",
+                                    }
+                                )
+                                spec_messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": "Continue the analysis using the above findings.",
+                                    }
+                                )
+
+                        spec_result = await _stream_specialist_to_ws(
+                            websocket,
+                            name=spec_name,
+                            session_id=session_id,
+                            user_id=user_id,
+                            conversation_history=spec_messages,
+                            project_context=proj_context,
+                            document_context=doc_context,
+                            resolved_llm=user_resolved_llm,
+                        )
+                        spec_total_in += spec_result.get("input_tokens", 0)
+                        spec_total_out += spec_result.get("output_tokens", 0)
+
+                        if spec_result.get("tool_calls"):
+                            await handle_tool_calls(
+                                websocket=websocket,
+                                tool_calls=spec_result["tool_calls"],
+                                session_id=session_id,
+                                user_id=user_id,
+                                conversation_history=spec_messages,
+                                user_context=user_context,
+                                has_imported_data=has_imported_data,
+                                document_context=doc_context,
+                                project_context=proj_context,
+                                system_prompt_id=s_prompt_id,
+                                analysis_type=s_analysis_type,
+                                resolved_llm=user_resolved_llm,
+                            )
+
+                        spec_outputs.append(spec_result)
+                        await send_ws_message(
+                            websocket,
+                            "workflow_update",
+                            {"step_id": step_id, "status": "completed"},
+                        )
+
+                        # Persist each specialist's content to the
+                        # transcript so the history endpoint reproduces
+                        # the multi-bubble view.
+                        if spec_result.get("content"):
+                            await save_message_to_db(
+                                session_id,
+                                "agent",
+                                spec_result["content"],
+                                spec_name,
+                            )
+
+                    # Final assistant content for conversation history.
+                    if len(spec_outputs) > 1:
+                        # Multi-specialist plans get a streaming
+                        # synthesis pass so the chat ends with the
+                        # orchestrator's consolidated take.
+                        synthesis_input = "\n\n---\n\n".join(
+                            f"### {o['specialist'].title()} findings\n{o['content']}"
+                            for o in spec_outputs
+                            if o.get("content")
+                        )
+                        synth_history = list(conversation_history)
+                        if synthesis_input:
+                            synth_history.append(
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        "Synthesize the specialist findings "
+                                        "into a single concise answer for "
+                                        "the user:\n\n" + synthesis_input
+                                    ),
+                                }
+                            )
+                        synth = await _stream_orchestrator_to_ws(
+                            websocket,
+                            session_id=session_id,
+                            user_id=user_id,
+                            conversation_history=synth_history,
+                            user_context=user_context,
+                            has_imported_data=has_imported_data,
+                            document_context=doc_context,
+                            project_context=proj_context,
+                            system_prompt_id=s_prompt_id,
+                            analysis_type=s_analysis_type,
+                            memory_context=memory_context,
+                            resolved_llm=user_resolved_llm,
+                        )
+                        final_content = synth.get("content", "")
+                        spec_total_in += synth.get("input_tokens", 0)
+                        spec_total_out += synth.get("output_tokens", 0)
+                        if final_content:
+                            await save_message_to_db(
+                                session_id, "agent", final_content, "orchestrator"
+                            )
+                            conversation_history.append(
+                                {"role": "assistant", "content": final_content}
+                            )
+                            _schedule_fact_extraction(
+                                websocket,
+                                user_id=user_id,
+                                session_id=session_id,
+                                user_message=user_content,
+                                assistant_response=final_content,
+                                resolved_llm=user_resolved_llm,
+                            )
+                    else:
+                        # Single specialist: append its content as the
+                        # turn's assistant message; transcript was
+                        # already saved above.
+                        only = spec_outputs[0] if spec_outputs else {}
+                        if only.get("content"):
+                            conversation_history.append(
+                                {
+                                    "role": "assistant",
+                                    "content": only["content"],
+                                }
+                            )
+                            _schedule_fact_extraction(
+                                websocket,
+                                user_id=user_id,
+                                session_id=session_id,
+                                user_message=user_content,
+                                assistant_response=only["content"],
+                                resolved_llm=user_resolved_llm,
+                            )
+
+                    await record_token_usage(
+                        user_id,
+                        spec_total_in,
+                        spec_total_out,
+                        is_byok=bool(
+                            user_resolved_llm and user_resolved_llm.is_byok
+                        ),
+                    )
+                    continue
+                except Exception as e:
+                    logger.exception(
+                        "[chat-ws] specialist routing failed, falling back: %s", e
+                    )
+                    # fall through to the monolithic orchestrator path
+
             # Get orchestrator response — streams when settings.streaming_enabled,
             # otherwise falls back to the buffered call internally. Wrapped in
             # a task so a ``cancel`` event from the client can interrupt it.
@@ -1754,6 +2203,14 @@ async def websocket_chat_endpoint(
                 )
                 conversation_history.append(
                     {"role": "assistant", "content": response["content"]}
+                )
+                _schedule_fact_extraction(
+                    websocket,
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_message=user_content,
+                    assistant_response=response["content"],
+                    resolved_llm=user_resolved_llm,
                 )
 
             # Legacy agent workflow path (browser-based agents removed in Phase 1)

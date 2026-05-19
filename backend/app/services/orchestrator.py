@@ -8,6 +8,7 @@ This replaces keyword-matching with structured tool use for reliable data retrie
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from typing import Any
 
 from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
@@ -570,6 +571,79 @@ Example: scout, analyst, matchmaker"""
         return ["scout"]
 
 
+def _build_specialist_request(
+    name: str,
+    messages: list[dict[str, str]],
+    resolved_llm: ResolvedLLM | None,
+    project_context: dict | None,
+    document_context: dict | None,
+    request_id: str,
+) -> tuple[LLMChatRequest, Any, str]:
+    """Construct the LLMChatRequest a specialist runs against.
+
+    Shared by ``call_specialist`` (buffered) and ``call_specialist_stream``
+    (chunked) so the model/tool/prompt selection logic only lives in one
+    place. Returns ``(request, llm_client, effective_model)``.
+    """
+    from app.agents.specialists.base import resolve_model_for_tier
+    from app.agents.specialists.registry import get_specialist
+    from app.services.prompt_registry import (
+        format_document_context_block,
+        format_project_context_block,
+    )
+
+    spec = get_specialist(name)
+
+    if resolved_llm:
+        llm = resolved_llm.client
+        if (
+            resolved_llm.specialist_models
+            and name in resolved_llm.specialist_models
+        ):
+            effective_model = resolved_llm.specialist_models[name]
+        else:
+            effective_model = resolved_llm.model
+    else:
+        llm = get_llm_client()
+        effective_model = resolve_model_for_tier(spec.default_model_tier)
+
+    llm_messages: list[LLMChatMessage] = []
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role not in ("user", "assistant"):
+            continue
+        if not isinstance(content, str):
+            continue
+        llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
+
+    system_prompt = spec.system_prompt
+    if project_context:
+        ctx = format_project_context_block(project_context)
+        if ctx:
+            system_prompt = system_prompt + "\n\n" + redact_secrets(ctx)
+    if document_context:
+        ctx = format_document_context_block(document_context)
+        if ctx:
+            system_prompt = system_prompt + "\n\n" + redact_secrets(ctx)
+
+    all_tools = get_tools_for_context()
+    specialist_tools = [t for t in all_tools if t["name"] in spec.allowed_tools]
+    last_user = llm_messages[-1].content if llm_messages else ""
+    force_tools = bool(specialist_tools) and should_force_tool_use(last_user)
+
+    request = LLMChatRequest(
+        system=system_prompt,
+        messages=llm_messages,
+        model=effective_model,
+        max_tokens=2048,
+        tools=specialist_tools if specialist_tools else None,
+        tool_choice={"type": "any"} if force_tools else None,
+        request_id=request_id,
+    )
+    return request, llm, effective_model
+
+
 async def call_specialist(
     name: str,
     messages: list[dict[str, str]],
@@ -582,71 +656,26 @@ async def call_specialist(
 
     Returns dict with 'content', 'tool_calls', 'stop_reason', token counts.
     """
-    from app.agents.specialists.registry import get_specialist
-    from app.agents.specialists.base import resolve_model_for_tier
-
     request_id = uuid.uuid4().hex[:8]
-    spec = get_specialist(name)
-
-    # Resolve model: per-specialist override > BYOK default > tier default
-    if resolved_llm:
-        llm = resolved_llm.client
-        # Check for per-specialist model override
-        if resolved_llm.specialist_models and name in resolved_llm.specialist_models:
-            effective_model = resolved_llm.specialist_models[name]
-        else:
-            effective_model = resolved_llm.model
-    else:
-        llm = get_llm_client()
-        effective_model = resolve_model_for_tier(spec.default_model_tier)
-
-    # Build messages
-    llm_messages = []
-    for msg in messages:
-        role = msg.get("role", "")
-        content = msg.get("content", "")
-        if role not in ("user", "assistant"):
-            continue
-        if not isinstance(content, str):
-            continue
-        llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
-
-    # Build system prompt with project context and/or document context
-    system_prompt = spec.system_prompt
-    if project_context:
-        from app.services.prompt_registry import format_project_context_block
-        context_block = format_project_context_block(project_context)
-        if context_block:
-            system_prompt = system_prompt + "\n\n" + redact_secrets(context_block)
-
-    if document_context:
-        from app.services.prompt_registry import format_document_context_block
-        doc_block = format_document_context_block(document_context)
-        if doc_block:
-            system_prompt = system_prompt + "\n\n" + redact_secrets(doc_block)
-
-    # Filter tools to only what this specialist is allowed
-    all_tools = get_tools_for_context()
-    specialist_tools = [t for t in all_tools if t["name"] in spec.allowed_tools]
+    request, llm, effective_model = _build_specialist_request(
+        name=name,
+        messages=messages,
+        resolved_llm=resolved_llm,
+        project_context=project_context,
+        document_context=document_context,
+        request_id=request_id,
+    )
 
     logger.info(
         "[specialist:%s:%s] model=%s tools=%d messages=%d",
-        name, request_id, effective_model, len(specialist_tools), len(llm_messages),
+        name,
+        request_id,
+        effective_model,
+        len(request.tools or []),
+        len(request.messages),
     )
 
-    response = await llm.chat(
-        LLMChatRequest(
-            system=system_prompt,
-            messages=llm_messages,
-            model=effective_model,
-            max_tokens=2048,
-            tools=specialist_tools if specialist_tools else None,
-            tool_choice={"type": "any"} if specialist_tools and should_force_tool_use(
-                llm_messages[-1].content if llm_messages else ""
-            ) else None,
-            request_id=request_id,
-        )
-    )
+    response = await llm.chat(request)
 
     tool_calls = [
         {"id": tc.id, "name": tc.name, "input": tc.input}
@@ -655,7 +684,11 @@ async def call_specialist(
 
     logger.info(
         "[specialist:%s:%s] stop=%s tools=%d chars=%d",
-        name, request_id, response.stop_reason, len(tool_calls), len(response.content),
+        name,
+        request_id,
+        response.stop_reason,
+        len(tool_calls),
+        len(response.content),
     )
 
     return {
@@ -666,6 +699,54 @@ async def call_specialist(
         "input_tokens": response.input_tokens,
         "output_tokens": response.output_tokens,
     }
+
+
+async def call_specialist_stream(
+    name: str,
+    messages: list[dict[str, str]],
+    resolved_llm: ResolvedLLM | None = None,
+    project_context: dict | None = None,
+    document_context: dict | None = None,
+) -> AsyncIterator[LLMStreamChunk]:
+    """Streaming variant of :func:`call_specialist`.
+
+    Yields :class:`LLMStreamChunk` events. The terminal ``message_stop``
+    carries token usage; consumers should accumulate text + collect
+    ``tool_use_end`` chunks to mirror the buffered return shape.
+    """
+    request_id = uuid.uuid4().hex[:8]
+    request, llm, effective_model = _build_specialist_request(
+        name=name,
+        messages=messages,
+        resolved_llm=resolved_llm,
+        project_context=project_context,
+        document_context=document_context,
+        request_id=request_id,
+    )
+
+    logger.info(
+        "[specialist:%s:%s] streaming model=%s tools=%d messages=%d",
+        name,
+        request_id,
+        effective_model,
+        len(request.tools or []),
+        len(request.messages),
+    )
+
+    max_chunks = max(1, int(getattr(settings, "streaming_max_chunks", 4000)))
+    chunk_count = 0
+    async for chunk in llm.chat_stream(request):
+        chunk_count += 1
+        if chunk_count > max_chunks:
+            logger.warning(
+                "[specialist:%s:%s] streaming_max_chunks=%d exceeded; cutting stream",
+                name,
+                request_id,
+                max_chunks,
+            )
+            yield LLMStreamChunk(kind="message_stop", stop_reason="max_chunks")
+            return
+        yield chunk
 
 
 async def synthesize_specialist_outputs(

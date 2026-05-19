@@ -1,16 +1,18 @@
 """
 Memory API
 
-Endpoints for viewing and managing user memory.
+Endpoints for viewing and managing user memory and per-user facts.
 """
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, CurrentUser
+from app.api.deps import CurrentUser, get_db
+from app.db.models.user_fact import UserFact
 from app.db.models.user_memory import UserMemory
 from app.services.memory_service import get_memory_service
 
@@ -161,3 +163,114 @@ async def clear_user_memory(
     """
     service = get_memory_service(db)
     await service.clear_memory(current_user.id)
+
+
+# --- Personal facts (Initiative 4) -----------------------------------------
+
+FactStatus = Literal["pending", "approved", "rejected", "archived"]
+
+
+class UserFactResponse(BaseModel):
+    id: str
+    text: str
+    category: str
+    status: FactStatus
+    confidence: float
+    source_session_id: str | None = None
+    source_message_id: str | None = None
+    created_at: str
+    approved_at: str | None = None
+    last_used_at: str | None = None
+
+    @classmethod
+    def from_row(cls, row: UserFact) -> "UserFactResponse":
+        return cls(
+            id=row.id,
+            text=row.text,
+            category=row.category,
+            status=row.status,  # type: ignore[arg-type]
+            confidence=row.confidence,
+            source_session_id=row.source_session_id,
+            source_message_id=row.source_message_id,
+            created_at=row.created_at.isoformat() if row.created_at else "",
+            approved_at=row.approved_at.isoformat() if row.approved_at else None,
+            last_used_at=row.last_used_at.isoformat() if row.last_used_at else None,
+        )
+
+
+@router.get("/facts", response_model=list[UserFactResponse])
+async def list_facts(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status_filter: FactStatus | None = None,
+) -> list[UserFactResponse]:
+    """List the current user's facts.
+
+    Pass ``status_filter=pending`` to drive the review sidebar; default
+    returns everything except archived for the Settings page.
+    """
+    stmt = select(UserFact).where(UserFact.user_id == current_user.id)
+    if status_filter is not None:
+        stmt = stmt.where(UserFact.status == status_filter)
+    else:
+        stmt = stmt.where(UserFact.status != "archived")
+    stmt = stmt.order_by(UserFact.created_at.desc())
+    rows = (await db.execute(stmt)).scalars().all()
+    return [UserFactResponse.from_row(r) for r in rows]
+
+
+class FactStatusUpdate(BaseModel):
+    status: Literal["approved", "rejected", "archived"]
+
+
+async def _get_owned_fact(db: AsyncSession, user_id: str, fact_id: str) -> UserFact:
+    fact = (
+        await db.execute(
+            select(UserFact).where(
+                UserFact.id == fact_id, UserFact.user_id == user_id
+            )
+        )
+    ).scalar_one_or_none()
+    if fact is None:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    return fact
+
+
+@router.post("/facts/{fact_id}/approve", response_model=UserFactResponse)
+async def approve_fact(
+    fact_id: str,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserFactResponse:
+    fact = await _get_owned_fact(db, current_user.id, fact_id)
+    fact.status = "approved"
+    fact.approved_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(fact)
+    return UserFactResponse.from_row(fact)
+
+
+@router.post("/facts/{fact_id}/reject", response_model=UserFactResponse)
+async def reject_fact(
+    fact_id: str,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserFactResponse:
+    fact = await _get_owned_fact(db, current_user.id, fact_id)
+    fact.status = "rejected"
+    await db.commit()
+    await db.refresh(fact)
+    return UserFactResponse.from_row(fact)
+
+
+@router.delete(
+    "/facts/{fact_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def archive_fact(
+    fact_id: str,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    fact = await _get_owned_fact(db, current_user.id, fact_id)
+    fact.status = "archived"
+    await db.commit()

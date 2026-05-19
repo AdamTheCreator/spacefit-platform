@@ -8,6 +8,7 @@ import {
   type PreferencesUpdate,
 } from '../hooks/usePreferences';
 import { useMemory, useClearMemory } from '../hooks/useMemory';
+import { MemoryFactsPanel } from '../components/Memory/MemoryFactsPanel';
 import {
   useAIConfig,
   useUpdateAIConfig,
@@ -594,6 +595,34 @@ function MemorySection() {
           )}
             </div>
           )}
+
+          {/* Personal facts (Initiative 4) — auto-extracted, approve-to-inject. */}
+          <div className="mt-6 space-y-3">
+            <div>
+              <h4 className="text-sm font-semibold text-industrial mb-1">
+                Pending facts to review
+              </h4>
+              <p className="text-xs text-industrial-muted mb-2">
+                Approve a fact and Space Goose will reference it in future chats.
+              </p>
+              <MemoryFactsPanel
+                statusFilter="pending"
+                emptyHint="No new facts to review. Space Goose extracts these from your chats automatically."
+              />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-industrial mb-1 mt-4">
+                Approved facts
+              </h4>
+              <p className="text-xs text-industrial-muted mb-2">
+                These get included in every chat's system prompt.
+              </p>
+              <MemoryFactsPanel
+                statusFilter="approved"
+                emptyHint="No approved facts yet."
+              />
+            </div>
+          </div>
         </div>
       )}
 

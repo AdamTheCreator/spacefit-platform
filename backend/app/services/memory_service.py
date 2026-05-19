@@ -223,23 +223,61 @@ class MemoryService:
         """
         Generate a formatted context block for injection into the system prompt.
 
-        Returns None if the user has no meaningful memory yet.
+        Returns None if the user has no meaningful memory yet. Always
+        attaches up to 10 most-recently-used approved personal facts
+        when present, even if structured memory is empty.
         """
+        from app.db.models.user_fact import UserFact
+
         result = await self.db.execute(
             select(UserMemory).where(UserMemory.user_id == user_id)
         )
         memory = result.scalar_one_or_none()
 
+        # Pull approved facts in last-used-first order so the rolling
+        # injection window stays fresh as the conversation evolves.
+        fact_rows = (
+            (
+                await self.db.execute(
+                    select(UserFact)
+                    .where(
+                        UserFact.user_id == user_id,
+                        UserFact.status == "approved",
+                    )
+                    .order_by(
+                        UserFact.last_used_at.desc().nulls_last(),
+                        UserFact.approved_at.desc().nulls_last(),
+                    )
+                    .limit(10)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        if memory is None and not fact_rows:
+            return None
+
+        has_analyses = bool(memory) and (memory.total_analyses or 0) > 0
+        has_bob = bool(memory) and bool(
+            (memory.book_of_business_summary or {}).get("tenant_count", 0)
+        )
+        has_prefs = bool(memory) and bool(memory.preferences)
+        has_facts = bool(fact_rows)
+
+        if not (has_analyses or has_bob or has_prefs or has_facts):
+            return None
+
         if memory is None:
-            return None
+            # Synthesize an empty memory so the rest of the formatter
+            # can use attribute access uniformly.
+            class _Empty:
+                analyzed_properties: list = []
+                book_of_business_summary: dict = {}
+                preferences: dict = {}
+                total_analyses: int = 0
 
-        # Check if there's enough data to be useful
-        has_analyses = (memory.total_analyses or 0) > 0
-        has_bob = bool(memory.book_of_business_summary.get("tenant_count", 0))
-        has_prefs = bool(memory.preferences)
-
-        if not (has_analyses or has_bob or has_prefs):
-            return None
+            memory = _Empty()  # type: ignore[assignment]
 
         lines = ["<user-memory>", "## What I Know About You"]
 
@@ -305,6 +343,22 @@ class MemoryService:
                 lines.append("## Your Top Tenant Categories")
                 for cat in categories[:5]:
                     lines.append(f"- {cat}")
+
+        if fact_rows:
+            lines.append("")
+            lines.append("## What you should remember about me")
+            for fact in fact_rows:
+                lines.append(f"- {fact.text}")
+            # Bump last_used_at so the rolling window stays fresh.
+            now = datetime.utcnow()
+            for fact in fact_rows:
+                fact.last_used_at = now
+            try:
+                await self.db.commit()
+            except Exception:
+                # Best-effort. Don't block prompt assembly on a write
+                # failure (e.g. concurrent update from the approve endpoint).
+                await self.db.rollback()
 
         lines.append("</user-memory>")
 

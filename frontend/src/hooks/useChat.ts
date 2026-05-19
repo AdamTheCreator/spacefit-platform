@@ -35,7 +35,8 @@ interface WebSocketMessage {
     | 'message_start'
     | 'text_delta'
     | 'tool_use_start'
-    | 'message_end';
+    | 'message_end'
+    | 'fact_candidates';
   data: unknown;
 }
 
@@ -382,6 +383,13 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
             }
           }, 100);
         }
+        break;
+      }
+
+      case 'fact_candidates': {
+        // Surface pending facts via the React Query cache so the
+        // Memory sidebar refetches without a manual reload.
+        queryClient.invalidateQueries({ queryKey: ['userFacts'] });
         break;
       }
 
