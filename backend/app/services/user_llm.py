@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Default models per provider (used when user doesn't specify a model)
 PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": "claude-haiku-4-5-20251001",
+    "anthropic": settings.anthropic_model or "claude-3-haiku-20240307",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash",
     "deepseek": "deepseek-chat",
@@ -45,11 +45,27 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
 #   - platform_default: nothing to validate; this entry never reaches
 #     the validator.
 VALIDATION_MODELS: dict[str, str] = {
-    "anthropic": "claude-haiku-4-5-20251001",
+    "anthropic": settings.anthropic_model or "claude-3-haiku-20240307",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash-lite",
     "deepseek": "deepseek-chat",
 }
+
+# Previously-shipped model ids that can return provider-side 404s on some keys.
+_ANTHROPIC_DEPRECATED_MODEL_ALIASES: dict[str, str] = {
+    "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-3-haiku-20240307",
+    "claude-sonnet-4-6-20260320": "claude-3-5-sonnet-latest",
+    "claude-sonnet-4-20250514": "claude-3-5-sonnet-latest",
+}
+
+
+def normalize_provider_model(provider: str, model: str | None) -> str | None:
+    """Map deprecated provider model ids to stable aliases."""
+    if model is None:
+        return None
+    if provider == "anthropic":
+        return _ANTHROPIC_DEPRECATED_MODEL_ALIASES.get(model, model)
+    return model
 
 
 def select_validation_model(provider: str, user_model: str | None) -> str:
@@ -63,7 +79,8 @@ def select_validation_model(provider: str, user_model: str | None) -> str:
     """
     if provider in VALIDATION_MODELS:
         return VALIDATION_MODELS[provider]
-    return user_model or PROVIDER_DEFAULT_MODELS.get(provider, "")
+    candidate = user_model or PROVIDER_DEFAULT_MODELS.get(provider, "")
+    return normalize_provider_model(provider, candidate) or ""
 
 
 @dataclass(frozen=True)
@@ -74,7 +91,7 @@ class ResolvedLLM:
     model: str
     provider: str
     is_byok: bool
-    specialist_models: dict[str, str] | None = None  # e.g. {"scout": "claude-haiku-4-5-..."}
+    specialist_models: dict[str, str] | None = None
 
 
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
@@ -133,13 +150,20 @@ async def resolve_user_llm(
     )
     ai_config = result.scalar_one_or_none()
 
-    if ai_config and ai_config.provider != "platform_default" and ai_config.is_key_valid:
+    if (
+        ai_config
+        and ai_config.provider != "platform_default"
+        and ai_config.is_key_valid
+        and ai_config.api_key_encrypted
+    ):
         try:
             api_key = decrypt_credential(
                 ai_config.api_key_encrypted,
                 ai_config.encryption_salt,
             )
-            model = ai_config.model or PROVIDER_DEFAULT_MODELS.get(ai_config.provider, "")
+            model = normalize_provider_model(ai_config.provider, ai_config.model)
+            if not model:
+                model = PROVIDER_DEFAULT_MODELS.get(ai_config.provider, "")
             client = get_or_create_client(
                 provider=ai_config.provider,
                 api_key=api_key,
@@ -162,7 +186,8 @@ async def resolve_user_llm(
             )
         except Exception:
             logger.warning(
-                "Failed to decrypt BYOK key for user %s, falling back to platform default",
+                "Failed to decrypt BYOK key for user %s, falling back to "
+                "platform default",
                 user_id,
             )
 

@@ -24,6 +24,7 @@ from app.api.ai_config import _effective_provider_model, _get_active_ai_config
 from app.services.user_llm import (
     PROVIDER_DEFAULT_MODELS,
     VALIDATION_MODELS,
+    normalize_provider_model,
     select_validation_model,
 )
 
@@ -213,3 +214,13 @@ class TestSelectValidationModel:
         paths (e.g., the /usage estimator) keep working."""
         for provider in VALIDATION_MODELS:
             assert provider in PROVIDER_DEFAULT_MODELS
+
+
+class TestNormalizeProviderModel:
+    def test_anthropic_deprecated_haiku_alias(self) -> None:
+        model = normalize_provider_model("anthropic", "claude-haiku-4-5-20251001")
+        assert model == PROVIDER_DEFAULT_MODELS["anthropic"]
+
+    def test_non_deprecated_model_unchanged(self) -> None:
+        model = normalize_provider_model("anthropic", "claude-3-5-sonnet-latest")
+        assert model == "claude-3-5-sonnet-latest"

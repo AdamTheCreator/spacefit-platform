@@ -46,11 +46,11 @@ SUPPORTED_PROVIDERS = [
         "description": "Claude models via Anthropic API",
         "requires_key": True,
         "requires_base_url": False,
-        "default_model": "claude-haiku-4-5-20251001",
+        "default_model": PROVIDER_DEFAULT_MODELS["anthropic"],
         "models": [
-            "claude-sonnet-4-6-20260320",
-            "claude-sonnet-4-20250514",
-            "claude-haiku-4-5-20251001",
+            "claude-3-5-haiku-latest",
+            "claude-3-5-sonnet-latest",
+            "claude-3-opus-latest",
         ],
     },
     {
