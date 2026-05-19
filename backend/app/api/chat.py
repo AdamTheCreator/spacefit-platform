@@ -666,23 +666,44 @@ async def handle_tool_calls(
             {"step_id": tool_call_id, "status": WorkflowStepStatus.COMPLETED.value},
         )
 
-    # Now send results back to Claude for synthesis
-    pending_results = [
-        {"tool_name": r["tool_name"], "result": r["result"]}
-        for r in tool_results
-    ]
+    # Now send results back to Claude for synthesis. Detect gateway
+    # "[TOOL_ERROR kind=…] user_message" sentinels (emitted by the
+    # reliability envelope) and pass them as structured failures so
+    # ``_build_orchestrator_request`` can frame them with [FAILED: kind]
+    # for the synthesis prompt.
+    pending_results: list[dict] = []
+    for r in tool_results:
+        result_text = r["result"]
+        entry: dict = {"tool_name": r["tool_name"], "result": result_text}
+        if isinstance(result_text, str) and result_text.startswith("[TOOL_ERROR"):
+            try:
+                head, msg = result_text.split("]", 1)
+                kind = head.split("kind=", 1)[1].strip()
+                entry["error_kind"] = kind
+                entry["user_message"] = msg.strip()
+            except Exception:
+                entry["error_kind"] = "unknown"
+                entry["user_message"] = result_text
+        elif r.get("success") is False:
+            entry["error_kind"] = "timeout_or_exception"
+            entry["user_message"] = result_text
+        pending_results.append(entry)
 
     try:
-        synthesis_response = await get_orchestrator_response(
-            conversation_history,
-            pending_tool_results=pending_results,
+        synthesis_response = await _stream_orchestrator_to_ws(
+            websocket,
+            session_id=session_id or "",
+            user_id=user_id or "",
+            conversation_history=conversation_history,
             user_context=user_context,
             has_imported_data=has_imported_data,
             document_context=document_context,
             project_context=project_context,
             system_prompt_id=system_prompt_id,
             analysis_type=analysis_type,
+            memory_context=None,
             resolved_llm=resolved_llm,
+            pending_tool_results=pending_results,
         )
 
         # Record tokens from synthesis call (skipped if user is on BYOK)
@@ -693,9 +714,7 @@ async def handle_tool_calls(
             is_byok=bool(resolved_llm and resolved_llm.is_byok),
         )
 
-        # Check if Claude wants to use more tools (rare, but possible)
         if synthesis_response.get("tool_calls"):
-            # Recursive call for additional tools (depth-capped)
             await handle_tool_calls(
                 websocket=websocket,
                 tool_calls=synthesis_response["tool_calls"],
@@ -712,18 +731,14 @@ async def handle_tool_calls(
                 resolved_llm=resolved_llm,
             )
         elif synthesis_response["content"]:
-            # Send synthesized response
-            synthesis_msg = Message(
-                role=MessageRole.AGENT,
-                agent_type=AgentType.ORCHESTRATOR,
-                content=synthesis_response["content"],
-            )
-            await send_ws_message(websocket, "message", synthesis_msg.model_dump(mode="json"))
-
+            # Text already streamed via text_delta + message_end.
             if session_id:
-                await save_message_to_db(session_id, "agent", synthesis_response["content"], "orchestrator")
-
-            conversation_history.append({"role": "assistant", "content": synthesis_response["content"]})
+                await save_message_to_db(
+                    session_id, "agent", synthesis_response["content"], "orchestrator"
+                )
+            conversation_history.append(
+                {"role": "assistant", "content": synthesis_response["content"]}
+            )
 
     except Exception as e:
         error_msg = Message(
@@ -1277,6 +1292,169 @@ async def websocket_endpoint(
         logger.debug("WebSocket cleanup session=%s", session_id)
 
 
+async def _stream_orchestrator_to_ws(
+    websocket: WebSocket,
+    *,
+    session_id: str,
+    user_id: str,
+    conversation_history: list[dict[str, str]],
+    user_context: str | None,
+    has_imported_data: dict[str, bool],
+    document_context: dict | None,
+    project_context: dict | None,
+    system_prompt_id: str | None,
+    analysis_type: str | None,
+    memory_context: str | None,
+    resolved_llm: ResolvedLLM | None,
+    pending_tool_results: list[dict] | None = None,
+) -> dict:
+    """Stream an orchestrator turn to the WebSocket.
+
+    Emits these WS events:
+      - ``message_start`` {msg_id, role:"agent", agent_type:"orchestrator"}
+      - ``text_delta`` {msg_id, delta}
+      - ``tool_use_start`` {msg_id, tool_id, tool_name}
+      - ``message_end`` {msg_id, content, stop_reason, tool_calls?}
+
+    Returns a buffered-style ``{content, tool_calls, stop_reason,
+    input_tokens, output_tokens}`` dict so the caller can keep its
+    existing tool-call branching / DB save logic without forking.
+
+    Falls back to the buffered ``get_orchestrator_response`` call on
+    any provider error or when ``settings.streaming_enabled`` is False.
+    """
+    from app.services.orchestrator import (
+        get_orchestrator_response,
+        get_orchestrator_response_stream,
+    )
+    from app.llm.types import LLMStreamChunk
+
+    if not bool(getattr(settings, "streaming_enabled", True)):
+        return await get_orchestrator_response(
+            conversation_history,
+            pending_tool_results=pending_tool_results,
+            user_context=user_context,
+            has_imported_data=has_imported_data,
+            document_context=document_context,
+            project_context=project_context,
+            system_prompt_id=system_prompt_id,
+            analysis_type=analysis_type,
+            memory_context=memory_context,
+            resolved_llm=resolved_llm,
+        )
+
+    msg_id = uuid.uuid4().hex
+    await send_ws_message(
+        websocket,
+        "message_start",
+        {
+            "msg_id": msg_id,
+            "role": "agent",
+            "agent_type": "orchestrator",
+        },
+    )
+
+    text_buffer: list[str] = []
+    tool_calls_out: list[dict] = []
+    stop_reason: str | None = None
+    input_tokens = 0
+    output_tokens = 0
+
+    try:
+        async for chunk in get_orchestrator_response_stream(
+            conversation_history,
+            pending_tool_results=pending_tool_results,
+            user_context=user_context,
+            has_imported_data=has_imported_data,
+            document_context=document_context,
+            project_context=project_context,
+            system_prompt_id=system_prompt_id,
+            analysis_type=analysis_type,
+            memory_context=memory_context,
+            resolved_llm=resolved_llm,
+        ):
+            if chunk.kind == "text_delta":
+                text_buffer.append(chunk.text)
+                await send_ws_message(
+                    websocket,
+                    "text_delta",
+                    {"msg_id": msg_id, "delta": chunk.text},
+                )
+            elif chunk.kind == "tool_use_start":
+                await send_ws_message(
+                    websocket,
+                    "tool_use_start",
+                    {
+                        "msg_id": msg_id,
+                        "tool_id": chunk.tool_id,
+                        "tool_name": chunk.tool_name,
+                    },
+                )
+            elif chunk.kind == "tool_use_end" and chunk.tool_call is not None:
+                tool_calls_out.append(
+                    {
+                        "id": chunk.tool_call.id,
+                        "name": chunk.tool_call.name,
+                        "input": chunk.tool_call.input,
+                    }
+                )
+            elif chunk.kind == "message_stop":
+                stop_reason = chunk.stop_reason
+                input_tokens = chunk.input_tokens
+                output_tokens = chunk.output_tokens
+    except Exception as e:
+        logger.exception(
+            "[chat-ws] streaming failed, falling back to buffered for session=%s",
+            session_id,
+        )
+        # Close the streaming message cleanly so the frontend can drop
+        # the in-flight bubble; then fall back to the buffered path so
+        # the user still gets a reply.
+        await send_ws_message(
+            websocket,
+            "message_end",
+            {
+                "msg_id": msg_id,
+                "content": "".join(text_buffer),
+                "stop_reason": "stream_error",
+                "tool_calls": [],
+                "error": str(e),
+            },
+        )
+        return await get_orchestrator_response(
+            conversation_history,
+            pending_tool_results=pending_tool_results,
+            user_context=user_context,
+            has_imported_data=has_imported_data,
+            document_context=document_context,
+            project_context=project_context,
+            system_prompt_id=system_prompt_id,
+            analysis_type=analysis_type,
+            memory_context=memory_context,
+            resolved_llm=resolved_llm,
+        )
+
+    content = "".join(text_buffer)
+    await send_ws_message(
+        websocket,
+        "message_end",
+        {
+            "msg_id": msg_id,
+            "content": content,
+            "stop_reason": stop_reason,
+            "tool_calls": tool_calls_out,
+        },
+    )
+
+    return {
+        "content": content,
+        "tool_calls": tool_calls_out,
+        "stop_reason": stop_reason,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+    }
+
+
 @router.websocket("/ws")
 async def websocket_chat_endpoint(
     websocket: WebSocket,
@@ -1344,6 +1522,9 @@ async def websocket_chat_endpoint(
     project_contexts: dict[str, dict | None] = {}
     session_prompt_ids: dict[str, str | None] = {}
     session_analysis_types: dict[str, str | None] = {}
+    # Reference to the in-flight orchestrator task, if any, so a
+    # client-side ``cancel`` event can interrupt streaming cleanly.
+    in_flight_task: asyncio.Task | None = None
 
     try:
         while True:
@@ -1351,6 +1532,17 @@ async def websocket_chat_endpoint(
             try:
                 message_data = json.loads(data)
             except json.JSONDecodeError:
+                continue
+
+            # Allow the client to interrupt an in-flight turn. We treat
+            # the cancel as best-effort: cancelling mid-stream raises
+            # ``asyncio.CancelledError`` inside ``_stream_orchestrator_to_ws``
+            # which then bubbles back to this loop, where the
+            # ``finally`` block ensures the connection stays healthy.
+            if message_data.get("type") == "cancel":
+                if in_flight_task and not in_flight_task.done():
+                    in_flight_task.cancel()
+                    logger.info("[chat-ws] client cancelled in-flight turn")
                 continue
 
             session_id = message_data.get("session_id")
@@ -1482,10 +1674,15 @@ async def websocket_chat_endpoint(
             # Phase 1: hardcoded — Phase 2 wires up real import detection
             has_imported_data = {"costar": False, "placer": False}
 
-            # Get orchestrator response (with document context and prompt ID for analysis sessions)
-            try:
-                response = await get_orchestrator_response(
-                    conversation_history,
+            # Get orchestrator response — streams when settings.streaming_enabled,
+            # otherwise falls back to the buffered call internally. Wrapped in
+            # a task so a ``cancel`` event from the client can interrupt it.
+            in_flight_task = asyncio.create_task(
+                _stream_orchestrator_to_ws(
+                    websocket,
+                    session_id=session_id,
+                    user_id=user_id,
+                    conversation_history=conversation_history,
                     user_context=user_context,
                     has_imported_data=has_imported_data,
                     document_context=doc_context,
@@ -1495,15 +1692,36 @@ async def websocket_chat_endpoint(
                     memory_context=memory_context,
                     resolved_llm=user_resolved_llm,
                 )
+            )
+            try:
+                response = await in_flight_task
+            except asyncio.CancelledError:
+                logger.info("[chat-ws] in-flight orchestrator cancelled")
+                setIsProcessing_payload = {
+                    "type": "message_end",
+                    "data": {
+                        "msg_id": "cancelled",
+                        "content": "",
+                        "stop_reason": "cancelled",
+                        "tool_calls": [],
+                    },
+                }
+                try:
+                    await websocket.send_json(setIsProcessing_payload)
+                except Exception:
+                    pass
+                in_flight_task = None
+                continue
             except Exception as e:
+                in_flight_task = None
                 error_msg = Message(
                     role=MessageRole.SYSTEM,
                     content=f"I'm having trouble connecting to my AI backend. Error: {str(e)}",
                 )
                 await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue
+            in_flight_task = None
 
-            # Check if Claude wants to use tools (native tool calling)
             tool_calls = response.get("tool_calls", [])
             logger.debug(
                 "[chat-ws] tool_calls=%d text_chars=%d",
@@ -1513,7 +1731,6 @@ async def websocket_chat_endpoint(
 
             if tool_calls:
                 logger.debug("[chat-ws] executing tool_calls=%d", len(tool_calls))
-                # Claude is requesting to use tools - execute them
                 await handle_tool_calls(
                     websocket=websocket,
                     tool_calls=tool_calls,
@@ -1529,15 +1746,15 @@ async def websocket_chat_endpoint(
                     resolved_llm=user_resolved_llm,
                 )
             elif response["content"]:
-                # No tools requested - just send the response
-                orchestrator_msg = Message(
-                    role=MessageRole.AGENT,
-                    agent_type=AgentType.ORCHESTRATOR,
-                    content=response["content"],
+                # The text was already streamed via text_delta + message_end.
+                # We still need to persist the final transcript and append
+                # to the in-memory conversation history.
+                await save_message_to_db(
+                    session_id, "agent", response["content"], "orchestrator"
                 )
-                await send_ws_message(websocket, "message", orchestrator_msg.model_dump(mode="json"))
-                await save_message_to_db(session_id, "agent", response["content"], "orchestrator")
-                conversation_history.append({"role": "assistant", "content": response["content"]})
+                conversation_history.append(
+                    {"role": "assistant", "content": response["content"]}
+                )
 
             # Legacy agent workflow path (browser-based agents removed in Phase 1)
             tools_to_run = response.get("tools_to_run", [])

@@ -176,10 +176,21 @@ export function AgentActivityPanel({
       states.orchestrator = 'running';
     }
 
-    // Set states based on workflow steps
+    // Set states based on workflow steps. Treat the new failure
+    // statuses (error / timed_out / circuit_open) the same as 'idle'
+    // from the activity panel's perspective — the workflow strip
+    // surfaces the detailed failure reason separately.
     workflowSteps.forEach((step) => {
       if (step.agentType in states) {
-        states[step.agentType] = step.status === 'error' ? 'idle' : step.status;
+        if (
+          step.status === 'error' ||
+          step.status === 'timed_out' ||
+          step.status === 'circuit_open'
+        ) {
+          states[step.agentType] = 'idle';
+        } else {
+          states[step.agentType] = step.status;
+        }
       }
     });
 

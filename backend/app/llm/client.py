@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Protocol
 
@@ -8,11 +9,19 @@ from app.core.config import settings
 from app.llm.exceptions import LLMConfigurationError
 from app.llm.providers.anthropic_client import AnthropicLLMClient
 from app.llm.providers.openai_compatible_client import OpenAICompatibleLLMClient
-from app.llm.types import LLMChatRequest, LLMResponse, LLMVisionRequest
+from app.llm.types import (
+    LLMChatRequest,
+    LLMResponse,
+    LLMStreamChunk,
+    LLMVisionRequest,
+)
 
 
 class LLMClient(Protocol):
     async def chat(self, request: LLMChatRequest) -> LLMResponse: ...
+    def chat_stream(
+        self, request: LLMChatRequest
+    ) -> AsyncIterator[LLMStreamChunk]: ...
     async def vision_document(self, request: LLMVisionRequest) -> str: ...
     async def aclose(self) -> None: ...
 

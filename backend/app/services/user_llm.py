@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Default models per provider (used when user doesn't specify a model)
 PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": settings.anthropic_model or "claude-3-haiku-20240307",
+    "anthropic": settings.anthropic_model or "claude-3-5-haiku-20241022",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash",
     "deepseek": "deepseek-chat",
@@ -45,7 +45,7 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
 #   - platform_default: nothing to validate; this entry never reaches
 #     the validator.
 VALIDATION_MODELS: dict[str, str] = {
-    "anthropic": settings.anthropic_model or "claude-3-haiku-20240307",
+    "anthropic": settings.anthropic_model or "claude-3-5-haiku-20241022",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash-lite",
     "deepseek": "deepseek-chat",
@@ -53,7 +53,7 @@ VALIDATION_MODELS: dict[str, str] = {
 
 # Previously-shipped model ids that can return provider-side 404s on some keys.
 _ANTHROPIC_DEPRECATED_MODEL_ALIASES: dict[str, str] = {
-    "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-3-haiku-20240307",
+    "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-3-5-haiku-20241022",
     "claude-sonnet-4-6-20260320": "claude-3-5-sonnet-latest",
     "claude-sonnet-4-20250514": "claude-3-5-sonnet-latest",
 }

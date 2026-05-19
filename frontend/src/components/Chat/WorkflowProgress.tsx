@@ -51,6 +51,9 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
           const isRunning = step.status === 'running';
           const isCompleted = step.status === 'completed';
           const isError = step.status === 'error';
+          const isTimedOut = step.status === 'timed_out';
+          const isCircuitOpen = step.status === 'circuit_open';
+          const isFailed = isError || isTimedOut || isCircuitOpen;
 
           return (
             <div
@@ -84,8 +87,16 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
                   <div className="relative w-5 h-5">
                     <div className="w-5 h-5 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
                   </div>
-                ) : isError ? (
-                  <div className="w-5 h-5 rounded-full bg-[var(--bg-error)] flex items-center justify-center">
+                ) : isFailed ? (
+                  <div
+                    className="w-5 h-5 rounded-full bg-[var(--bg-error)] flex items-center justify-center"
+                    title={
+                      step.errorMessage ||
+                      (isTimedOut ? 'Tool timed out' :
+                       isCircuitOpen ? 'Service temporarily unavailable' :
+                       'Tool error')
+                    }
+                  >
                     <svg
                       className="w-3 h-3 text-[var(--color-error)]"
                       fill="none"
@@ -143,6 +154,16 @@ export function WorkflowProgress({ steps }: WorkflowProgressProps) {
               {isRunning && (
                 <span className="text-xs font-medium text-[var(--accent)] animate-pulse-soft flex-shrink-0">
                   Running
+                </span>
+              )}
+              {isTimedOut && (
+                <span className="text-xs font-medium text-[var(--color-error)] flex-shrink-0">
+                  Timed out
+                </span>
+              )}
+              {isCircuitOpen && (
+                <span className="text-xs font-medium text-[var(--color-error)] flex-shrink-0">
+                  Unavailable
                 </span>
               )}
             </div>

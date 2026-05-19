@@ -134,6 +134,31 @@ Treat `frontend/DESIGN.md` as canon for visual decisions. The summary:
 - **Domain:** `spacegoose.ai` is the canonical email domain (`sales@`, `noreply@`, `api.`). Any new copy should use it. The legacy `perigee.ai` and `spacefit.app` domains are no longer referenced in code; the CORS allowlist only accepts `spacegoose.ai` hosts.
 - **OAuth:** Google sign-in + Gmail (for Outreach) both require authorized redirect URIs registered in the GCP console. `render.yaml` owns the env-var mapping; the production client must have the `spacegoose-api.onrender.com` callbacks added before the new service goes live.
 
+## Chat streaming protocol
+
+The chat WebSocket emits a small set of streaming events when the orchestrator is replying token-by-token:
+
+- `message_start` — `{msg_id, role: "agent", agent_type: "orchestrator"}` opens a new streaming bubble.
+- `text_delta` — `{msg_id, delta}` is appended to the in-flight bubble's content. Many of these per turn.
+- `tool_use_start` — `{msg_id, tool_id, tool_name}` announces that Claude wants to invoke a tool (frontend can render an inline "calling …" chip).
+- `message_end` — `{msg_id, content, stop_reason, tool_calls, error?}` finalizes the turn. `content` is the full accumulated text; `stop_reason` includes the standard `end_turn`/`tool_use` plus our own `stream_error`/`cancelled`/`max_chunks`.
+
+The legacy `message` event still fires for system messages, errors, history hydration, and the user echo so the protocol is fully backward compatible. Frontend state lives in `useChat.handleWebSocketMessage`; the streaming bubble is keyed by `msg_id` in `streamingMessageIdsRef`, and `chatStore.appendToMessage(id, delta)` performs the actual concat.
+
+Cancellation: the client sends `{"type": "cancel"}` and the server cancels the in-flight `asyncio.Task` wrapping `_stream_orchestrator_to_ws`. Streaming is gated by `settings.streaming_enabled` (env: `STREAMING_ENABLED`, default true); when false, the helper falls back to `get_orchestrator_response` and emits no streaming events. Runaway streams are capped at `settings.streaming_max_chunks` (default 4000).
+
+## Tool reliability envelope
+
+Every MCP tool runs through `app.mcp.reliability.call_with_reliability`, which wraps the call in three layers:
+
+1. **Per-tool timeout** from `TOOL_TIMEOUTS` (default 8s, overrides in `reliability.py`).
+2. **Circuit breaker** (`ToolCircuitBreaker`) — trips OPEN when 5+ failures land in a 60s sliding window; stays open for 30s; enters HALF_OPEN for a single probe.
+3. **Retry policy** — up to 2 attempts with exponential backoff + jitter; auth-class errors (`upstream_4xx`) never retry.
+
+Failures surface as `ToolError(kind, user_message, detail, elapsed_ms)`. The gateway emits a sentinel string `[TOOL_ERROR kind=…] user_message` so `_build_orchestrator_request` can wrap it as `### tool_name [FAILED: kind]` in the synthesis prompt. Claude then explains the unavailability to the user instead of pretending the tool worked. Frontend renders the new `WorkflowStepStatus` values (`timed_out`, `circuit_open`) with distinct chips.
+
+The circuit breaker is in-memory + per-process; swap to Redis when we add background workers.
+
 ## When adding a new page
 
 1. Add a lazy import in `src/App.tsx` and a `<Route>` inside the `<ProtectedRoute />` block.

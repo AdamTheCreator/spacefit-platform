@@ -24,6 +24,7 @@ from typing import Any, Awaitable, Callable
 from app.core.database import async_session_factory
 from app.db.models.tool_call import ToolCallLog
 from app.mcp.context import current_session_id, current_user_id
+from app.mcp.reliability import ToolError, call_with_reliability
 from app.services.analytics import get_analytics
 
 logger = logging.getLogger(__name__)
@@ -130,12 +131,25 @@ def audit_and_limit(tool_name: str) -> Callable:
                 )
                 return f"Rate limited: {e}"
 
-            # Execute
+            # Execute under the reliability envelope (timeout +
+            # circuit breaker + retry). On a transient failure we get
+            # back a ToolError instead of a raised exception so the
+            # orchestrator can render a graceful "service unavailable"
+            # explanation to the user.
             t0 = time.monotonic()
             status = "ok"
             error: str | None = None
             try:
-                result = await fn(*args, **kwargs)
+                result = await call_with_reliability(
+                    tool_name, fn, *args, **kwargs
+                )
+                if isinstance(result, ToolError):
+                    status = result.kind
+                    error = result.detail
+                    return (
+                        f"[TOOL_ERROR kind={result.kind}] "
+                        f"{result.user_message}"
+                    )
                 return result
             except Exception as e:
                 status = "error"

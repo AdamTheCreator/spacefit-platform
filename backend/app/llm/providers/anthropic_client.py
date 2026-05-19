@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app.byok.errors import map_anthropic_exception
@@ -8,6 +10,7 @@ from app.llm.exceptions import LLMConfigurationError
 from app.llm.types import (
     LLMChatRequest,
     LLMResponse,
+    LLMStreamChunk,
     LLMToolCall,
     LLMVisionRequest,
 )
@@ -92,6 +95,152 @@ class AnthropicLLMClient:
         return LLMResponse(
             content=text_content,
             tool_calls=tool_calls,
+            stop_reason=stop_reason,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+    async def chat_stream(
+        self, request: LLMChatRequest
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Stream a chat response chunk-by-chunk.
+
+        Yields normalized ``LLMStreamChunk`` events. Token counts on the
+        terminal ``message_stop`` chunk come from Anthropic's
+        ``message_delta`` and ``message_stop`` events. Tool-call argument
+        JSON arrives in ``input_json_delta`` fragments that we accumulate
+        per-tool so callers receive a fully-parsed dict on
+        ``tool_use_end``.
+        """
+        create_kwargs: dict[str, Any] = {
+            "model": request.model,
+            "max_tokens": request.max_tokens,
+            "system": request.system,
+            "messages": [
+                {"role": m.role, "content": m.content}
+                for m in request.messages
+            ],
+        }
+        if request.temperature is not None:
+            create_kwargs["temperature"] = request.temperature
+        if request.tools is not None:
+            create_kwargs["tools"] = request.tools
+        if request.tool_choice is not None:
+            create_kwargs["tool_choice"] = request.tool_choice
+
+        # Per-block tool-call accumulators keyed by Anthropic's block index.
+        # We need to track these to assemble the final tool_call payload
+        # because input JSON arrives as a stream of ``input_json_delta``
+        # fragments, not a single object.
+        tool_blocks: dict[int, dict[str, Any]] = {}
+        input_tokens = 0
+        output_tokens = 0
+        stop_reason: str | None = None
+
+        async with self._semaphore:
+            try:
+                async with self._client.messages.stream(**create_kwargs) as stream:
+                    async for event in stream:
+                        event_type = getattr(event, "type", "")
+                        if event_type == "message_start":
+                            msg = getattr(event, "message", None)
+                            usage = getattr(msg, "usage", None) if msg else None
+                            if usage is not None:
+                                input_tokens = getattr(
+                                    usage, "input_tokens", 0
+                                ) or 0
+                        elif event_type == "content_block_start":
+                            block = getattr(event, "content_block", None)
+                            block_type = getattr(block, "type", "")
+                            idx = getattr(event, "index", -1)
+                            if block_type == "tool_use" and idx >= 0:
+                                tool_id = getattr(block, "id", "") or ""
+                                name = getattr(block, "name", "") or ""
+                                tool_blocks[idx] = {
+                                    "id": tool_id,
+                                    "name": name,
+                                    "json": "",
+                                }
+                                yield LLMStreamChunk(
+                                    kind="tool_use_start",
+                                    tool_id=tool_id,
+                                    tool_name=name,
+                                )
+                        elif event_type == "content_block_delta":
+                            delta = getattr(event, "delta", None)
+                            delta_type = getattr(delta, "type", "")
+                            idx = getattr(event, "index", -1)
+                            if delta_type == "text_delta":
+                                text = getattr(delta, "text", "") or ""
+                                if text:
+                                    yield LLMStreamChunk(
+                                        kind="text_delta", text=text
+                                    )
+                            elif delta_type == "input_json_delta":
+                                fragment = (
+                                    getattr(delta, "partial_json", "") or ""
+                                )
+                                if idx in tool_blocks and fragment:
+                                    tool_blocks[idx]["json"] += fragment
+                                    yield LLMStreamChunk(
+                                        kind="tool_use_delta",
+                                        tool_id=tool_blocks[idx]["id"],
+                                        partial_json=fragment,
+                                    )
+                        elif event_type == "content_block_stop":
+                            idx = getattr(event, "index", -1)
+                            if idx in tool_blocks:
+                                block_info = tool_blocks.pop(idx)
+                                # Anthropic gives us {} when the tool has
+                                # no arguments — guard against that and
+                                # also against accumulated bytes that
+                                # never form a valid JSON object.
+                                try:
+                                    parsed = (
+                                        json.loads(block_info["json"])
+                                        if block_info["json"]
+                                        else {}
+                                    )
+                                except json.JSONDecodeError:
+                                    parsed = {
+                                        "_raw_arguments": block_info["json"]
+                                    }
+                                tool_call = LLMToolCall(
+                                    id=block_info["id"],
+                                    name=block_info["name"],
+                                    input=parsed,
+                                )
+                                yield LLMStreamChunk(
+                                    kind="tool_use_end",
+                                    tool_id=block_info["id"],
+                                    tool_name=block_info["name"],
+                                    tool_call=tool_call,
+                                )
+                        elif event_type == "message_delta":
+                            delta = getattr(event, "delta", None)
+                            sr = getattr(delta, "stop_reason", None)
+                            if sr:
+                                stop_reason = sr
+                            usage = getattr(event, "usage", None)
+                            if usage is not None:
+                                output_tokens = (
+                                    getattr(usage, "output_tokens", 0) or 0
+                                )
+                        elif event_type == "message_stop":
+                            # Final event — fall through to the terminal
+                            # chunk emit after the for-loop.
+                            pass
+            except Exception as e:
+                # Surface the standard BYOK error shape; consumers will
+                # see this as an exception out of the generator and can
+                # short-circuit. We deliberately do not emit a
+                # message_stop here because the orchestrator's finally:
+                # block already handles the terminal token-recording
+                # path.
+                raise map_anthropic_exception(e) from e
+
+        yield LLMStreamChunk(
+            kind="message_stop",
             stop_reason=stop_reason,
             input_tokens=input_tokens,
             output_tokens=output_tokens,

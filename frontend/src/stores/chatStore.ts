@@ -17,6 +17,7 @@ interface ChatState {
   addMessage: (message: Omit<Message, 'id' | 'timestamp'> & Partial<Pick<Message, 'id' | 'timestamp'>>) => void;
   setMessages: (messages: Message[]) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
+  appendToMessage: (id: string, delta: string) => void;
   setWorkflowSteps: (steps: WorkflowStep[]) => void;
   updateWorkflowStep: (id: string, updates: Partial<WorkflowStep>) => void;
   setIsProcessing: (isProcessing: boolean) => void;
@@ -62,6 +63,13 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({
       messages: state.messages.map((msg) =>
         msg.id === id ? { ...msg, ...updates } : msg
+      ),
+    })),
+
+  appendToMessage: (id, delta) =>
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === id ? { ...msg, content: msg.content + delta } : msg
       ),
     })),
 
@@ -117,6 +125,7 @@ export const useChatActions = () => useChatStore(
     addMessage: state.addMessage,
     setMessages: state.setMessages,
     updateMessage: state.updateMessage,
+    appendToMessage: state.appendToMessage,
     setWorkflowSteps: state.setWorkflowSteps,
     updateWorkflowStep: state.updateWorkflowStep,
     setIsProcessing: state.setIsProcessing,

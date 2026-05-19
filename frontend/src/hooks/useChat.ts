@@ -25,7 +25,17 @@ interface ChatMessage {
 }
 
 interface WebSocketMessage {
-  type: 'message' | 'workflow_init' | 'workflow_update' | 'session_created' | 'title_update' | 'error';
+  type:
+    | 'message'
+    | 'workflow_init'
+    | 'workflow_update'
+    | 'session_created'
+    | 'title_update'
+    | 'error'
+    | 'message_start'
+    | 'text_delta'
+    | 'tool_use_start'
+    | 'message_end';
   data: unknown;
 }
 
@@ -70,6 +80,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     setCurrentSession,
     addMessage,
     updateMessage,
+    appendToMessage,
     setWorkflowSteps,
     updateWorkflowStep,
     setIsProcessing,
@@ -77,6 +88,8 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     connectionStatus,
     setConnectionStatus,
   } = useChatStore();
+
+  const streamingMessageIdsRef = useRef<Set<string>>(new Set());
 
   // Fetch conversation history when sessionId changes (REST API - instant!)
   const { data: historyMessages, isLoading: isLoadingHistory } = useQuery({
@@ -300,13 +313,85 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         break;
       }
 
+      case 'message_start': {
+        const data = message.data as {
+          msg_id: string;
+          role: 'agent';
+          agent_type?: string;
+        };
+        streamingMessageIdsRef.current.add(data.msg_id);
+        addMessage({
+          id: data.msg_id,
+          role: 'agent',
+          content: '',
+          agentType: data.agent_type as Message['agentType'],
+          timestamp: new Date(),
+          isStreaming: true,
+        });
+        break;
+      }
+
+      case 'text_delta': {
+        const data = message.data as { msg_id: string; delta: string };
+        if (streamingMessageIdsRef.current.has(data.msg_id)) {
+          appendToMessage(data.msg_id, data.delta);
+        }
+        break;
+      }
+
+      case 'tool_use_start': {
+        const data = message.data as {
+          msg_id: string;
+          tool_id: string;
+          tool_name: string;
+        };
+        // The workflow strip rendering picks up tool_call_start from the
+        // existing workflow_update path; this event is informational and
+        // lets us optionally render an inline "calling …" chip later.
+        // No-op for now; preserved so the WS protocol stays explicit.
+        void data;
+        break;
+      }
+
+      case 'message_end': {
+        const data = message.data as {
+          msg_id: string;
+          content: string;
+          stop_reason?: string;
+          tool_calls?: unknown[];
+          error?: string;
+        };
+        streamingMessageIdsRef.current.delete(data.msg_id);
+        updateMessage(data.msg_id, {
+          content: data.content,
+          isStreaming: false,
+        });
+        // If there are no follow-on tool calls and no workflow steps,
+        // we can drop the processing indicator here. Otherwise the
+        // workflow_update path will clear it when all steps complete.
+        const tool_calls_present =
+          Array.isArray(data.tool_calls) && data.tool_calls.length > 0;
+        if (!tool_calls_present) {
+          setTimeout(() => {
+            const state = useChatStore.getState();
+            if (
+              state.workflowSteps.length === 0 ||
+              state.workflowSteps.every((s) => s.status === 'completed')
+            ) {
+              setIsProcessing(false);
+            }
+          }, 100);
+        }
+        break;
+      }
+
       case 'error': {
         console.error('Server error:', message.data);
         setIsProcessing(false);
         break;
       }
     }
-  }, [addMessage, updateMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, queryClient]);
+  }, [addMessage, updateMessage, appendToMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, queryClient]);
 
   // Send a message
   const sendMessage = useCallback((content: string) => {
@@ -349,6 +434,15 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     wsRef.current.send(JSON.stringify(payload));
   }, [addMessage, setIsProcessing, setWorkflowSteps, setActiveAgentType]);
 
+  // Cancel an in-flight orchestrator turn. The server task is wrapped in
+  // ``asyncio.create_task`` and a ``{"type":"cancel"}`` event raises
+  // ``CancelledError`` inside the streaming generator.
+  const cancelInflight = useCallback(() => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'cancel' }));
+    setIsProcessing(false);
+  }, [setIsProcessing]);
+
   // Connect on mount
   useEffect(() => {
     shouldReconnectRef.current = true;
@@ -377,5 +471,6 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
 
     // Actions
     sendMessage,
+    cancelInflight,
   };
 }

@@ -34,7 +34,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
               </span>
               {!isUser && message.isStreaming && (
                 <span className="text-[10px] font-medium text-[var(--accent)] uppercase tracking-wider animate-pulse">
-                  Thinking...
+                  {message.content ? 'Streaming...' : 'Thinking...'}
                 </span>
               )}
             </div>

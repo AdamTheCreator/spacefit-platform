@@ -23,11 +23,22 @@ export interface Message {
   pending?: boolean;
 }
 
+export type WorkflowStepStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'error'
+  | 'timed_out'
+  | 'circuit_open';
+
 export interface WorkflowStep {
   id: string;
   agentType: AgentType;
-  status: 'pending' | 'running' | 'completed' | 'error';
+  status: WorkflowStepStatus;
   description: string;
+  errorMessage?: string;
+  errorKind?: string;
+  elapsedMs?: number;
 }
 
 export interface AgentInfo {
