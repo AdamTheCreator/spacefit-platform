@@ -36,7 +36,7 @@ There are **no frontend tests wired up.** `npm run build` doubles as the only ty
 ```
 uv pip install -e .                                   # or: pip install -e .
 playwright install --with-deps chromium               # required once for scraping/imports
-alembic upgrade head                                  # apply migrations (latest is 032)
+alembic upgrade head                                  # apply migrations (latest is 033)
 alembic revision --autogenerate -m "description"      # new migration
 uvicorn app.main:app --reload --port 8000             # dev server
 pytest tests/                                         # run all tests
@@ -82,7 +82,7 @@ The `backend` container runs `alembic upgrade head` on boot, so a fresh DB conve
 ### Backend
 
 - **Entry point:** `app/main.py`. FastAPI app mounts REST routers under `/api/v1/*`, serves OAuth callbacks, and exposes an MCP (Model Context Protocol) endpoint aliased as `spacegoose_mcp`.
-- **Database:** SQLAlchemy 2.0 async with `asyncpg`. Models live in `app/db/models/`. Migrations in `backend/alembic/versions/` follow numeric prefixes (001..032 currently); there is one hash-named migration `5c7681bfc694` wedged between 004 and 005 due to a historical branch. **Never edit a committed migration** — fix forward with a new one (see `030_rebrand_perigee_to_spacegoose.py` or `031_foundry_pricing_tiers.py` for the pattern).
+- **Database:** SQLAlchemy 2.0 async with `asyncpg`. Models live in `app/db/models/`. Migrations in `backend/alembic/versions/` follow numeric prefixes (001..033 currently); there is one hash-named migration `5c7681bfc694` wedged between 004 and 005 due to a historical branch. **Never edit a committed migration** — fix forward with a new one (see `030_rebrand_perigee_to_spacegoose.py` or `031_foundry_pricing_tiers.py` for the pattern).
 - **Enum columns are NOT native Postgres ENUMs.** Migration 005 created `subscription_plans.tier`, `subscriptions.status`, `usage_records.usage_type` etc. as plain `VARCHAR`. The SQLAlchemy models must therefore declare these columns with `Enum(MyEnum, native_enum=False, length=N, values_callable=lambda e: [v.value for v in e])` — otherwise asyncpg tries to cast bind parameters to a nonexistent PG type (`type "subscriptiontier" does not exist`) and every query by enum value 500s. Same rule applies to the new `sales_leads.status`. When adding a new enum-backed column, either (a) create a real PG ENUM in the migration AND drop `native_enum=False`, or (b) keep VARCHAR and keep the `native_enum=False` declaration consistent.
 - **Agents & LLM:** the chat orchestrator uses **specialist agents** behind a feature flag (introduced mid-project; see the `phase-3-specialist-agents` commits). All LLM tools route through the **MCP gateway** for audit logging + rate limiting — don't call Claude directly from new code, register a tool with the gateway.
 - **BYOK (Bring Your Own Key):** users configure provider + key via `/api/v1/ai-config`. Providers supported: Anthropic, OpenAI, Google Gemini, DeepSeek, openai_compatible. Per-specialist model overrides stored as JSON in `user_ai_configs.specialist_models_json`. Key resolution runs through `app/services/user_llm.py::resolve_user_llm()` which returns a `ResolvedLLM { client, provider, model, is_byok, specialist_models }`. **Zero-platform-tokens guarantee:** when `is_byok=True`, the orchestrator routes through the user's client AND `app/services/guardrails.py` skips the classifier fallback (`_classify_with_haiku` honors `resolved_llm`) AND skips `record_token_usage` + `check_token_budget`. Any new code path that calls Claude/OpenAI must accept and honor a `resolved_llm` — otherwise it'll leak tokens to the platform key.
@@ -158,6 +158,52 @@ Every MCP tool runs through `app.mcp.reliability.call_with_reliability`, which w
 Failures surface as `ToolError(kind, user_message, detail, elapsed_ms)`. The gateway emits a sentinel string `[TOOL_ERROR kind=…] user_message` so `_build_orchestrator_request` can wrap it as `### tool_name [FAILED: kind]` in the synthesis prompt. Claude then explains the unavailability to the user instead of pretending the tool worked. Frontend renders the new `WorkflowStepStatus` values (`timed_out`, `circuit_open`) with distinct chips.
 
 The circuit breaker is in-memory + per-process; swap to Redis when we add background workers.
+
+## Specialist agent loop
+
+The modern `/ws` chat endpoint routes through specialist agents when `settings.enable_specialist_routing` is true (default). Flow per turn:
+
+1. **Plan** — `app/services/orchestrator.py::plan_workflow` asks a small LLM to return a comma-separated list drawn from the keys in `app/agents/specialists/registry.py::SPECIALIST_REGISTRY` (`scout`, `analyst`, `matchmaker`, …). Parse failures and LLM errors both fall back to `["scout"]` so a single specialist always runs.
+2. **Workflow init** — the WS emits a `workflow_init` event with one step per planned specialist so the frontend's `AgentActivityPanel` can render the strip and highlight the active node as messages arrive.
+3. **Per-specialist streaming** — `_stream_specialist_to_ws` (in `app/api/chat.py`) calls `call_specialist_stream` for each name in order, carrying prior specialist outputs as assistant context. Each specialist emits its own `message_start` / `text_delta` / `message_end` triple with the right `agent_type` badge (mapping lives in `_SPECIALIST_TO_AGENT_TYPE`).
+4. **Synthesis** — if more than one specialist ran, the orchestrator streams a final synthesis pass. If only one ran, its content becomes the assistant turn directly.
+5. **Fallback** — any exception inside the routing branch falls through to the legacy monolithic `_stream_orchestrator_to_ws`, so a bad plan or a flaky specialist never breaks the chat surface.
+
+Per-specialist model overrides come from `ResolvedLLM.specialist_models[name]` (BYOK setting); `_build_specialist_request` picks the override first, then the resolved default. Tools are filtered per specialist via `SPECIALIST_REGISTRY[name].allowed_tools`. When you add a specialist:
+
+1. Register it in `SPECIALIST_REGISTRY` with `system_prompt`, `allowed_tools`, and a tier hint.
+2. Add the literal name to `AgentType` in both `backend/app/models/chat.py` and `frontend/src/types/chat.ts` (plus the `AGENTS` map for the human-readable label).
+3. Extend `_SPECIALIST_TO_AGENT_TYPE` in `app/api/chat.py` — the test `test_specialist_agent_type_map_is_complete` enforces this so a missing entry fails CI before it ships.
+4. Add an SVG icon + color entry + `idle` initial state in `frontend/src/components/Chat/AgentActivityPanel.tsx` (all three `Record<AgentType, …>` maps must stay complete or `tsc` fails).
+
+## Memory + personalization
+
+User-level memory has two layers:
+
+- **Structured memory** (`user_memory` table, since migration 014) — JSONB blobs for analyzed properties, book-of-business summary, inferred preferences. Surfaced via `app/api/memory.py` and assembled by `app/services/memory_service.py::get_context_block`.
+- **Personal facts** (`user_facts` table, migration 033) — free-form sentences the AI infers about the user, with explicit approval before they get injected into the system prompt.
+
+Lifecycle: `pending` → user approves → `approved` (eligible for prompt injection) OR user rejects → `rejected`. Approved facts can be archived later (`archived`). The `app/db/models/user_fact.py::UserFact` model carries `text`, `category` (`deal_prefs` / `geography` / `business_model` / `personal` / `other`), `confidence`, source linkage, and `last_used_at` for the rolling window.
+
+Extraction: `app/services/fact_extractor.py::extract_facts_from_turn` fires after each turn (called from `_extract_and_notify_facts` in `app/api/chat.py`) and:
+
+- Asks Haiku (or the user's BYOK model, with 200 max_tokens) to return a strict JSON list of up to 3 facts.
+- Tolerates markdown code fences + prose around the JSON; bad payloads degrade to `[]`.
+- Dedupes by Jaccard similarity ≥ 0.85 against existing `pending` + `approved` rows so the same fact doesn't get re-surfaced every turn.
+- Persists candidates as `status="pending"`. Always fire-and-forget — never block the streaming response.
+
+UI surface: `frontend/src/components/Memory/MemoryFactsPanel.tsx` renders approve/reject/archive controls; `frontend/src/hooks/useUserFacts.ts` owns the React Query hooks (`useUserFacts`, `useApproveFact`, `useRejectFact`, `useArchiveFact`). The Settings page shows two panels — "Pending facts to review" and "Approved facts" — inside the existing `MemorySection`. The chat WS emits a `fact_candidates` event after each turn that yields new pending rows; `useChat` invalidates the `['userFacts']` query cache so the sidebar refreshes live.
+
+Prompt injection: `MemoryService.get_context_block` appends up to 10 approved facts ordered by `last_used_at DESC NULLS LAST`, then `approved_at DESC`, under a `## What you should remember about me` heading. It bumps `last_used_at` on every injected fact so the rolling window stays fresh as the conversation evolves. The block is returned even when structured memory is empty if facts exist (so a brand-new user who only has facts still gets personalization).
+
+REST endpoints (under `/api/v1/users/me/memory`):
+
+- `GET /facts?status_filter=pending|approved|rejected|archived` — defaults to everything except archived.
+- `POST /facts/{id}/approve` — sets status to approved + stamps `approved_at`.
+- `POST /facts/{id}/reject` — sets status to rejected (excluded from future dedupe-by-text-equality but Jaccard still suppresses near-rephrases on re-extraction).
+- `DELETE /facts/{id}` — archives (soft delete; `204 No Content`).
+
+When you add a new extraction signal (e.g. extracting from outreach replies, not just chat turns), reuse `extract_facts_from_turn` so the dedupe + cap + redaction logic stays in one place. The Jaccard threshold and `_MAX_FACTS_PER_TURN` are constants at the top of `fact_extractor.py` — tune there.
 
 ## When adding a new page
 
