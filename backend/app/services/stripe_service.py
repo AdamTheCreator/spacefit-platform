@@ -53,7 +53,7 @@ class StripeService:
         )
         plan = result.scalar_one_or_none()
         if not plan:
-            raise ValueError(f"No plan configured for tier: {tier}")
+            raise ValueError(f"No plan configured for tier: {tier.value}")
         price_id = (
             plan.stripe_price_id_yearly
             if interval == "yearly"
@@ -61,7 +61,7 @@ class StripeService:
         )
         if not price_id:
             raise ValueError(
-                f"No Stripe {interval} price configured for tier: {tier}"
+                f"No Stripe {interval} price configured for tier: {tier.value}"
             )
 
         # Get or create Stripe customer
