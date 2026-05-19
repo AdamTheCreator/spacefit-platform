@@ -14,6 +14,12 @@ class PlanResponse(BaseModel):
     name: str
     description: str | None
     price_monthly: int
+    price_yearly: int = 0
+    billing_interval_default: str = "monthly"
+    # True when at least one Stripe price ID is configured for this plan.
+    # The pricing UI hides Stripe-checkout buttons for unconfigured tiers
+    # rather than letting users click through to a guaranteed 4xx.
+    is_purchasable: bool = False
     chat_sessions_per_month: int
     void_analyses_per_month: int
     demographics_reports_per_month: int
@@ -25,6 +31,7 @@ class PlanResponse(BaseModel):
     has_costar_access: bool
     has_email_outreach: bool
     has_api_access: bool
+    monthly_token_budget: int = 0
 
 
 class SubscriptionResponse(BaseModel):
@@ -65,6 +72,9 @@ async def get_plans(db: DBSession) -> list[PlanResponse]:
             name=p.name,
             description=p.description,
             price_monthly=p.price_monthly,
+            price_yearly=p.price_yearly,
+            billing_interval_default=p.billing_interval_default,
+            is_purchasable=bool(p.stripe_price_id or p.stripe_price_id_yearly),
             chat_sessions_per_month=p.chat_sessions_per_month,
             void_analyses_per_month=p.void_analyses_per_month,
             demographics_reports_per_month=p.demographics_reports_per_month,
@@ -76,6 +86,7 @@ async def get_plans(db: DBSession) -> list[PlanResponse]:
             has_costar_access=p.has_costar_access,
             has_email_outreach=p.has_email_outreach,
             has_api_access=p.has_api_access,
+            monthly_token_budget=p.monthly_token_budget,
         )
         for p in plans
     ]
@@ -102,6 +113,11 @@ async def get_current_subscription(
                 name=plan.name,
                 description=plan.description,
                 price_monthly=plan.price_monthly,
+                price_yearly=plan.price_yearly,
+                billing_interval_default=plan.billing_interval_default,
+                is_purchasable=bool(
+                    plan.stripe_price_id or plan.stripe_price_id_yearly
+                ),
                 chat_sessions_per_month=plan.chat_sessions_per_month,
                 void_analyses_per_month=plan.void_analyses_per_month,
                 demographics_reports_per_month=plan.demographics_reports_per_month,
@@ -113,6 +129,7 @@ async def get_current_subscription(
                 has_costar_access=plan.has_costar_access,
                 has_email_outreach=plan.has_email_outreach,
                 has_api_access=plan.has_api_access,
+                monthly_token_budget=plan.monthly_token_budget,
             ),
             current_period_start=subscription.current_period_start.isoformat()
             if subscription.current_period_start

@@ -27,8 +27,15 @@ def uuid_str() -> str:
 
 class SubscriptionTier(str, enum.Enum):
     FREE = "free"
-    INDIVIDUAL = "individual"
+    STARTER = "starter"
+    PRO = "pro"
+    MAX = "max"
     ENTERPRISE = "enterprise"
+    # Legacy tier retained so old `subscriptions.plan_id` rows still
+    # resolve through the SQLAlchemy enum coercion. Migration 031 backs
+    # those rows by re-pointing them at the new PRO plan and marks the
+    # individual plan inactive so it stops appearing in /plans.
+    INDIVIDUAL = "individual"
 
 
 class SubscriptionStatus(str, enum.Enum):
@@ -46,14 +53,23 @@ class SubscriptionPlan(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     tier: Mapped[SubscriptionTier] = mapped_column(
-        Enum(SubscriptionTier), unique=True, nullable=False
+        Enum(SubscriptionTier, native_enum=False, length=20, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        unique=True,
+        nullable=False,
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Pricing
-    price_monthly: Mapped[int] = mapped_column(Integer, default=0)  # In cents
+    # Pricing — all amounts in cents. ``price_yearly`` stores the full
+    # annual total (NOT a monthly equivalent), so a yearly plan billed at
+    # 20% off would be ``price_monthly * 12 * 0.8``.
+    price_monthly: Mapped[int] = mapped_column(Integer, default=0)
+    price_yearly: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     stripe_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_price_id_yearly: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    billing_interval_default: Mapped[str] = mapped_column(
+        String(10), default="monthly", server_default="monthly"
+    )
 
     # Feature limits (-1 = unlimited)
     chat_sessions_per_month: Mapped[int] = mapped_column(Integer, default=10)
@@ -107,7 +123,8 @@ class Subscription(Base):
         String(36), ForeignKey("subscription_plans.id"), nullable=False
     )
     status: Mapped[SubscriptionStatus] = mapped_column(
-        Enum(SubscriptionStatus), default=SubscriptionStatus.ACTIVE
+        Enum(SubscriptionStatus, native_enum=False, length=20, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        default=SubscriptionStatus.ACTIVE,
     )
 
     # Stripe integration
@@ -150,7 +167,10 @@ class UsageRecord(Base):
     subscription_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False
     )
-    usage_type: Mapped[UsageType] = mapped_column(Enum(UsageType), nullable=False)
+    usage_type: Mapped[UsageType] = mapped_column(
+        Enum(UsageType, native_enum=False, length=30, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+    )
     count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Period tracking (reset monthly)

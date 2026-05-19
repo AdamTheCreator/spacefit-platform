@@ -19,6 +19,7 @@ from app.db.models.document import (
 )
 from app.db.models.import_job import ImportJob
 from app.db.models.project import Project
+from app.db.models.sales_lead import SalesLead, SalesLeadStatus
 from app.db.models.subscription import (
     Subscription,
     SubscriptionPlan,
@@ -64,4 +65,6 @@ __all__ = [
     "UserMemory",
     "Project",
     "ImportJob",
+    "SalesLead",
+    "SalesLeadStatus",
 ]

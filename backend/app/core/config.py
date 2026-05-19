@@ -194,8 +194,28 @@ class Settings(BaseSettings):
     stripe_secret_key: str = Field(default="")
     stripe_publishable_key: str = Field(default="")
     stripe_webhook_secret: str = Field(default="")
+    # Per-tier Stripe price IDs. Each paid tier carries a monthly + yearly
+    # price; both are optional so dev can boot without Stripe configured.
+    # Legacy `stripe_individual_price_id` / `stripe_enterprise_price_id`
+    # are kept for backwards compatibility; new code reads the per-tier
+    # IDs directly off the SubscriptionPlan rows.
     stripe_individual_price_id: str = Field(default="")
     stripe_enterprise_price_id: str = Field(default="")
+    stripe_starter_monthly_price_id: str = Field(default="")
+    stripe_starter_yearly_price_id: str = Field(default="")
+    stripe_pro_monthly_price_id: str = Field(default="")
+    stripe_pro_yearly_price_id: str = Field(default="")
+    stripe_max_monthly_price_id: str = Field(default="")
+    stripe_max_yearly_price_id: str = Field(default="")
+
+    # Sales lead notification — comma-separated list of emails that
+    # should receive a notification when an enterprise lead is submitted.
+    # Falls back to ``resend_from_email`` so leads don't get dropped in
+    # environments that haven't configured a separate sales mailbox.
+    sales_lead_notify_to: str = Field(default="")
+    # Per-IP sales-lead submission cap (rolling window).
+    sales_lead_rate_limit: int = Field(default=3)
+    sales_lead_rate_window_seconds: int = Field(default=600)
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

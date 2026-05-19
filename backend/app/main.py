@@ -28,6 +28,7 @@ from app.api.projects import router as projects_router
 from app.api.ai_config import router as ai_config_router
 from app.api.admin import router as admin_router
 from app.api.imports import router as imports_router
+from app.api.sales import router as sales_router
 from app.core.config import settings
 from app.core.database import engine
 from app.core.logging import install_request_id_filter, request_id_var
@@ -132,6 +133,7 @@ fastapi_app.include_router(projects_router, prefix=settings.api_prefix)
 fastapi_app.include_router(ai_config_router, prefix=settings.api_prefix)
 fastapi_app.include_router(admin_router, prefix=settings.api_prefix)
 fastapi_app.include_router(imports_router, prefix=settings.api_prefix)
+fastapi_app.include_router(sales_router, prefix=settings.api_prefix)
 
 # Mount MCP HTTP+SSE transport -- external MCP clients (Claude Desktop, Cursor)
 # can connect at /mcp.  Internal agents use SpacegooseMCPClient (in-process).

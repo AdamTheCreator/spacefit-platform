@@ -37,15 +37,32 @@ class StripeService:
         tier: SubscriptionTier,
         success_url: str,
         cancel_url: str,
+        interval: str = "monthly",
     ) -> str:
-        """Create a Stripe Checkout session for subscription."""
+        """Create a Stripe Checkout session for subscription.
+
+        ``interval`` selects between the plan's monthly and yearly
+        Stripe price IDs. We fail fast (ValueError) when the requested
+        interval has no configured price so the caller can return a
+        clean 4xx — falling back silently would mean users get charged
+        the wrong cadence.
+        """
         # Get the plan
         result = await db.execute(
             select(SubscriptionPlan).where(SubscriptionPlan.tier == tier)
         )
         plan = result.scalar_one_or_none()
-        if not plan or not plan.stripe_price_id:
-            raise ValueError(f"No Stripe price configured for tier: {tier}")
+        if not plan:
+            raise ValueError(f"No plan configured for tier: {tier}")
+        price_id = (
+            plan.stripe_price_id_yearly
+            if interval == "yearly"
+            else plan.stripe_price_id
+        )
+        if not price_id:
+            raise ValueError(
+                f"No Stripe {interval} price configured for tier: {tier}"
+            )
 
         # Get or create Stripe customer
         result = await db.execute(
@@ -64,7 +81,7 @@ class StripeService:
             payment_method_types=["card"],
             line_items=[
                 {
-                    "price": plan.stripe_price_id,
+                    "price": price_id,
                     "quantity": 1,
                 }
             ],
@@ -74,11 +91,13 @@ class StripeService:
                 "user_id": user.id,
                 "plan_id": plan.id,
                 "tier": tier.value,
+                "interval": interval,
             },
             subscription_data={
                 "metadata": {
                     "user_id": user.id,
                     "plan_id": plan.id,
+                    "interval": interval,
                 },
             },
         )

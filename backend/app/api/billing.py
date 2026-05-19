@@ -1,6 +1,8 @@
+from typing import Literal
+
 import stripe
 from fastapi import APIRouter, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.config import settings
@@ -12,9 +14,13 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 
 class CreateCheckoutRequest(BaseModel):
-    tier: str  # "individual" or "enterprise"
+    tier: str  # "starter" / "pro" / "max"; "enterprise" is quote-based
     success_url: str
     cancel_url: str
+    interval: Literal["monthly", "yearly"] = Field(
+        default="monthly",
+        description="Billing cadence; yearly uses the plan's annual price ID",
+    )
 
 
 class CheckoutResponse(BaseModel):
@@ -45,6 +51,11 @@ async def create_checkout_session(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot checkout for free tier.",
         )
+    if tier == SubscriptionTier.ENTERPRISE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enterprise plans are quote-based; please contact sales.",
+        )
 
     try:
         checkout_url = await StripeService.create_checkout_session(
@@ -53,6 +64,7 @@ async def create_checkout_session(
             tier=tier,
             success_url=request.success_url,
             cancel_url=request.cancel_url,
+            interval=request.interval,
         )
         return CheckoutResponse(checkout_url=checkout_url)
     except ValueError as e:

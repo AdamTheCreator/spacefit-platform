@@ -203,13 +203,24 @@ class SubscriptionService:
         plan = subscription.plan
         limit = SubscriptionService.get_limit_for_usage_type(plan, usage_type)
 
+        # Lift the free-tier chat cap when the user has a valid BYOK key
+        # (their LLM cost is on them, so the platform isn't on the hook).
+        if (
+            usage_type == UsageType.CHAT_SESSION
+            and plan.tier == SubscriptionTier.FREE
+        ):
+            has_byok = await SubscriptionService._has_valid_byok(
+                db, subscription.user_id
+            )
+            limit = SubscriptionService.effective_chat_session_limit(plan, has_byok)
+
         # -1 means unlimited
         if limit == -1:
             return True, ""
 
         # Check if feature is disabled (0 limit)
         if limit == 0:
-            return False, f"This feature requires an Individual or Enterprise subscription."
+            return False, "This feature requires a paid Space Goose plan."
 
         # Check current usage
         current = await SubscriptionService.get_usage(db, subscription, usage_type)
@@ -218,6 +229,28 @@ class SubscriptionService:
             return False, f"You've reached your monthly limit of {limit} {usage_type.value.replace('_', ' ')}s. Upgrade to increase your limit."
 
         return True, ""
+
+    @staticmethod
+    async def _has_valid_byok(db: AsyncSession, user_id: str) -> bool:
+        """Best-effort lookup of whether the user has a validated BYOK
+        key. Returns False on any error so callers fall back to the
+        platform-default chat cap rather than 500ing."""
+        try:
+            from app.db.models.credential import UserAIConfig
+
+            result = await db.execute(
+                select(UserAIConfig).where(UserAIConfig.user_id == user_id)
+            )
+            for cfg in result.scalars().all():
+                if (
+                    cfg.provider != "platform_default"
+                    and cfg.is_key_valid
+                    and cfg.api_key_encrypted
+                ):
+                    return True
+        except Exception:
+            return False
+        return False
 
     @staticmethod
     async def check_feature_access(
@@ -261,67 +294,183 @@ class SubscriptionService:
 
     @staticmethod
     async def ensure_default_plans(db: AsyncSession) -> None:
-        """Create default subscription plans if they don't exist."""
-        # Check if plans exist
-        result = await db.execute(select(SubscriptionPlan))
-        if result.scalars().first():
-            return
+        """Create / refresh the Foundry-style tier plans.
 
-        plans = [
-            SubscriptionPlan(
-                tier=SubscriptionTier.FREE,
-                name="Free",
-                description="Get started with Space Goose",
-                price_monthly=0,
-                chat_sessions_per_month=10,
-                void_analyses_per_month=3,
-                demographics_reports_per_month=5,
-                emails_per_month=0,
-                documents_per_month=5,
-                team_members=1,
-                has_placer_access=False,
-                has_siteusa_access=False,
-                has_costar_access=False,
-                has_email_outreach=False,
-                has_api_access=False,
-            ),
-            SubscriptionPlan(
-                tier=SubscriptionTier.INDIVIDUAL,
-                name="Individual",
-                description="For growing CRE professionals",
-                price_monthly=4900,  # $49.00
-                chat_sessions_per_month=-1,  # Unlimited
-                void_analyses_per_month=50,
-                demographics_reports_per_month=-1,
-                emails_per_month=500,
-                documents_per_month=50,
-                team_members=3,
-                has_placer_access=True,
-                has_siteusa_access=True,
-                has_costar_access=False,
-                has_email_outreach=True,
-                has_api_access=False,
-            ),
-            SubscriptionPlan(
-                tier=SubscriptionTier.ENTERPRISE,
-                name="Enterprise",
-                description="For teams that need everything",
-                price_monthly=19900,  # $199.00
-                chat_sessions_per_month=-1,
-                void_analyses_per_month=-1,
-                demographics_reports_per_month=-1,
-                emails_per_month=5000,
-                documents_per_month=-1,
-                team_members=-1,
-                has_placer_access=True,
-                has_siteusa_access=True,
-                has_costar_access=True,
-                has_email_outreach=True,
-                has_api_access=True,
-            ),
+        Idempotent: each tier is upserted on its unique ``tier`` value so
+        running this on a fresh DB seeds everything, and running it on a
+        DB that already has the new plans is a no-op. The pricing /
+        flag values here are the source of truth; the SQL migration only
+        backfills legacy ``individual`` rows.
+        """
+        from app.core.config import settings
+
+        desired_plans: list[dict] = [
+            {
+                "tier": SubscriptionTier.FREE,
+                "name": "Free",
+                "description": "Get started with Space Goose",
+                "price_monthly": 0,
+                "price_yearly": 0,
+                "stripe_price_id": None,
+                "stripe_price_id_yearly": None,
+                "billing_interval_default": "monthly",
+                "chat_sessions_per_month": 10,
+                "void_analyses_per_month": 3,
+                "demographics_reports_per_month": 5,
+                "emails_per_month": 0,
+                "documents_per_month": 5,
+                "team_members": 1,
+                "monthly_token_budget": 500_000,
+                "has_placer_access": False,
+                "has_siteusa_access": False,
+                "has_costar_access": False,
+                "has_email_outreach": False,
+                "has_api_access": False,
+                "has_pipeline_reports": False,
+                "is_active": True,
+            },
+            {
+                "tier": SubscriptionTier.STARTER,
+                "name": "Starter",
+                "description": "For solo brokers kicking the tires",
+                "price_monthly": 2000,  # $20.00
+                "price_yearly": 19_200,  # $192.00 = 20% off $240
+                "stripe_price_id": settings.stripe_starter_monthly_price_id or None,
+                "stripe_price_id_yearly": settings.stripe_starter_yearly_price_id
+                or None,
+                "billing_interval_default": "monthly",
+                "chat_sessions_per_month": 200,
+                "void_analyses_per_month": 20,
+                "demographics_reports_per_month": 50,
+                "emails_per_month": 200,
+                "documents_per_month": 50,
+                "team_members": 1,
+                "monthly_token_budget": 2_000_000,
+                "has_placer_access": False,
+                "has_siteusa_access": False,
+                "has_costar_access": False,
+                "has_email_outreach": True,
+                "has_api_access": False,
+                "has_pipeline_reports": False,
+                "is_active": True,
+            },
+            {
+                "tier": SubscriptionTier.PRO,
+                "name": "Pro",
+                "description": "For active CRE pros who chat all day",
+                "price_monthly": 10_000,  # $100.00
+                "price_yearly": 96_000,  # $960.00 = 20% off $1200
+                "stripe_price_id": settings.stripe_pro_monthly_price_id or None,
+                "stripe_price_id_yearly": settings.stripe_pro_yearly_price_id
+                or None,
+                "billing_interval_default": "monthly",
+                "chat_sessions_per_month": 1000,
+                "void_analyses_per_month": -1,
+                "demographics_reports_per_month": -1,
+                "emails_per_month": 2000,
+                "documents_per_month": 200,
+                "team_members": 1,
+                "monthly_token_budget": 10_000_000,
+                "has_placer_access": True,
+                "has_siteusa_access": True,
+                "has_costar_access": False,
+                "has_email_outreach": True,
+                "has_api_access": False,
+                "has_pipeline_reports": True,
+                "is_active": True,
+            },
+            {
+                "tier": SubscriptionTier.MAX,
+                "name": "Max",
+                "description": "For high-volume teams who live in chat",
+                "price_monthly": 20_000,  # $200.00
+                "price_yearly": 192_000,  # $1920.00 = 20% off $2400
+                "stripe_price_id": settings.stripe_max_monthly_price_id or None,
+                "stripe_price_id_yearly": settings.stripe_max_yearly_price_id
+                or None,
+                "billing_interval_default": "monthly",
+                "chat_sessions_per_month": 5000,
+                "void_analyses_per_month": -1,
+                "demographics_reports_per_month": -1,
+                "emails_per_month": 10_000,
+                "documents_per_month": -1,
+                "team_members": 1,
+                "monthly_token_budget": 25_000_000,
+                "has_placer_access": True,
+                "has_siteusa_access": True,
+                "has_costar_access": True,
+                "has_email_outreach": True,
+                "has_api_access": True,
+                "has_pipeline_reports": True,
+                "is_active": True,
+            },
+            {
+                "tier": SubscriptionTier.ENTERPRISE,
+                "name": "Enterprise",
+                "description": "Custom plans for teams that need more",
+                "price_monthly": 0,  # quote-based
+                "price_yearly": 0,
+                "stripe_price_id": settings.stripe_enterprise_price_id or None,
+                "stripe_price_id_yearly": None,
+                "billing_interval_default": "yearly",
+                "chat_sessions_per_month": -1,
+                "void_analyses_per_month": -1,
+                "demographics_reports_per_month": -1,
+                "emails_per_month": -1,
+                "documents_per_month": -1,
+                "team_members": -1,
+                "monthly_token_budget": -1,
+                "has_placer_access": True,
+                "has_siteusa_access": True,
+                "has_costar_access": True,
+                "has_email_outreach": True,
+                "has_api_access": True,
+                "has_pipeline_reports": True,
+                "is_active": True,
+            },
         ]
 
-        for plan in plans:
-            db.add(plan)
+        for spec in desired_plans:
+            tier = spec["tier"]
+            result = await db.execute(
+                select(SubscriptionPlan).where(SubscriptionPlan.tier == tier)
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                # Refresh the source-of-truth fields. We deliberately do
+                # not touch ``id`` or ``created_at``.
+                for key, value in spec.items():
+                    if key == "tier":
+                        continue
+                    setattr(existing, key, value)
+            else:
+                db.add(SubscriptionPlan(**spec))
+
+        # Deactivate the legacy individual plan if it lingered through
+        # migration 031 (e.g. a fresh dev DB with no migration history).
+        result = await db.execute(
+            select(SubscriptionPlan).where(
+                SubscriptionPlan.tier == SubscriptionTier.INDIVIDUAL
+            )
+        )
+        legacy = result.scalar_one_or_none()
+        if legacy and legacy.is_active:
+            legacy.is_active = False
 
         await db.commit()
+
+    @staticmethod
+    def effective_chat_session_limit(
+        plan: SubscriptionPlan, has_valid_byok: bool
+    ) -> int:
+        """Resolve the per-month chat-session cap for a plan, taking
+        BYOK into account.
+
+        Free-tier users with a validated BYOK key pay no platform LLM
+        cost, so we lift their cap from 10 to 50 to make Space Goose
+        meaningfully useful even before they're ready to pay. Paid
+        tiers are returned unchanged.
+        """
+        if plan.tier == SubscriptionTier.FREE and has_valid_byok:
+            return max(plan.chat_sessions_per_month, 50)
+        return plan.chat_sessions_per_month
