@@ -194,14 +194,24 @@ def _effective_provider_model(config: UserAIConfig | None, user_tier: str) -> tu
 
     Replicates the v1 helper here rather than importing it so the v2
     module has no dependency on the v1 routing module — they're
-    allowed to evolve independently.
+    allowed to evolve independently. Both helpers must stay aligned
+    with ``resolve_user_llm`` so the display matches the runtime route:
+    BYOK model ids run through ``normalize_provider_model`` and
+    paid-tier detection goes through ``is_paid_tier`` so the new
+    starter / pro / max tiers route to the Claude Haiku platform key
+    rather than the Gemini Flash free-tier path.
     """
-    if config and config.provider != "platform_default" and config.is_key_valid:
-        from app.services.user_llm import PROVIDER_DEFAULT_MODELS
+    from app.services.user_llm import (
+        PROVIDER_DEFAULT_MODELS,
+        is_paid_tier,
+        normalize_provider_model,
+    )
 
-        model = config.model or PROVIDER_DEFAULT_MODELS.get(config.provider, "")
-        return config.provider, model
-    if user_tier in ("individual", "enterprise"):
+    if config and config.provider != "platform_default" and config.is_key_valid:
+        raw_model = config.model or PROVIDER_DEFAULT_MODELS.get(config.provider, "")
+        normalized = normalize_provider_model(config.provider, raw_model) or raw_model
+        return config.provider, normalized
+    if is_paid_tier(user_tier):
         return "anthropic", settings.llm_model or settings.anthropic_model
     return "google", "gemini-2.0-flash"
 

@@ -58,6 +58,21 @@ _ANTHROPIC_DEPRECATED_MODEL_ALIASES: dict[str, str] = {
     "claude-sonnet-4-20250514": "claude-3-5-sonnet-latest",
 }
 
+# Tier values that should route to paid-tier platform LLMs when the user
+# has no BYOK key. ``individual`` is the legacy single paid tier kept for
+# any subscriptions that lingered through migration 031; ``starter``,
+# ``pro``, ``max``, and ``enterprise`` are the Foundry-style tiers from
+# migration 031 onwards. Anything not in this set (i.e. ``free``) falls
+# through to the cheap Gemini Flash path.
+PAID_TIERS: frozenset[str] = frozenset(
+    {"starter", "pro", "max", "enterprise", "individual"}
+)
+
+
+def is_paid_tier(tier: str) -> bool:
+    """Whether the given tier value should be treated as a paid plan."""
+    return tier in PAID_TIERS
+
 
 def normalize_provider_model(provider: str, model: str | None) -> str | None:
     """Map deprecated provider model ids to stable aliases."""
@@ -96,7 +111,7 @@ class ResolvedLLM:
 
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
     """Resolve platform-owned LLM based on subscription tier."""
-    if tier in ("individual", "enterprise"):
+    if is_paid_tier(tier):
         # Paid tiers → Claude Haiku on platform key
         return ResolvedLLM(
             client=get_llm_client(),

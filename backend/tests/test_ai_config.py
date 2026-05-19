@@ -47,6 +47,32 @@ class TestEffectiveProviderModel:
         assert provider == "anthropic"
         assert model
 
+    @pytest.mark.parametrize("paid_tier", ["starter", "pro", "max"])
+    def test_no_config_new_paid_tiers_default_to_anthropic(
+        self, paid_tier: str
+    ) -> None:
+        # Regression: before is_paid_tier(), starter/pro/max fell through
+        # to the free-tier Gemini branch because the helper only checked
+        # for the legacy 'individual'/'enterprise' values.
+        provider, model = _effective_provider_model(None, paid_tier)
+        assert provider == "anthropic"
+        assert model
+
+    def test_byok_anthropic_deprecated_model_id_is_normalized(self) -> None:
+        # Regression: _effective_provider_model used to return the raw
+        # config.model value verbatim, so a user with a deprecated id
+        # (claude-sonnet-4-6-20260320) saw the bad id on the Settings
+        # page while the chat orchestrator routed them via the
+        # normalize_provider_model alias.
+        config = SimpleNamespace(
+            provider="anthropic",
+            model="claude-sonnet-4-6-20260320",
+            is_key_valid=True,
+        )
+        provider, model = _effective_provider_model(config, "pro")
+        assert provider == "anthropic"
+        assert model == "claude-3-5-sonnet-latest"
+
     def test_valid_byok_config_wins_over_tier_default(self) -> None:
         config = SimpleNamespace(
             provider="openai",

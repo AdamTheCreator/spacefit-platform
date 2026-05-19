@@ -18,6 +18,7 @@ from app.db.models.subscription import (
     SubscriptionTier,
 )
 from app.services.subscription import SubscriptionService
+from app.services.user_llm import is_paid_tier
 
 
 def _plan(tier: SubscriptionTier, chat_cap: int) -> SubscriptionPlan:
@@ -63,6 +64,22 @@ class TestEffectiveChatSessionLimit:
             SubscriptionService.effective_chat_session_limit(plan, has_valid_byok=False)
             == 1000
         )
+
+
+class TestIsPaidTier:
+    @pytest.mark.parametrize(
+        "tier", ["starter", "pro", "max", "enterprise", "individual"]
+    )
+    def test_paid_tiers_return_true(self, tier: str) -> None:
+        # All current paid tiers + the legacy 'individual' must register
+        # as paid; otherwise tier-gated routing (e.g., Claude Haiku for
+        # paid users without BYOK) silently falls through to the free
+        # Gemini path.
+        assert is_paid_tier(tier) is True
+
+    @pytest.mark.parametrize("tier", ["free", "", "unknown", "trial"])
+    def test_non_paid_tiers_return_false(self, tier: str) -> None:
+        assert is_paid_tier(tier) is False
 
 
 class TestSubscriptionTierEnum:

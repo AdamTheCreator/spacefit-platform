@@ -24,7 +24,12 @@ from app.api.deps import CurrentUser, get_db
 from app.core.config import settings
 from app.core.security import encrypt_credential, generate_user_salt
 from app.db.models.credential import UserAIConfig
-from app.services.user_llm import PROVIDER_DEFAULT_MODELS, select_validation_model
+from app.services.user_llm import (
+    PROVIDER_DEFAULT_MODELS,
+    is_paid_tier,
+    normalize_provider_model,
+    select_validation_model,
+)
 
 router = APIRouter(prefix="/ai-config", tags=["ai-config"])
 logger = logging.getLogger(__name__)
@@ -141,12 +146,21 @@ class ProviderInfo(BaseModel):
 # --- Helper ---
 
 def _effective_provider_model(config: UserAIConfig | None, user_tier: str) -> tuple[str, str]:
-    """Compute effective provider/model for display."""
-    if config and config.provider != "platform_default" and config.is_key_valid:
-        model = config.model or PROVIDER_DEFAULT_MODELS.get(config.provider, "")
-        return config.provider, model
+    """Compute effective provider/model for display.
 
-    if user_tier in ("individual", "enterprise"):
+    Mirrors ``resolve_user_llm`` so the Settings page shows the same model
+    the chat orchestrator will actually call: BYOK model ids are run
+    through ``normalize_provider_model`` to map deprecated aliases, and
+    the paid-tier check uses ``is_paid_tier`` so new Foundry tiers
+    (starter/pro/max) route to the Claude Haiku platform key instead of
+    falling through to Gemini Flash.
+    """
+    if config and config.provider != "platform_default" and config.is_key_valid:
+        raw_model = config.model or PROVIDER_DEFAULT_MODELS.get(config.provider, "")
+        normalized = normalize_provider_model(config.provider, raw_model) or raw_model
+        return config.provider, normalized
+
+    if is_paid_tier(user_tier):
         from app.core.config import settings
         return "anthropic", settings.llm_model or settings.anthropic_model
 
