@@ -43,8 +43,8 @@ export function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (user && !user.has_completed_onboarding && location.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />;
+  if (user && !user.has_completed_onboarding && location.pathname !== '/welcome') {
+    return <Navigate to="/welcome" replace />;
   }
 
   return <Outlet />;

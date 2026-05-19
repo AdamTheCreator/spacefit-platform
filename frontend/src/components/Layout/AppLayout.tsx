@@ -19,7 +19,6 @@ import {
   Search as SearchIcon,
   Building2,
   BarChart3,
-  Star,
   Layers,
   ChevronRight,
 } from 'lucide-react';
@@ -46,22 +45,18 @@ type NavItem = {
 const WORKSPACE_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: Home },
   { to: '/search', label: 'Find properties', icon: SearchIcon },
-  { to: '/properties', label: 'Properties', icon: Building2, matchPrefixes: ['/properties', '/property'] },
-  { to: '/projects', label: 'Projects', icon: Layers, matchPrefixes: ['/projects'] },
+  // /properties and /projects both route to ProjectsPage; surface one entry
+  // and let the matcher highlight it for either prefix.
+  { to: '/properties', label: 'Properties', icon: Building2, matchPrefixes: ['/properties', '/property', '/projects'] },
   { to: '/outreach', label: 'Outreach', icon: Mail },
   { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/chat', label: 'Chat', icon: MessageSquare, matchPrefixes: ['/chat'] },
-];
-
-const ACCOUNT_NAV: NavItem[] = [
-  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const DEMO_NAV: NavItem[] = [
   { to: '/analytics', label: 'Analytics (legacy)', icon: BarChart3 },
   { to: '/workflow', label: 'Workflow (legacy)', icon: Kanban, matchPrefixes: ['/workflow', '/pipeline'] },
   { to: '/insights', label: 'Insights (legacy)', icon: Sparkles },
-  { to: '/onboarding', label: 'Onboarding state', icon: Star },
   { to: '/empty', label: 'Empty state', icon: Layers },
 ];
 
@@ -169,13 +164,19 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
-  const menuItems = useMemo(() => [
-    { path: '/profile', label: 'Profile' },
-    { path: '/contacts', label: 'Contacts' },
-    { path: '/connections', label: 'Data Library' },
-    { path: '/settings', label: 'Settings' },
-    { action: 'logout', label: 'Sign out' },
-  ], []);
+  const menuItems = useMemo(() => {
+    const items: Array<{ path?: string; action?: string; label: string }> = [
+      { path: '/profile', label: 'Profile' },
+      { path: '/contacts', label: 'Contacts' },
+      { path: '/connections', label: 'Data Library' },
+      { path: '/settings', label: 'Settings' },
+    ];
+    if (user?.is_admin) {
+      items.push({ path: '/admin', label: 'Admin' });
+    }
+    items.push({ action: 'logout', label: 'Sign out' });
+    return items;
+  }, [user?.is_admin]);
 
   const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!dropdownOpen) return;
@@ -294,62 +295,39 @@ export function AppLayout({ children }: AppLayoutProps) {
           </nav>
         </div>
 
-        {/* Account section */}
-        <div className="px-3 pt-3 pb-1">
-          <SectionLabel>Account</SectionLabel>
-          <nav className="space-y-0.5 mt-1">
-            {ACCOUNT_NAV.map((item) => (
-              <SidebarLink
-                key={item.to}
-                to={item.to}
-                icon={item.icon}
-                label={item.label}
-                active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
-                onClick={() => isMobile && setSidebarOpen(false)}
+        {/* Demo screens — dev-only scaffolding for legacy/empty states.
+            Production builds hide this entirely. */}
+        {import.meta.env.DEV && (
+          <div className="px-3 pt-3 pb-1">
+            <button
+              type="button"
+              onClick={() => setDemoOpen((v) => !v)}
+              aria-expanded={demoOpen}
+              aria-controls="demo-screens-nav"
+              className="w-full flex items-center gap-1.5 px-3 py-1 text-[10.5px] font-semibold tracking-[0.1em] text-industrial-muted uppercase hover:text-industrial-secondary transition-colors"
+            >
+              <ChevronRight
+                size={11}
+                className={`transition-transform duration-200 ${demoOpen ? 'rotate-90' : ''}`}
               />
-            ))}
-            {user?.is_admin && (
-              <SidebarLink
-                to="/admin"
-                icon={Shield}
-                label="Admin"
-                active={isNavActive(location.pathname, '/admin')}
-                onClick={() => isMobile && setSidebarOpen(false)}
-              />
+              <span>Demo screens</span>
+            </button>
+            {demoOpen && (
+              <nav id="demo-screens-nav" className="space-y-0.5 mt-1">
+                {DEMO_NAV.map((item) => (
+                  <SidebarLink
+                    key={item.to}
+                    to={item.to}
+                    icon={item.icon}
+                    label={item.label}
+                    active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
+                    onClick={() => isMobile && setSidebarOpen(false)}
+                  />
+                ))}
+              </nav>
             )}
-          </nav>
-        </div>
-
-        {/* Demo screens — collapsed by default */}
-        <div className="px-3 pt-3 pb-1">
-          <button
-            type="button"
-            onClick={() => setDemoOpen((v) => !v)}
-            aria-expanded={demoOpen}
-            aria-controls="demo-screens-nav"
-            className="w-full flex items-center gap-1.5 px-3 py-1 text-[10.5px] font-semibold tracking-[0.1em] text-industrial-muted uppercase hover:text-industrial-secondary transition-colors"
-          >
-            <ChevronRight
-              size={11}
-              className={`transition-transform duration-200 ${demoOpen ? 'rotate-90' : ''}`}
-            />
-            <span>Demo screens</span>
-          </button>
-          {demoOpen && (
-            <nav id="demo-screens-nav" className="space-y-0.5 mt-1">
-              {DEMO_NAV.map((item) => (
-                <SidebarLink
-                  key={item.to}
-                  to={item.to}
-                  icon={item.icon}
-                  label={item.label}
-                  active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
-                  onClick={() => isMobile && setSidebarOpen(false)}
-                />
-              ))}
-            </nav>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* New Chat quick-action */}
         <div className="px-3 pt-2 pb-1">
@@ -365,20 +343,19 @@ export function AppLayout({ children }: AppLayoutProps) {
           </button>
         </div>
 
-        {/* Chat History */}
+        {/* Chat History — header + content only render once there's
+            something worth showing. Avoids a permanently-empty "History"
+            label + placeholder line eating space on fresh accounts. */}
         <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
-          <p className="text-[11px] font-bold text-industrial-muted uppercase tracking-widest px-3 mb-2">History</p>
           {isLoading ? (
             <div className="flex items-center gap-2 px-3 py-4">
               <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse" />
               <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse [animation-delay:200ms]" />
               <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse [animation-delay:400ms]" />
             </div>
-          ) : sessions.filter(s => s.message_count > 0).length === 0 ? (
-            <div className="text-industrial-muted text-xs px-3 py-4">
-              Your conversations will appear here
-            </div>
-          ) : (
+          ) : sessions.filter(s => s.message_count > 0).length === 0 ? null : (
+            <>
+            <p className="text-[11px] font-bold text-industrial-muted uppercase tracking-widest px-3 mb-2">History</p>
             <div className="space-y-0.5">
               {sessions.filter(s => s.message_count > 0).map((session) => (
                 <Link
@@ -409,6 +386,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </Link>
               ))}
             </div>
+            </>
           )}
         </div>
 
@@ -596,18 +574,37 @@ export function AppLayout({ children }: AppLayoutProps) {
                       <Settings size={16} />
                       <span>Settings</span>
                     </Link>
+
+                    {user?.is_admin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setDropdownOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 4 ? 'bg-[var(--bg-tertiary)]' : ''}`}
+                        role="menuitem"
+                        tabIndex={focusedIndex === 4 ? 0 : -1}
+                      >
+                        <Shield size={16} />
+                        <span>Admin</span>
+                      </Link>
+                    )}
                   </div>
 
                   <div className="border-t border-[var(--border-subtle)] py-1">
-                    <button
-                      onClick={() => { setDropdownOpen(false); handleLogout(); }}
-                      role="menuitem"
-                      tabIndex={focusedIndex === 4 ? 0 : -1}
-                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--color-error)] hover:bg-[var(--bg-error)] transition-colors w-full ${focusedIndex === 4 ? 'bg-[var(--bg-error)]' : ''}`}
-                    >
-                      <LogOut size={16} />
-                      <span>Sign out</span>
-                    </button>
+                    {(() => {
+                      const logoutIndex = user?.is_admin ? 5 : 4;
+                      const isFocused = focusedIndex === logoutIndex;
+                      return (
+                        <button
+                          onClick={() => { setDropdownOpen(false); handleLogout(); }}
+                          role="menuitem"
+                          tabIndex={isFocused ? 0 : -1}
+                          className={`flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--color-error)] hover:bg-[var(--bg-error)] transition-colors w-full ${isFocused ? 'bg-[var(--bg-error)]' : ''}`}
+                        >
+                          <LogOut size={16} />
+                          <span>Sign out</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </>

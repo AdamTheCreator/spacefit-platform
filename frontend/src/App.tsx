@@ -24,7 +24,7 @@ const OutreachPage = lazy(() => import('./pages/OutreachPage').then(m => ({ defa
 const ArchivedProjectsPage = lazy(() => import('./pages/ArchivedProjectsPage').then(m => ({ default: m.ArchivedProjectsPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
-const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const WelcomePage = lazy(() => import('./pages/WelcomePage').then(m => ({ default: m.WelcomePage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })));
@@ -73,7 +73,7 @@ function App() {
 
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
-            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/welcome" element={<WelcomePage />} />
             <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
             <Route path="/chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="/chat/:sessionId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />

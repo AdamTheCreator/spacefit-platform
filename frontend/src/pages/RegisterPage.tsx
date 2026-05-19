@@ -6,7 +6,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
 
   const handleSuccess = () => {
-    navigate('/onboarding', { replace: true });
+    navigate('/welcome', { replace: true });
   };
 
   return (

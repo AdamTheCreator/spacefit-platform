@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { AppLayout } from '../components/Layout/AppLayout';
+import { SetupCards } from '../components/Dashboard/SetupCards';
 import { useAuthStore } from '../stores/authStore';
 import { useProjects } from '../hooks/useProjects';
 import api from '../lib/axios';
@@ -552,6 +553,9 @@ export function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* Deferred setup tasks (BYOK, preferences, imports, connectors) */}
+          <SetupCards />
 
           {/* Pipeline strip */}
           <PipelineStrip onOpen={() => navigate('/workflow')} />
