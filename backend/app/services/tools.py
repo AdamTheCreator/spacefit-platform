@@ -179,6 +179,41 @@ USE THIS TOOL WHEN:
         },
     },
     {
+        "name": "document_search",
+        "description": """Search the text of documents attached to the current project for content matching a natural-language query. Returns the top matching snippets with filename and page number so you can quote them with a citation.
+
+USE THIS TOOL WHEN:
+- The user asks about content inside a project document that isn't in the summary block (e.g., "what does the OM say about the loan covenant", "find any mention of CAM charges", "what's the parking ratio in the site plan")
+- The user asks to find or quote specific language from an attached document
+- You need to verify or cite a claim before answering
+
+DO NOT use this tool when the session is not scoped to a project — it will return no results.
+Always include the document filename and page number from the result when you cite a snippet (e.g., "per Greenway-OM.pdf p.4, …").""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural-language search query. Use the user's words; the index does keyword matching with English stemming."
+                },
+                "project_id": {
+                    "type": "string",
+                    "description": "Project to search within. Use the project_id from the project-context block in the system prompt; without it the tool returns no results."
+                },
+                "document_id": {
+                    "type": "string",
+                    "description": "Optional: restrict the search to a single document by id. Omit to search across all of the project's completed documents."
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum snippets to return (default 5, hard cap 15).",
+                    "default": 5
+                }
+            },
+            "required": ["query", "project_id"]
+        }
+    },
+    {
         "name": "draft_outreach",
         "description": """Draft personalized outreach emails to a list of target tenants for a specific property vacancy. Returns drafts for user review — does NOT send.
 

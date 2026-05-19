@@ -9,7 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import func
+
 from app.db.models.document import DocumentStatus, ParsedDocument
+from app.db.models.document_chunk import DocumentChunk
 from app.db.models.import_job import ImportJob
 from app.db.models.project import Project
 
@@ -205,6 +208,18 @@ async def build_project_context(
     # Summarize completed documents only.
     doc_summaries = [summarize_extracted_data(d) for d in documents]
 
+    # Count indexed chunks per completed document so the chat knows
+    # which documents are searchable via document_search.
+    chunk_count_by_doc: dict[str, int] = {}
+    if documents:
+        chunk_rows = await db.execute(
+            select(DocumentChunk.document_id, func.count(DocumentChunk.id))
+            .where(DocumentChunk.document_id.in_([d.id for d in documents]))
+            .group_by(DocumentChunk.document_id)
+        )
+        for doc_id, count in chunk_rows.all():
+            chunk_count_by_doc[doc_id] = int(count)
+
     # Merge tenants and spaces across documents, deduplicating by name/suite
     seen_tenants: dict[str, dict] = {}
     all_spaces: list[dict] = []
@@ -266,12 +281,14 @@ async def build_project_context(
         "documents": [
             {
                 "filename": s["filename"],
+                "document_id": d.id,
                 "document_type": s["document_type"],
                 "status": DocumentStatus.COMPLETED.value,
                 "confidence_score": s["confidence_score"],
                 "processed_at": d.processed_at.isoformat() if d.processed_at else None,
                 "tenant_count": len(s["tenants"]),
                 "space_count": len(s["spaces"]),
+                "chunk_count": chunk_count_by_doc.get(d.id, 0),
                 "content_summary": s["content_summary"],
             }
             for s, d in zip(doc_summaries, documents, strict=False)

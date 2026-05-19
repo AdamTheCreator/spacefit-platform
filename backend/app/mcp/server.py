@@ -231,6 +231,50 @@ async def siteusa_import(
 
 
 # ---------------------------------------------------------------------------
+# Project document search
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    description="Search the text of documents attached to the current project. Returns top "
+    "matching snippets with filename + page number so the assistant can quote and cite them. "
+    "Requires a project_id from the project-context block; without it the tool returns no "
+    "results. Restrict to a single document by passing document_id."
+)
+@audit_and_limit("document_search")
+async def document_search(
+    query: str,
+    project_id: str,
+    document_id: str = "",
+    limit: int = 5,
+) -> str:
+    from app.core.database import async_session_factory
+    from app.mcp.context import current_user_id
+    from app.services.document_search import (
+        format_hits_for_chat,
+        search_document_chunks,
+    )
+
+    user_id = current_user_id.get() or ""
+    if not user_id:
+        return (
+            "document_search requires a user context. Try again from a "
+            "project-scoped chat session."
+        )
+
+    async with async_session_factory() as db:
+        hits = await search_document_chunks(
+            db,
+            query=query,
+            project_id=project_id,
+            user_id=user_id,
+            document_id=document_id or None,
+            limit=limit,
+        )
+    return format_hits_for_chat(hits)
+
+
+# ---------------------------------------------------------------------------
 # Action tools
 # ---------------------------------------------------------------------------
 

@@ -53,6 +53,9 @@ dependencies = [
 
     # PDF generation
     "reportlab>=4.0.0",
+
+    # PDF text extraction (for document_chunks / document_search)
+    "pypdf>=4.0.0",
 ]
 
 [project.optional-dependencies]

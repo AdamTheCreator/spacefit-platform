@@ -808,6 +808,10 @@ def format_project_context_block(project_context: dict) -> str:
         )
 
     # Documents list
+    project_id_for_search = project_context.get("project_id")
+    has_indexed_chunks = any(
+        (doc.get("chunk_count") or 0) > 0 for doc in documents
+    )
     if documents:
         lines.append(f"\n### Documents ({len(documents)})")
         for i, doc in enumerate(documents, 1):
@@ -817,14 +821,31 @@ def format_project_context_block(project_context: dict) -> str:
             sc = doc.get("space_count", 0)
             conf = doc.get("confidence_score")
             processed_at = doc.get("processed_at")
+            chunks = doc.get("chunk_count") or 0
+            doc_id = doc.get("document_id")
             conf_str = f", extraction confidence {conf:.0%}" if conf else ""
             processed_str = f", processed at {processed_at}" if processed_at else ""
+            chunks_str = f", {chunks} searchable text chunks" if chunks else ""
+            id_str = f", document_id={doc_id}" if doc_id else ""
             lines.append(
-                f"{i}. {doc['filename']} ({dt}) — status: {status}{conf_str}{processed_str}; {tc} tenants, {sc} spaces"
+                f"{i}. {doc['filename']} ({dt}) — status: {status}{conf_str}{processed_str}; "
+                f"{tc} tenants, {sc} spaces{chunks_str}{id_str}"
             )
             content_summary = doc.get("content_summary") or []
             for item in content_summary[:8]:
                 lines.append(f"   - {item}")
+
+    if has_indexed_chunks and project_id_for_search:
+        lines.append("\n### Document search")
+        lines.append(
+            f"To answer questions about content inside these documents that isn't in the "
+            f"summaries above (e.g. specific clauses, financial covenants, parking ratios, "
+            f"any verbatim language), call the `document_search` tool with "
+            f"`project_id=\"{project_id_for_search}\"`. Prefer the search tool over guessing. "
+            f"When you quote a snippet, always cite the filename and page number from the "
+            f"result (e.g. \"per Greenway-OM.pdf p.4, …\"). Pass `document_id` to restrict "
+            f"the search to one document when the user named a specific file."
+        )
 
     if processing_documents:
         lines.append(f"\n### Documents Still Processing ({len(processing_documents)})")

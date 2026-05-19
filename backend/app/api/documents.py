@@ -144,6 +144,26 @@ async def process_document_task(
                 parse_result["confidence"],
             )
 
+            # Index document chunks for project search (Initiative 5).
+            # This is best-effort: a chunk-extraction failure must NOT
+            # roll back the successful parse — the document is still
+            # usable from its structured extracted_data.
+            try:
+                from app.services.document_chunker import index_document
+
+                chunk_count = await index_document(session, document_id)
+                logger.info(
+                    "Document %s indexed into %d chunks", document_id, chunk_count
+                )
+            except Exception as chunk_err:
+                logger.warning(
+                    "Document %s chunk indexing failed (non-fatal): %s",
+                    document_id,
+                    chunk_err,
+                )
+                # Roll back only the chunk attempt; the parse stays committed.
+                await session.rollback()
+
         except Exception as e:
             logger.error("Document %s processing failed: %s", document_id, e, exc_info=True)
             await session.rollback()

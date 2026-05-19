@@ -39,6 +39,7 @@ RATE_LIMITS_PER_MIN: dict[str, int] = {
     "placer_import": 60,
     "siteusa_import": 60,
     "draft_outreach": 10,
+    "document_search": 60,
 }
 
 # In-process rate limit counter.  Single-process deployment.

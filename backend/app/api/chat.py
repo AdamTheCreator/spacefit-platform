@@ -498,6 +498,7 @@ async def handle_tool_calls(
         "demographics_analysis": AgentType.DEMOGRAPHICS,
         "tenant_roster": AgentType.TENANT_ROSTER,
         "void_analysis": AgentType.VOID_ANALYSIS,
+        "document_search": AgentType.ANALYST,
     }
 
     tool_descriptions = {
@@ -505,6 +506,7 @@ async def handle_tool_calls(
         "demographics_analysis": "Analyzing trade area demographics",
         "tenant_roster": "Fetching tenant roster",
         "void_analysis": "Identifying tenant gaps & opportunities",
+        "document_search": "Searching project documents",
     }
 
     # Create workflow steps for UI
