@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, Construction } from 'lucide-react';
 import { AppLayout } from '../components/Layout/AppLayout';
 import { SetupCards } from '../components/Dashboard/SetupCards';
 import { useAuthStore } from '../stores/authStore';
 import { useProjects } from '../hooks/useProjects';
 import api from '../lib/axios';
 import type { OutreachCampaignListItem } from '../types/outreach';
-import { contacts as contactRecords, companies as companyRecords } from './contacts/data';
+import type { Project } from '../types/project';
 
 // ---------- Today / hero ----------
 
@@ -42,87 +42,18 @@ function hoursSince(iso: string | null): number | null {
   return Math.max(0, Math.round(ms / (1000 * 60 * 60)));
 }
 
-// ---------- Pipeline strip ----------
-
-// Pipeline stage counts. Mirrors the WorkflowPage mock until a real
-// pipeline-stage service exists. Numbers must stay in sync with WorkflowPage.
-// TODO: swap for usePipelineSummary() once backend exposes the same buckets.
-type PipelineStage = {
-  key: string;
-  label: string;
-  count: number;
-  delta: string;
-  accent?: boolean;
-};
-
-const PIPELINE_STAGES: PipelineStage[] = [
-  { key: 'sourced',    label: 'Sourced',     count: 3, delta: '+1 wk' },
-  { key: 'screening',  label: 'Screening',   count: 2, delta: 'flat'  },
-  { key: 'outreach',   label: 'In outreach', count: 2, delta: '+1 wk', accent: true },
-  { key: 'diligence',  label: 'Diligence',   count: 1, delta: 'flat'  },
-  { key: 'loi_closed', label: 'LOI / Closed', count: 1, delta: '+1 wk' },
-];
-
-function PipelineStrip({ onOpen }: { onOpen: () => void }) {
-  const total = PIPELINE_STAGES.reduce((s, c) => s + c.count, 0) || 1;
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-2.5">
-        <h3 className="font-display text-[15px] font-semibold text-industrial">Pipeline</h3>
-        <button
-          onClick={onOpen}
-          className="text-xs font-medium text-industrial-secondary hover:text-industrial transition-colors"
-        >
-          Open workflow →
-        </button>
-      </div>
-      <div className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl overflow-hidden">
-        <div className="flex">
-          {PIPELINE_STAGES.map((s) => {
-            const flex = Math.max(8, (s.count / total) * 100);
-            return (
-              <div
-                key={s.key}
-                className={`flex-1 min-w-0 px-4 py-4 border-r last:border-r-0 border-[var(--border-subtle)] ${
-                  s.accent ? 'bg-[#FFF6EE]' : ''
-                }`}
-                style={{ flexBasis: `${flex}%` }}
-              >
-                <div
-                  className={`text-[10.5px] font-semibold uppercase tracking-[0.1em] ${
-                    s.accent ? 'text-[#C25E1F]' : 'text-industrial-secondary'
-                  }`}
-                >
-                  {s.label}
-                </div>
-                <div
-                  className={`font-display font-semibold text-[26px] mt-1 leading-none tracking-tight ${
-                    s.accent ? 'text-[#C25E1F]' : 'text-industrial'
-                  }`}
-                >
-                  {s.count}
-                </div>
-                <div className="text-[11px] text-industrial-secondary mt-1">{s.delta}</div>
-                <div className="h-[3px] mt-3 rounded-full overflow-hidden bg-[var(--bg-tertiary)]">
-                  <div
-                    className={`h-full ${s.accent ? 'bg-[#FF8A3D]' : 'bg-[var(--color-mist)]'}`}
-                    style={{ width: `${flex}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  return Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24));
 }
 
-// ---------- Today panel ----------
+// ---------- Triage panel ----------
 
-type RowKind = 'follow-up' | 'reply' | 'pipeline' | 'staleness';
+type RowKind = 'follow-up' | 'reply';
 
-interface TodayRow {
+interface TriageRow {
   id: string;
   kind: RowKind;
   lead: string;
@@ -135,8 +66,6 @@ interface TodayRow {
 const KIND_TONE: Record<RowKind, { label: string; bg: string; fg: string; dot: string }> = {
   'follow-up': { label: 'FOLLOW-UP', bg: '#FFF0E2', fg: '#C25E1F', dot: '#FF8A3D' },
   reply:       { label: 'REPLY',     bg: '#E3F1E5', fg: '#2F7A3B', dot: '#2F7A3B' },
-  pipeline:    { label: 'PIPELINE',  bg: '#E8F0FD', fg: '#3A5BA0', dot: '#3A5BA0' },
-  staleness:   { label: 'STALENESS', bg: '#F2F5F9', fg: '#596779', dot: '#A7ADB7' },
 };
 
 function KindPill({ kind }: { kind: RowKind }) {
@@ -156,18 +85,21 @@ function KindPill({ kind }: { kind: RowKind }) {
   );
 }
 
-function TodayPanel({
+function TriagePanel({
   rows,
   isLoading,
+  onSeeAll,
 }: {
-  rows: TodayRow[];
+  rows: TriageRow[];
   isLoading: boolean;
+  onSeeAll: () => void;
 }) {
+  const visibleRows = rows.slice(0, 8);
   return (
     <section className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl overflow-hidden">
       <header className="flex items-start justify-between px-[22px] py-[18px] border-b border-[var(--border-subtle)]">
         <div>
-          <h3 className="font-display text-[15px] font-semibold text-industrial">Today</h3>
+          <h3 className="font-display text-[15px] font-semibold text-industrial">Triage queue</h3>
           <p className="text-[12.5px] text-industrial-secondary mt-0.5">
             {isLoading
               ? 'Loading…'
@@ -176,14 +108,15 @@ function TodayPanel({
                 : `${rows.length} item${rows.length === 1 ? '' : 's'} need a decision`}
           </p>
         </div>
-        <button
-          type="button"
-          disabled
-          className="text-[12px] font-medium text-industrial-muted px-2.5 py-1 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors cursor-not-allowed"
-          title="Filtering coming soon"
-        >
-          Filter
-        </button>
+        {rows.length > visibleRows.length && (
+          <button
+            type="button"
+            onClick={onSeeAll}
+            className="text-[12px] font-medium text-industrial-secondary hover:text-industrial px-2.5 py-1 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
+          >
+            See all →
+          </button>
+        )}
       </header>
 
       {rows.length === 0 ? (
@@ -194,7 +127,7 @@ function TodayPanel({
         </div>
       ) : (
         <ul className="divide-y divide-[var(--border-subtle)]">
-          {rows.map((r) => (
+          {visibleRows.map((r) => (
             <li key={r.id} className="flex items-center gap-3 px-[22px] py-3">
               <KindPill kind={r.kind} />
               <div className="flex-1 min-w-0">
@@ -213,62 +146,79 @@ function TodayPanel({
         </ul>
       )}
 
-      <div className="flex items-center gap-2 px-[22px] py-3 bg-[var(--bg-cream)] border-t border-[var(--border-subtle)]">
-        <span className="w-5 h-5 rounded-full bg-[var(--color-success)]/15 text-[var(--color-success)] flex items-center justify-center">
-          <Check size={12} strokeWidth={3} />
-        </span>
-        <span className="text-[12.5px] text-industrial-secondary">
-          That's the queue. Inbox-zero by lunch?
-        </span>
-      </div>
+      {rows.length > 0 && (
+        <div className="flex items-center gap-2 px-[22px] py-3 bg-[var(--bg-cream)] border-t border-[var(--border-subtle)]">
+          <span className="w-5 h-5 rounded-full bg-[var(--color-success)]/15 text-[var(--color-success)] flex items-center justify-center">
+            <Check size={12} strokeWidth={3} />
+          </span>
+          <span className="text-[12.5px] text-industrial-secondary">
+            That's the queue. Inbox-zero by lunch?
+          </span>
+        </div>
+      )}
     </section>
   );
 }
 
-// ---------- At a glance tiles ----------
+// ---------- Project stage ----------
 
-interface GlanceTile {
-  label: string;
-  value: number | string;
-  sub: string;
-  tone?: 'warn' | 'good' | 'default';
+type ProjectStage = 'Drafting' | 'Researching' | 'In outreach' | 'Stalled';
+
+const STAGE_TONE: Record<ProjectStage, { bg: string; fg: string }> = {
+  Drafting:      { bg: 'var(--bg-tertiary)', fg: 'var(--color-industrial-secondary, #596779)' },
+  Researching:   { bg: '#E8F0FD',            fg: '#3A5BA0' },
+  'In outreach': { bg: '#FFF0E2',            fg: '#C25E1F' },
+  Stalled:       { bg: '#F2F5F9',            fg: '#A7ADB7' },
+};
+
+function getProjectStage(
+  project: Project,
+  campaigns: OutreachCampaignListItem[] | null,
+): ProjectStage {
+  const stale = (daysSince(project.updated_at) ?? 0) > 30;
+  if (stale) return 'Stalled';
+
+  const projectName = project.name.trim().toLowerCase();
+  const hasCampaign = !!campaigns?.some(
+    (c) => (c.property_name ?? '').trim().toLowerCase() === projectName,
+  );
+  if (hasCampaign) return 'In outreach';
+
+  const hasWork = (project.document_count ?? 0) > 0 || (project.session_count ?? 0) > 0;
+  if (hasWork) return 'Researching';
+  return 'Drafting';
 }
 
-function GlanceTiles({ tiles }: { tiles: GlanceTile[] }) {
+function ProjectStageBadge({ stage }: { stage: ProjectStage }) {
+  const tone = STAGE_TONE[stage];
   return (
-    <div className="space-y-3">
-      {tiles.map((t) => {
-        const subColor =
-          t.tone === 'warn' ? 'text-[#C25E1F]'
-          : t.tone === 'good' ? 'text-[#2F7A3B]'
-          : 'text-industrial-secondary';
-        return (
-          <div
-            key={t.label}
-            className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[14px] px-[18px] py-[16px]"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-industrial-secondary">
-              {t.label}
-            </div>
-            <div className="font-display font-bold text-[30px] text-industrial mt-1 leading-none tracking-tight">
-              {t.value}
-            </div>
-            <div className={`text-[12px] mt-1.5 ${subColor}`}>{t.sub}</div>
-          </div>
-        );
-      })}
-    </div>
+    <span
+      className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold"
+      style={{ backgroundColor: tone.bg, color: tone.fg }}
+    >
+      {stage}
+    </span>
   );
 }
 
 // ---------- Active projects rail ----------
+
+interface ActiveProjectCard {
+  id: string;
+  name: string;
+  subtitle: string;
+  stage: ProjectStage;
+  docCount: number;
+  sessionCount: number;
+  updatedAt: string;
+}
 
 function ActiveProjectsRail({
   projects,
   onAll,
   onOpen,
 }: {
-  projects: { id: string; name: string; subtitle: string; status: string; pct: number }[];
+  projects: ActiveProjectCard[];
   onAll: () => void;
   onOpen: (id: string) => void;
 }) {
@@ -290,48 +240,77 @@ function ActiveProjectsRail({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => onOpen(p.id)}
-              className="text-left bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl p-4 hover:border-[var(--color-neutral-900)] hover:shadow-sm transition-all"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-display text-[15.5px] font-semibold text-industrial truncate">
-                    {p.name}
+          {projects.map((p) => {
+            const updated = relativeTime(
+              hoursSince(p.updatedAt),
+            );
+            return (
+              <button
+                key={p.id}
+                onClick={() => onOpen(p.id)}
+                className="text-left bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl p-4 hover:border-[var(--color-neutral-900)] hover:shadow-sm transition-all"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-display text-[15.5px] font-semibold text-industrial truncate">
+                      {p.name}
+                    </div>
+                    <div className="text-[12px] text-industrial-secondary mt-0.5 truncate">
+                      {p.subtitle}
+                    </div>
                   </div>
-                  <div className="text-[12px] text-industrial-secondary mt-0.5 truncate">
-                    {p.subtitle}
-                  </div>
+                  <ProjectStageBadge stage={p.stage} />
                 </div>
-                <span
-                  className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${
-                    p.status === 'Active'
-                      ? 'bg-[#E8F0FD] text-[#3A5BA0]'
-                      : 'bg-[var(--bg-tertiary)] text-industrial-secondary'
-                  }`}
-                >
-                  {p.status}
-                </span>
-              </div>
-              <div className="flex items-center justify-between mt-4 text-[11px] text-industrial-secondary">
-                <span>Pipeline filled</span>
-                <span className="font-semibold text-industrial">{p.pct}%</span>
-              </div>
-              <div className="h-1.5 mt-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
-                <div
-                  className="h-full"
-                  style={{
-                    width: `${p.pct}%`,
-                    background: 'linear-gradient(90deg, var(--orbit), var(--mist))',
-                  }}
-                />
-              </div>
-            </button>
-          ))}
+                <div className="flex items-center gap-3 mt-4 text-[11.5px] text-industrial-secondary">
+                  <span>
+                    {p.docCount} doc{p.docCount === 1 ? '' : 's'}
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-[var(--border-strong)]" />
+                  <span>
+                    {p.sessionCount} chat{p.sessionCount === 1 ? '' : 's'}
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-[var(--border-strong)]" />
+                  <span>Updated {updated}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
+    </section>
+  );
+}
+
+// ---------- Pipeline placeholder ----------
+
+function PipelinePlaceholder({ onPreview }: { onPreview: () => void }) {
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2.5">
+        <h3 className="font-display text-[15px] font-semibold text-industrial">Pipeline</h3>
+      </div>
+      <div className="bg-[var(--bg-secondary)] border border-dashed border-[var(--border-strong)] rounded-xl px-5 py-6 flex items-start gap-4">
+        <div className="w-10 h-10 rounded-full bg-[var(--bg-tertiary)] text-industrial-muted flex items-center justify-center shrink-0">
+          <Construction size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13.5px] font-semibold text-industrial">
+            Pipeline view — coming soon
+          </p>
+          <p className="text-[12.5px] text-industrial-secondary mt-1 leading-[1.55]">
+            Deal-stage tracking will live here once your projects move past
+            initial research. Stages will derive from your outreach and
+            diligence activity — no manual updates required.
+          </p>
+          <button
+            type="button"
+            onClick={onPreview}
+            className="mt-2.5 text-[12px] font-medium text-industrial-secondary hover:text-industrial transition-colors"
+          >
+            Preview workflow board →
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
@@ -346,7 +325,7 @@ export function DashboardPage() {
 
   const { data: projectsData } = useProjects({ page: 1 });
 
-  // Outreach campaigns drive Today + At-a-glance.
+  // Outreach campaigns drive the triage queue + project stages.
   const [campaigns, setCampaigns] = useState<OutreachCampaignListItem[] | null>(null);
   const [campaignsError, setCampaignsError] = useState(false);
 
@@ -365,152 +344,98 @@ export function DashboardPage() {
     };
   }, []);
 
-  // Derive Today rows from campaigns + contacts.
+  // Derive triage rows from real campaign data only.
   // TODO: replace with thread-level endpoints once they exist:
   //   GET /outreach/threads?status=follow_up_needed
   //   GET /outreach/threads?status=replied
-  const todayRows = useMemo<TodayRow[]>(() => {
-    const rows: TodayRow[] = [];
+  const triageRows = useMemo<TriageRow[]>(() => {
+    if (!campaigns) return [];
+    const rows: TriageRow[] = [];
 
-    if (campaigns) {
-      const followUps = campaigns
-        .filter((c) => c.status === 'sent' && c.sent_count - c.replied_count > 0)
-        .slice(0, 3);
+    // Replies come first — they're the freshest signal a human needs to see.
+    const replies = campaigns
+      .filter((c) => c.replied_count > 0)
+      .sort((a, b) => b.replied_count - a.replied_count);
 
-      followUps.forEach((c) => {
-        rows.push({
-          id: `fu-${c.id}`,
-          kind: 'follow-up',
-          lead: c.name,
-          sub: c.property_name
-            ? `${c.property_name} · ${c.sent_count - c.replied_count} awaiting reply`
-            : `${c.sent_count - c.replied_count} awaiting reply`,
-          when: relativeTime(hoursSince(c.sent_at ?? c.created_at)),
-          actionLabel: 'Review →',
-          onAction: () => navigate('/outreach'),
-        });
+    replies.forEach((c) => {
+      rows.push({
+        id: `rp-${c.id}`,
+        kind: 'reply',
+        lead: c.name,
+        sub: `${c.replied_count} fresh repl${c.replied_count === 1 ? 'y' : 'ies'}`,
+        when: relativeTime(hoursSince(c.sent_at)),
+        actionLabel: 'Reply →',
+        onAction: () => navigate('/outreach'),
       });
-
-      const replies = campaigns
-        .filter((c) => c.replied_count > 0)
-        .sort((a, b) => b.replied_count - a.replied_count)
-        .slice(0, 2);
-
-      replies.forEach((c) => {
-        rows.push({
-          id: `rp-${c.id}`,
-          kind: 'reply',
-          lead: c.name,
-          sub: `${c.replied_count} fresh repl${c.replied_count === 1 ? 'y' : 'ies'}`,
-          when: relativeTime(hoursSince(c.sent_at)),
-          actionLabel: 'Reply →',
-          onAction: () => navigate('/outreach'),
-        });
-      });
-    }
-
-    // Pipeline events for today.
-    // TODO: wire up when /deals/calendar is enabled here; mock one event for now.
-    rows.push({
-      id: 'pe-1',
-      kind: 'pipeline',
-      lead: 'Harper & Ninth — diligence call',
-      sub: '10:30 AM · 4 attendees',
-      when: 'Today',
-      actionLabel: 'Open →',
-      onAction: () => navigate('/projects'),
     });
 
-    // Staleness summary.
-    const staleCount = contactRecords.filter(
-      (c) => c.verif === 'stale' || c.verif === 'bounced',
-    ).length;
-    if (staleCount > 0) {
+    const followUps = campaigns.filter(
+      (c) => c.status === 'sent' && c.sent_count - c.replied_count > 0,
+    );
+
+    followUps.forEach((c) => {
       rows.push({
-        id: 'st-summary',
-        kind: 'staleness',
-        lead: `${staleCount} contacts need re-verification`,
-        sub: 'Stale or bounced over the last 30 days',
-        when: 'Now',
-        actionLabel: 'Open →',
-        onAction: () => navigate('/contacts'),
+        id: `fu-${c.id}`,
+        kind: 'follow-up',
+        lead: c.name,
+        sub: c.property_name
+          ? `${c.property_name} · ${c.sent_count - c.replied_count} awaiting reply`
+          : `${c.sent_count - c.replied_count} awaiting reply`,
+        when: relativeTime(hoursSince(c.sent_at ?? c.created_at)),
+        actionLabel: 'Review →',
+        onAction: () => navigate('/outreach'),
       });
-    }
+    });
 
     return rows;
   }, [campaigns, navigate]);
 
-  // At-a-glance counts.
-  const glance = useMemo<GlanceTile[]>(() => {
-    const followUpsDue = campaigns
-      ? campaigns.filter((c) => c.status === 'sent' && c.sent_count - c.replied_count > 0).length
-      : 0;
-    const repliesWaiting = campaigns
-      ? campaigns.reduce((sum, c) => sum + c.replied_count, 0)
-      : 0;
-    const draftsReady = campaigns ? campaigns.filter((c) => c.status === 'draft').length : 0;
-    const expandingBrands = companyRecords.filter((c) => c.is_expanding === true).length;
-
-    return [
-      {
-        label: 'Follow-ups due',
-        value: followUpsDue,
-        sub: `across ${campaigns?.length ?? 0} campaign${(campaigns?.length ?? 0) === 1 ? '' : 's'}`,
-        tone: 'warn',
-      },
-      {
-        label: 'Replies waiting',
-        value: repliesWaiting,
-        sub: 'last 48 hours',
-        tone: 'good',
-      },
-      {
-        label: 'Drafts ready',
-        value: draftsReady,
-        sub: 'awaiting your review',
-      },
-      {
-        label: 'Brands expanding',
-        value: expandingBrands,
-        sub: `of ${companyRecords.length} tracked contacts`,
-      },
-    ];
+  // Real counts feed the hero one-liner — no mock data, no placeholder events.
+  const heroSummary = useMemo(() => {
+    if (!campaigns) return null;
+    const replies = campaigns.reduce((sum, c) => sum + c.replied_count, 0);
+    const followUps = campaigns.filter(
+      (c) => c.status === 'sent' && c.sent_count - c.replied_count > 0,
+    ).length;
+    if (replies === 0 && followUps === 0) {
+      return 'All caught up — nothing waiting on you.';
+    }
+    const repliesPart =
+      replies === 0 ? '' : `${replies} repl${replies === 1 ? 'y' : 'ies'} waiting`;
+    const followUpsPart =
+      followUps === 0
+        ? ''
+        : `${followUps} follow-up${followUps === 1 ? '' : 's'} due`;
+    return [repliesPart, followUpsPart].filter(Boolean).join(' · ');
   }, [campaigns]);
 
-  // Hero summary sentence.
-  const heroSentence = useMemo(() => {
-    const fu = glance[0].value as number;
-    const rep = glance[1].value as number;
-    return `${fu} follow-up${fu === 1 ? '' : 's'} need your eyes, ${rep} fresh repl${rep === 1 ? 'y' : 'ies'}, and Harper & Ninth has a diligence call this morning.`;
-  }, [glance]);
-
-  // Top 3 projects by recent activity.
-  const projectCards = useMemo(() => {
+  // Top 6 projects by recent activity, with derived stage badges.
+  const projectCards = useMemo<ActiveProjectCard[]>(() => {
     const items = projectsData?.items ?? [];
     return [...items]
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-      .slice(0, 3)
-      .map((p) => {
-        const docs = p.document_count ?? 0;
-        const sessions = p.session_count ?? 0;
-        const pct = Math.min(100, Math.max(8, docs * 14 + sessions * 6));
-        return {
-          id: p.id,
-          name: p.name,
-          subtitle: p.property_address || p.description || 'No address yet',
-          status: p.is_archived ? 'Archived' : 'Active',
-          pct,
-        };
-      });
-  }, [projectsData]);
+      .filter((p) => !p.is_archived)
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+      )
+      .slice(0, 6)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        subtitle: p.property_address || p.description || 'No address yet',
+        stage: getProjectStage(p, campaigns),
+        docCount: p.document_count ?? 0,
+        sessionCount: p.session_count ?? 0,
+        updatedAt: p.updated_at,
+      }));
+  }, [projectsData, campaigns]);
 
   return (
     <AppLayout>
       <div className="h-full overflow-y-auto">
         <div className="px-8 py-7 grid gap-5 max-w-[1400px]">
-          {/* Hero banner — compact */}
+          {/* Hero banner — compact, single CTA, no mock content */}
           <div className="relative bg-[var(--color-neutral-900)] rounded-[20px] px-7 py-7 overflow-hidden text-white">
-            {/* Star sparkles */}
             <div className="absolute w-1 h-1 rounded-full bg-[#A7C7F7] opacity-70" style={{ top: 20, left: 30 }} />
             <div className="absolute w-1 h-1 rounded-full bg-[#E5B85C] opacity-80" style={{ top: 60, left: 90 }} />
             <div className="absolute w-[3px] h-[3px] rounded-full bg-[#A7C7F7] opacity-60" style={{ top: 130, left: 60 }} />
@@ -534,40 +459,26 @@ export function DashboardPage() {
                   {greeting}, {firstName}.
                 </h1>
                 <p className="text-[14px] leading-[1.55] text-white/75 mt-2 max-w-[560px] mx-auto sm:mx-0">
-                  {heroSentence}
+                  {heroSummary ?? 'Loading your queue…'}
                 </p>
               </div>
-              <div className="flex flex-col sm:items-end gap-2 shrink-0">
+              <div className="shrink-0">
                 <button
                   onClick={() => navigate('/outreach')}
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold text-sm transition-colors shadow-sm"
                 >
-                  Review queue
-                </button>
-                <button
-                  onClick={() => navigate('/search')}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  Find new properties →
+                  Review outreach queue
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Deferred setup tasks (BYOK, preferences, imports, connectors) */}
-          <SetupCards />
-
-          {/* Pipeline strip */}
-          <PipelineStrip onOpen={() => navigate('/workflow')} />
-
-          {/* Today + At a glance */}
-          <div
-            className="grid gap-5 items-start"
-            style={{ gridTemplateColumns: 'minmax(0, 1.85fr) minmax(220px, 0.9fr)' }}
-          >
-            <TodayPanel rows={todayRows} isLoading={!campaigns && !campaignsError} />
-            <GlanceTiles tiles={glance} />
-          </div>
+          {/* Triage queue — primary action */}
+          <TriagePanel
+            rows={triageRows}
+            isLoading={!campaigns && !campaignsError}
+            onSeeAll={() => navigate('/outreach')}
+          />
 
           {/* Active projects */}
           <ActiveProjectsRail
@@ -575,6 +486,12 @@ export function DashboardPage() {
             onAll={() => navigate('/projects')}
             onOpen={(id) => navigate(`/projects/${id}`)}
           />
+
+          {/* Pipeline — placeholder until backend has real stage data */}
+          <PipelinePlaceholder onPreview={() => navigate('/workflow')} />
+
+          {/* Setup cards — one-time tasks live at the bottom */}
+          <SetupCards />
 
           <div className="h-4" />
         </div>
