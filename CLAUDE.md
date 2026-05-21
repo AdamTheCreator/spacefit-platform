@@ -102,6 +102,23 @@ The old 4-step `OnboardingPage` wizard (3 of the 4 steps were non-functional) wa
 
 Backend onboarding state lives in `onboarding_progress`. `app/api/onboarding.py` uses tz-aware UTC datetimes (`datetime.now(UTC)`) and JSON-encodes the `completed_steps` / `skipped_steps` text columns on write, JSON-decoding on read. Don't revert to `datetime.utcnow()` or to raw comma-separated strings — the migration left the columns as `TEXT` and we rely on JSON parsing.
 
+## Dashboard
+
+`pages/DashboardPage.tsx` is the post-login landing page. It's deliberately oriented around **outreach triage as the primary action** rather than being an analytics dashboard. The page renders four sections in this order:
+
+1. **Hero** — date eyebrow + greeting + a one-line summary computed from real campaign data (e.g. "3 replies waiting · 5 follow-ups due" or, when both are zero, "All caught up — nothing waiting on you."). Single CTA "Review outreach queue" → `/outreach`.
+2. **Triage queue** (`TriagePanel`) — replies and follow-ups derived from `/outreach/campaigns`. Replies are sorted ahead of follow-ups because a human reply is the freshest signal. Capped at 8 rows with a "See all →" overflow when more exist. **No mock rows ever** — the previous `pe-1` Harper & Ninth diligence row and the demo-data staleness row were removed.
+3. **Active projects** (`ActiveProjectsRail`) — top 6 unarchived projects by `updated_at`, each with a real meta strip (`{docs} docs · {chats} chats · updated {relativeTime}`) and a derived stage badge from `getProjectStage(project, campaigns)`:
+   - `Drafting`     — 0 documents AND 0 sessions
+   - `Researching`  — has documents or sessions, no linked campaign
+   - `In outreach`  — a campaign's `property_name` matches `project.name` (case-insensitive, trimmed) — this is the cheapest match we can make until the campaign model carries a `project_id` foreign key. If you add that FK, switch the match to ID-based here.
+   - `Stalled`      — `updated_at` > 30 days ago (takes precedence over the above)
+   The old `pct = docs * 14 + sessions * 6` progress bar was removed; it was a vibe-number that looked like real progress.
+4. **Pipeline placeholder** (`PipelinePlaceholder`) — quiet dashed-border card explaining that deal-stage tracking will land here once backend supports it. Includes a "Preview workflow board →" link to the existing `/workflow` route. **The previous `PIPELINE_STAGES` hardcoded funnel (3/2/2/1/1 with "+1 wk" deltas) was removed.** If you wire up a real pipeline-summary endpoint, replace this component with a live strip — do not bring back the static array.
+5. **Setup cards** (`components/Dashboard/SetupCards.tsx`) — moved to the bottom because they're a one-time-per-account concern, not day-to-day chrome. Untouched by the consolidation.
+
+**Dashboard rule:** every number, count, badge, and row on this page must trace to a real API response. If the data doesn't exist yet, render a soft placeholder (like `PipelinePlaceholder`) rather than seeding mock values — the previous version had hardcoded pipeline counts, a fake calendar event, and demo-data tile counts living next to real numbers, and it made the whole page feel fake. The four "At a glance" tiles (`GlanceTiles` / `glance` useMemo) were also removed because they duplicated the triage list they sat next to.
+
 ## Auth flow (important gotcha)
 
 Auth state is split across two localStorage keys:
