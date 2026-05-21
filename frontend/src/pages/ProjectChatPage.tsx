@@ -5,7 +5,10 @@ import { ChatContainer } from '../components/Chat';
 import { ProjectSidebar } from '../components/Projects/ProjectSidebar';
 import { useProject } from '../hooks/useProjects';
 import { useQuery } from '@tanstack/react-query';
+import { useCollapsedPreference } from '../hooks/useCollapsedPreference';
 import api from '../lib/axios';
+
+const PROJECT_SIDEBAR_KEY = 'spacegoose:projectsidebar:collapsed';
 
 export function ProjectChatPage() {
   const { projectId, sessionId } = useParams<{
@@ -13,6 +16,8 @@ export function ProjectChatPage() {
     sessionId: string;
   }>();
   const { data: project, isLoading } = useProject(projectId || null);
+  const [sidebarCollapsed, toggleSidebarCollapsed] =
+    useCollapsedPreference(PROJECT_SIDEBAR_KEY, false);
 
   // Fetch project imports count
   const { data: projectImports } = useQuery({
@@ -83,8 +88,14 @@ export function ProjectChatPage() {
               projectId={projectId}
             />
           </div>
-          <div className="w-80 flex-shrink-0 hidden lg:block bg-[var(--bg-secondary)] border-l border-[var(--border-subtle)]">
-            <ProjectSidebar project={project} />
+          <div
+            className={`${sidebarCollapsed ? 'w-14' : 'w-80'} flex-shrink-0 hidden lg:block bg-[var(--bg-secondary)] border-l border-[var(--border-subtle)] transition-all duration-200`}
+          >
+            <ProjectSidebar
+              project={project}
+              collapsed={sidebarCollapsed}
+              onToggleCollapsed={toggleSidebarCollapsed}
+            />
           </div>
         </div>
       </div>

@@ -16,11 +16,16 @@ import {
   useCreateProjectSession,
   useDeleteProject,
 } from '../hooks/useProjects';
+import { useCollapsedPreference } from '../hooks/useCollapsedPreference';
+
+const PROJECT_SIDEBAR_KEY = 'spacegoose:projectsidebar:collapsed';
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { data: project, isLoading } = useProject(projectId || null);
+  const [sidebarCollapsed, toggleSidebarCollapsed] =
+    useCollapsedPreference(PROJECT_SIDEBAR_KEY, false);
   const createSession = useCreateProjectSession();
   const deleteProject = useDeleteProject();
   const [showMenu, setShowMenu] = useState(false);
@@ -194,8 +199,14 @@ export function ProjectDetailPage() {
         </div>
 
         {/* Right — Sidebar */}
-        <div className="w-80 flex-shrink-0 hidden lg:block bg-[var(--bg-secondary)] border-l border-[var(--border-subtle)]">
-          <ProjectSidebar project={project} />
+        <div
+          className={`${sidebarCollapsed ? 'w-14' : 'w-80'} flex-shrink-0 hidden lg:block bg-[var(--bg-secondary)] border-l border-[var(--border-subtle)] transition-all duration-200`}
+        >
+          <ProjectSidebar
+            project={project}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebarCollapsed}
+          />
         </div>
       </div>
 

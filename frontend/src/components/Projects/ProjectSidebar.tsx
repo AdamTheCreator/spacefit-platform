@@ -1,5 +1,16 @@
 import { useState, useRef, useCallback, useEffect, type DragEvent } from 'react';
-import { Plus, Pencil, Check, X, Upload } from 'lucide-react';
+import {
+  Plus,
+  Pencil,
+  Check,
+  X,
+  Upload,
+  PanelRightClose,
+  PanelRightOpen,
+  FileText,
+  Database,
+  StickyNote,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useUpdateProject, projectKeys } from '../../hooks/useProjects';
 import {
@@ -10,7 +21,7 @@ import {
 import { useUploadStore, type UploadItem } from '../../stores/uploadStore';
 import { DocumentCard } from './DocumentCard';
 import { ProjectDocumentPreviewModal } from './ProjectDocumentPreviewModal';
-import { ImportUploadCard } from '../Imports/ImportUploadCard';
+import { DataImportsSection } from '../Imports/DataImportsSection';
 import type { ProjectDetail } from '../../types/project';
 import type { DocumentUploadResponse, ParsedDocument } from '../../types/document';
 import api from '../../lib/axios';
@@ -18,6 +29,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 interface ProjectSidebarProps {
   project: ProjectDetail;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 function getEstimatedProcessingProgress(item: UploadItem, now: number) {
@@ -28,7 +41,11 @@ function getEstimatedProcessingProgress(item: UploadItem, now: number) {
   return Math.min(Math.round(estimated), 96);
 }
 
-export function ProjectSidebar({ project }: ProjectSidebarProps) {
+export function ProjectSidebar({
+  project,
+  collapsed = false,
+  onToggleCollapsed,
+}: ProjectSidebarProps) {
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructions, setInstructions] = useState(
     project.instructions || '',
@@ -230,9 +247,76 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
 
   const prop = project.property;
 
+  if (collapsed) {
+    const expand = () => onToggleCollapsed?.();
+    return (
+      <>
+        <div className="h-full flex flex-col items-center gap-3 py-3 px-1">
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            title="Expand panel"
+            aria-label="Expand panel"
+            className="p-2 rounded-lg text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial-secondary transition-colors"
+          >
+            <PanelRightOpen size={16} />
+          </button>
+          <div className="w-8 h-px bg-[var(--border-subtle)]" />
+          <button
+            type="button"
+            onClick={expand}
+            title="Instructions"
+            aria-label="Instructions"
+            className="p-2 rounded-lg text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial transition-colors"
+          >
+            <StickyNote size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={expand}
+            title={`Documents (${project.documents.length})`}
+            aria-label={`Documents (${project.documents.length})`}
+            className="relative p-2 rounded-lg text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial transition-colors"
+          >
+            <FileText size={16} />
+            {project.documents.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 rounded-full bg-[var(--accent)] text-[9px] font-semibold text-white flex items-center justify-center">
+                {project.documents.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={expand}
+            title="Data Imports"
+            aria-label="Data Imports"
+            className="p-2 rounded-lg text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial transition-colors"
+          >
+            <Database size={16} />
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-      <div className="h-full overflow-y-auto p-4 space-y-5 scrollbar-thin">
+      <div className="h-full overflow-y-auto p-4 space-y-4 scrollbar-thin">
+        {/* Collapse toggle */}
+        {onToggleCollapsed && (
+          <div className="flex items-center justify-end -mt-1 -mr-1">
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              title="Collapse panel"
+              aria-label="Collapse panel"
+              className="p-1.5 rounded-md text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial-secondary transition-colors"
+            >
+              <PanelRightClose size={15} />
+            </button>
+          </div>
+        )}
+
         {/* Property overview */}
         {prop && (
           <div>
@@ -408,23 +492,14 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
 
           {/* Data Imports */}
           <div className="mt-4">
-            <h3 className="text-[11px] font-bold text-industrial-muted uppercase tracking-widest mb-2">
-              Data Imports
-            </h3>
-            <div className="space-y-2">
-              {(['costar', 'placer', 'siteusa'] as const).map((source) => (
-                <ImportUploadCard
-                  key={source}
-                  source={source}
-                  projectId={project.id}
-                  onUploadComplete={() => {
-                    queryClient.invalidateQueries({
-                      queryKey: projectKeys.detail(project.id),
-                    });
-                  }}
-                />
-              ))}
-            </div>
+            <DataImportsSection
+              projectId={project.id}
+              onUploadComplete={() => {
+                queryClient.invalidateQueries({
+                  queryKey: projectKeys.detail(project.id),
+                });
+              }}
+            />
           </div>
         </div>
       </div>

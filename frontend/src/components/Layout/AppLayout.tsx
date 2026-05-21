@@ -21,6 +21,8 @@ import {
   BarChart3,
   Layers,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -29,6 +31,9 @@ import { usePreferences } from '../../hooks/usePreferences';
 import { ConnectorHealthBanner } from '../ConnectorHealthBanner';
 import { useSetupNotifications } from '../../hooks/useSetupNotifications';
 import { useApiHealth } from '../../hooks/useApiHealth';
+import { useCollapsedPreference } from '../../hooks/useCollapsedPreference';
+
+const SIDEBAR_COLLAPSED_KEY = 'spacegoose:sidebar:collapsed';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -80,31 +85,39 @@ function SidebarLink({
   icon: Icon,
   label,
   active,
+  collapsed = false,
   onClick,
 }: {
   to: string;
   icon: typeof Home;
   label: string;
   active: boolean;
+  collapsed?: boolean;
   onClick?: () => void;
 }) {
   return (
     <Link
       to={to}
       onClick={onClick}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
+      className={`flex items-center ${collapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'} rounded-lg text-sm font-medium transition-colors ${
         active
           ? 'bg-[var(--color-neutral-900)] text-white'
           : 'text-industrial-secondary hover:bg-[var(--bg-tertiary)] hover:text-industrial'
       }`}
     >
       <Icon size={16} />
-      <span className="flex-1">{label}</span>
-      {active && (
-        <span
-          aria-hidden="true"
-          className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] shrink-0"
-        />
+      {!collapsed && (
+        <>
+          <span className="flex-1">{label}</span>
+          {active && (
+            <span
+              aria-hidden="true"
+              className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] shrink-0"
+            />
+          )}
+        </>
       )}
     </Link>
   );
@@ -132,6 +145,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' && window.innerWidth >= 768
   );
+  const [sidebarCollapsed, toggleSidebarCollapsed] = useCollapsedPreference(
+    SIDEBAR_COLLAPSED_KEY,
+    false,
+  );
+  // Collapsed only applies on desktop; mobile keeps full-drawer behavior.
+  const isCollapsed = !isMobile && sidebarCollapsed;
   const [demoOpen, setDemoOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -226,6 +245,19 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
   }, [isMobile, sidebarOpen]);
 
+  // Cmd/Ctrl+\ toggles the desktop sidebar collapse.
+  useEffect(() => {
+    if (isMobile) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+        e.preventDefault();
+        toggleSidebarCollapsed();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isMobile, toggleSidebarCollapsed]);
+
   return (
     <div className="app-shell h-screen flex bg-[var(--bg-primary)]">
       {/* Skip link for keyboard users */}
@@ -252,7 +284,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             ? `fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-out ${
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }`
-            : `${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300`
+            : `${sidebarOpen ? (isCollapsed ? 'w-16' : 'w-72') : 'w-0'} transition-all duration-300`
           }
           app-sidebar flex flex-col border-r border-[var(--border-subtle)] overflow-hidden
         `}
@@ -261,26 +293,31 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Link
           to="/dashboard"
           onClick={() => isMobile && setSidebarOpen(false)}
-          className="flex items-center gap-2.5 px-4 py-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-tertiary)]/40 transition-colors"
+          className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'} py-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-tertiary)]/40 transition-colors`}
+          title={isCollapsed ? 'Space Goose' : undefined}
         >
           <img
             src="/spacegoose-logo.png"
             alt="Space Goose"
-            width={44}
-            height={44}
+            width={isCollapsed ? 36 : 44}
+            height={isCollapsed ? 36 : 44}
             className="rounded-full object-cover shrink-0"
           />
-          <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
-            SPACE GOOSE
-          </span>
-          <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
-            v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
-          </span>
+          {!isCollapsed && (
+            <>
+              <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
+                SPACE GOOSE
+              </span>
+              <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
+                v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
+              </span>
+            </>
+          )}
         </Link>
 
         {/* Workspace section */}
-        <div className="px-3 pt-3 pb-1">
-          <SectionLabel>Workspace</SectionLabel>
+        <div className={`${isCollapsed ? 'px-2' : 'px-3'} pt-3 pb-1`}>
+          {!isCollapsed && <SectionLabel>Workspace</SectionLabel>}
           <nav className="space-y-0.5 mt-1">
             {WORKSPACE_NAV.map((item) => (
               <SidebarLink
@@ -289,6 +326,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 icon={item.icon}
                 label={item.label}
                 active={isNavActive(location.pathname, item.to, item.matchPrefixes)}
+                collapsed={isCollapsed}
                 onClick={() => isMobile && setSidebarOpen(false)}
               />
             ))}
@@ -296,8 +334,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Demo screens — dev-only scaffolding for legacy/empty states.
-            Production builds hide this entirely. */}
-        {import.meta.env.DEV && (
+            Production builds hide this entirely. Hidden in collapsed rail. */}
+        {import.meta.env.DEV && !isCollapsed && (
           <div className="px-3 pt-3 pb-1">
             <button
               type="button"
@@ -330,24 +368,28 @@ export function AppLayout({ children }: AppLayoutProps) {
         )}
 
         {/* New Chat quick-action */}
-        <div className="px-3 pt-2 pb-1">
+        <div className={`${isCollapsed ? 'px-2' : 'px-3'} pt-2 pb-1`}>
           <button
             onClick={() => {
               handleNewChat();
               if (isMobile) setSidebarOpen(false);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-industrial-secondary border border-dashed border-[var(--border-strong)] hover:border-[var(--accent)] hover:text-industrial hover:bg-[var(--bg-tertiary)] transition-colors"
+            title={isCollapsed ? 'New chat' : undefined}
+            aria-label={isCollapsed ? 'New chat' : undefined}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'gap-2 px-3 py-2'} rounded-lg text-sm font-medium text-industrial-secondary border border-dashed border-[var(--border-strong)] hover:border-[var(--accent)] hover:text-industrial hover:bg-[var(--bg-tertiary)] transition-colors`}
           >
             <Plus size={14} />
-            <span>New chat</span>
+            {!isCollapsed && <span>New chat</span>}
           </button>
         </div>
 
         {/* Chat History — header + content only render once there's
             something worth showing. Avoids a permanently-empty "History"
-            label + placeholder line eating space on fresh accounts. */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
-          {isLoading ? (
+            label + placeholder line eating space on fresh accounts.
+            Hidden entirely in collapsed rail — the New Chat button stays
+            the single entry point, and expanding reveals history. */}
+        <div className={`flex-1 overflow-y-auto ${isCollapsed ? 'px-2' : 'px-3'} py-4 scrollbar-thin`}>
+          {isCollapsed ? null : isLoading ? (
             <div className="flex items-center gap-2 px-3 py-4">
               <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse" />
               <div className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse [animation-delay:200ms]" />
@@ -391,8 +433,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-[var(--border-subtle)] space-y-0.5">
-          {/* Upgrade card — always shown; /pricing handles current-plan state */}
+        <div className={`${isCollapsed ? 'p-2' : 'p-3'} border-t border-[var(--border-subtle)] space-y-0.5`}>
+          {/* Upgrade card — always shown; /pricing handles current-plan state.
+              Collapsed rail uses a compact mascot-only button. */}
           {(() => {
             const mascotMap: Record<string, { src: string; label: string }> = {
               '/dashboard':  { src: '/mascots/goose-planner.webp',  label: 'Plan smarter' },
@@ -411,6 +454,25 @@ export function AppLayout({ children }: AppLayoutProps) {
               location.pathname === prefix || location.pathname.startsWith(prefix + '/')
             );
             const mascot = match ? match[1] : { src: '/mascots/goose-launch.webp', label: 'Level up' };
+            if (isCollapsed) {
+              return (
+                <Link
+                  to="/pricing"
+                  onClick={() => isMobile && setSidebarOpen(false)}
+                  title="Upgrade"
+                  aria-label="Upgrade"
+                  className="flex items-center justify-center mb-2 w-12 h-12 mx-auto rounded-full overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-cream,var(--bg-tertiary))] hover:shadow-sm transition-shadow"
+                >
+                  <img
+                    src={mascot.src}
+                    alt=""
+                    aria-hidden="true"
+                    className="w-10 h-10 object-contain select-none pointer-events-none"
+                    draggable={false}
+                  />
+                </Link>
+              );
+            }
             return (
               <Link
                 to="/pricing"
@@ -441,14 +503,33 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <a
             href="mailto:support-spacegoose@agentmail.to"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors"
+            title={isCollapsed ? 'Support' : undefined}
+            aria-label={isCollapsed ? 'Support' : undefined}
+            className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'} rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors`}
           >
             <HelpCircle size={16} />
-            <span>Support</span>
+            {!isCollapsed && <span>Support</span>}
           </a>
-          <div className="px-3 pt-2">
-             <p className="text-[10px] text-industrial-muted">Space Goose v{import.meta.env.VITE_APP_VERSION}</p>
-          </div>
+
+          {/* Collapse/expand toggle — desktop only. */}
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              title={isCollapsed ? 'Expand sidebar (⌘\\)' : 'Collapse sidebar (⌘\\)'}
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className={`mt-1 flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'} rounded-lg text-sm text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial-secondary transition-colors w-full`}
+            >
+              {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              {!isCollapsed && <span>Collapse</span>}
+            </button>
+          )}
+
+          {!isCollapsed && (
+            <div className="px-3 pt-2">
+              <p className="text-[10px] text-industrial-muted">Space Goose v{import.meta.env.VITE_APP_VERSION}</p>
+            </div>
+          )}
         </div>
       </div>
 
