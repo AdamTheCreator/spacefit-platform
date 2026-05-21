@@ -289,31 +289,46 @@ export function AppLayout({ children }: AppLayoutProps) {
           app-sidebar flex flex-col border-r border-[var(--border-subtle)] overflow-hidden
         `}
       >
-        {/* Sidebar Header — Space Goose logo + wordmark */}
-        <Link
-          to="/dashboard"
-          onClick={() => isMobile && setSidebarOpen(false)}
-          className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'} py-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-tertiary)]/40 transition-colors`}
-          title={isCollapsed ? 'Space Goose' : undefined}
+        {/* Sidebar Header — Space Goose logo + wordmark + collapse toggle */}
+        <div
+          className={`flex items-center ${isCollapsed ? 'flex-col gap-1 px-2' : 'gap-2.5 px-4'} py-4 border-b border-[var(--border-subtle)]`}
         >
-          <img
-            src="/spacegoose-logo.png"
-            alt="Space Goose"
-            width={isCollapsed ? 36 : 44}
-            height={isCollapsed ? 36 : 44}
-            className="rounded-full object-cover shrink-0"
-          />
-          {!isCollapsed && (
-            <>
-              <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
-                SPACE GOOSE
-              </span>
-              <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
-                v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
-              </span>
-            </>
+          <Link
+            to="/dashboard"
+            onClick={() => isMobile && setSidebarOpen(false)}
+            title={isCollapsed ? 'Space Goose' : undefined}
+            className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5 flex-1 min-w-0'} hover:opacity-80 transition-opacity`}
+          >
+            <img
+              src="/spacegoose-logo.png"
+              alt="Space Goose"
+              width={isCollapsed ? 36 : 44}
+              height={isCollapsed ? 36 : 44}
+              className="rounded-full object-cover shrink-0"
+            />
+            {!isCollapsed && (
+              <>
+                <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
+                  SPACE GOOSE
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
+                  v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
+                </span>
+              </>
+            )}
+          </Link>
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              title={isCollapsed ? 'Expand sidebar (⌘\\)' : 'Collapse sidebar (⌘\\)'}
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="p-1.5 rounded-md text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial-secondary transition-colors shrink-0"
+            >
+              {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
           )}
-        </Link>
+        </div>
 
         {/* Workspace section */}
         <div className={`${isCollapsed ? 'px-2' : 'px-3'} pt-3 pb-1`}>
@@ -510,20 +525,6 @@ export function AppLayout({ children }: AppLayoutProps) {
             <HelpCircle size={16} />
             {!isCollapsed && <span>Support</span>}
           </a>
-
-          {/* Collapse/expand toggle — desktop only. */}
-          {!isMobile && (
-            <button
-              type="button"
-              onClick={toggleSidebarCollapsed}
-              title={isCollapsed ? 'Expand sidebar (⌘\\)' : 'Collapse sidebar (⌘\\)'}
-              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className={`mt-1 flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'} rounded-lg text-sm text-industrial-muted hover:bg-[var(--bg-tertiary)] hover:text-industrial-secondary transition-colors w-full`}
-            >
-              {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-              {!isCollapsed && <span>Collapse</span>}
-            </button>
-          )}
 
           {!isCollapsed && (
             <div className="px-3 pt-2">
