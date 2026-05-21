@@ -307,14 +307,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               className="rounded-full object-cover shrink-0"
             />
             {!isCollapsed && (
-              <>
-                <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
-                  SPACE GOOSE
-                </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[10px] font-medium text-industrial-secondary">
-                  v{import.meta.env.VITE_APP_VERSION ?? '2.4'}
-                </span>
-              </>
+              <span className="font-display font-bold text-[20px] text-industrial tracking-[0.02em]">
+                SPACE GOOSE
+              </span>
             )}
           </Link>
           {!isMobile && (
