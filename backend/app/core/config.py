@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     # Frontend URL (for OAuth redirects)
     frontend_url: str = Field(default="http://localhost:5174")
 
+    # Public base URL of THIS backend/API, used to build absolute links back to it
+    # (e.g. outreach open/click tracking pixels + tracked links). In prod set to
+    # e.g. https://spacegoose-api.onrender.com.
+    api_base_url: str = Field(default="http://localhost:8000")
+
     # Gmail API Settings (for outreach campaigns - satisfies PRD G5)
     gmail_redirect_uri: str = Field(
         default="http://localhost:8000/api/v1/auth/gmail/callback"

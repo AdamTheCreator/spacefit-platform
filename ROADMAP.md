@@ -44,7 +44,7 @@ it just isn't connected to anything, so it feels missing.
 | Campaign backend (11 endpoints + models) | ✅ Real | create / list / send / templates in `api/outreach.py`. |
 | AI email drafting from a property | ✅ Real | `draft_outreach` tool + Outreach specialist. |
 | Batched bulk send | ✅ Real | `email_blast.py`, batches of 10. |
-| Open/click tracking | ⚠️ Was broken | Model was missing `tracking_id` → every lookup crashed. **Fixed in Phase 0.** |
+| Open/click tracking | ✅ Real | `tracking_id` model fix **+** threaded through the send path (open pixel + tracked links via `api_base_url`). **Phase 0 / PR #34.** |
 | Real sending (Gmail / Resend) | ⚠️ Not wired | Both exist; campaigns fall back to a dev SMTP log. |
 | Reply reading / triage queue | ❌ Stub | `gmail_monitor.py` watches for flyers, not replies. Dashboard fakes it off `replied_count`. |
 | Contacts directory | ❌ Mock | 100% hardcoded in `pages/contacts/data.ts`. No model, no API. |
@@ -76,7 +76,7 @@ exactly the ones that made the app feel fake on the call.
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | Next |
 | **2 — Connect the spine** | "Create campaign from void/contacts" on-ramp; promote discovered tenants → Contacts | After P1 |
-| **3 — Finish sending** | Gmail send + wire tracking IDs into send path + reply triage (`/outreach/threads`) | After P2 |
+| **3 — Finish sending** | Gmail send + reply triage (`/outreach/threads`) *(tracking-id wiring done early, PR #34)* | After P2 |
 | **4 — Void depth** | leasing vs investment-memo modes · follow-up Qs · demographic list-scrubbing · intersections | Parallel-able |
 | **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
 
@@ -93,9 +93,11 @@ exactly the ones that made the app feel fake on the call.
    text and optional focus-area chips. Critically, it now writes to `instructions` (the field the
    agent actually reads + that's editable later in the project sidebar) — previously the text went
    to `description`, a dead field the LLM never saw.
-4. **Fixed broken email tracking.** `OutreachRecipient.tracking_id` existed in migration 004 but
-   was missing from the SQLAlchemy model, so every `/tracking/open|click` lookup raised. Added the
-   mapped column (indexed, auto-populated) so new recipients are trackable.
+4. **Fixed + wired email tracking end-to-end.** `OutreachRecipient.tracking_id` existed in
+   migration 004 but was missing from the SQLAlchemy model, so every `/tracking/open|click` lookup
+   raised. Added the mapped column (indexed, auto-populated), and (after a Codex review on PR #34)
+   threaded the id + a new `api_base_url` setting through the campaign send path so outgoing emails
+   actually embed the open pixel + tracked links — older recipients are backfilled at send time.
 
 ---
 
@@ -117,7 +119,8 @@ context, rather than static chips.
 
 ### 4) Outreach overhaul (bulk email) — **Phase 3 (finish, don't build)**
 - Wire **Gmail OAuth** send (Resend fallback); replace the dev-log SMTP path.
-- Generate + inject `tracking_id` in the send path (pixel + link wrapping already exist).
+- ~~Generate + inject `tracking_id` in the send path~~ — **done early (PR #34):** the send path
+  now embeds the open pixel + tracked links via the new `api_base_url` setting.
 - Build **reply triage**: `/outreach/threads`, map `gmail_monitor` replies to campaigns, replace
   the dashboard's `replied_count` hack.
 - Let recipients come from the new Contacts store, not just void output.
