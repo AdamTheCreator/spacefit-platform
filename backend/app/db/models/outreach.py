@@ -133,6 +133,13 @@ class OutreachRecipient(Base):
     nearest_location: Mapped[str | None] = mapped_column(String(200), nullable=True)
     distance_miles: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Open/click tracking — unguessable per-recipient id embedded in the pixel + links.
+    # The column + index already exist (migration 004); this mapping was missing, which
+    # made every /tracking/{open,click} lookup raise. Default keeps new recipients trackable.
+    tracking_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True, default=uuid_str
+    )
+
     # Status tracking
     status: Mapped[str] = mapped_column(String(20), default=RecipientStatus.PENDING.value)
 

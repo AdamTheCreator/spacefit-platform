@@ -7,21 +7,42 @@ interface CreateProjectModalProps {
   onClose: () => void;
 }
 
+// Optional analysis goals the user can toggle on; folded into the project
+// instructions so the agent knows how to treat the property.
+const GOAL_CHIPS = [
+  'Void / tenant-gap analysis',
+  'Demographics',
+  'Traffic counts',
+  'Investment memo',
+] as const;
+
 export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   const [name, setName] = useState('');
   const [propertyAddress, setPropertyAddress] = useState('');
-  const [description, setDescription] = useState('');
+  const [goal, setGoal] = useState('');
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const navigate = useNavigate();
   const createProject = useCreateProject();
+
+  const toggleGoal = (chip: string) =>
+    setSelectedGoals((prev) =>
+      prev.includes(chip) ? prev.filter((g) => g !== chip) : [...prev, chip]
+    );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
+    const focusLine = selectedGoals.length
+      ? `Focus areas: ${selectedGoals.join(', ')}.`
+      : '';
+    const instructions =
+      [goal.trim(), focusLine].filter(Boolean).join('\n\n') || undefined;
+
     try {
       const project = await createProject.mutateAsync({
         name: name.trim(),
-        description: description.trim() || undefined,
+        instructions,
         property_address: propertyAddress.trim() || undefined,
       });
       onClose();
@@ -83,18 +104,41 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
 
           <div>
             <label className="block text-sm font-medium text-industrial mb-1.5">
-              Description
+              What are you looking for?
               <span className="text-industrial-muted font-normal ml-1">
                 (optional)
               </span>
             </label>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of this property project..."
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              placeholder="e.g. I'm leasing this center — find the tenant gaps and the best prospects to backfill the vacant end-cap."
               rows={3}
               className="w-full px-3 py-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)]/50 transition-colors resize-none"
             />
+            <p className="mt-2 text-xs text-industrial-muted">
+              This steers how the agent treats the property. Add focus areas:
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {GOAL_CHIPS.map((chip) => {
+                const active = selectedGoals.includes(chip);
+                return (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => toggleGoal(chip)}
+                    aria-pressed={active}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                        : 'bg-[var(--bg-secondary)] text-industrial-secondary border-[var(--border-subtle)] hover:border-[var(--accent)]/50'
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2">

@@ -68,6 +68,13 @@ const CONTEXT_SUGGESTIONS: Record<string, { title: string; desc: string; icon: s
     { title: 'Draft outreach', desc: 'Create a personalized email for a tenant', icon: '✉️' },
     { title: 'Match tenants', desc: 'Find the best prospects for your space', icon: '🛍️' },
   ],
+  // Shown inside a property project's chat — tailored to the uploaded property + docs
+  project: [
+    { title: 'Run a void analysis', desc: 'Find the tenant gaps at this property', icon: '🛍️' },
+    { title: 'Summarize demographics', desc: 'Trade-area population, income, and spending', icon: '📊' },
+    { title: 'Draft an investment memo', desc: 'A first-pass memo from the uploaded docs', icon: '📝' },
+    { title: 'Draft tenant outreach', desc: 'Email the tenants worth pursuing', icon: '✉️' },
+  ],
 };
 
 const DEFAULT_SUGGESTIONS = [

@@ -86,6 +86,7 @@ export function ProjectChatPage() {
               key={sessionId}
               initialSessionId={sessionId}
               projectId={projectId}
+              chatContext="project"
             />
           </div>
           <div

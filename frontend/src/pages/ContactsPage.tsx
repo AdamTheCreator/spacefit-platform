@@ -4,6 +4,7 @@ import { Directory } from './contacts/Directory';
 import { CompanyDetailPage } from './contacts/CompanyDetail';
 import { ContactDetailPage } from './contacts/ContactDetail';
 import { Toast } from './contacts/ui';
+import { AppLayout } from '../components/Layout/AppLayout';
 
 type View =
   | { kind: 'directory' }
@@ -22,7 +23,9 @@ export function ContactsPage() {
   const backToDirectory = useCallback(() => setView({ kind: 'directory' }), []);
 
   return (
-    <div className="space-y-6">
+    <AppLayout>
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       {view.kind === 'directory' && (
         <>
           {/* Header */}
@@ -69,7 +72,9 @@ export function ContactsPage() {
         />
       )}
 
-      <Toast msg={toast} onClose={clearToast} />
-    </div>
+          <Toast msg={toast} onClose={clearToast} />
+        </div>
+      </div>
+    </AppLayout>
   );
 }
