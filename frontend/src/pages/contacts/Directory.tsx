@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import type { Company, Contact } from './data';
+import type { CreateRecipientRequest } from '../../types/outreach';
 import {
   contactFullName, formatRelDays, formatSF,
 } from './data';
@@ -60,6 +62,7 @@ function CompaniesTable({ companies, contactsForCompany, onOpenCompany, onToast 
   const [market, setMarket] = useState<string | null>(null);
   const [sfBucket, setSfBucket] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const sectors = useMemo(() => [...new Set(companies.map(c => c.sector))].map(s => ({ value: s, label: s })), [companies]);
   const markets = useMemo(() => {
@@ -182,7 +185,27 @@ function CompaniesTable({ companies, contactsForCompany, onOpenCompany, onToast 
 
       <SelectionBar count={selected.size} kind="company"
         onClear={() => setSelected(new Set())}
-        onSend={() => { onToast(`${selected.size} companies \u2014 send to Outreach campaign`); setSelected(new Set()); }}
+        onSend={() => {
+          const recips: CreateRecipientRequest[] = [];
+          for (const id of selected) {
+            const co = companies.find(c => c.id === id);
+            if (!co) continue;
+            for (const ct of contactsForCompany(id)) {
+              if (!ct.email) continue;
+              recips.push({
+                tenant_name: co.name,
+                contact_email: ct.email,
+                contact_name: contactFullName(ct),
+                contact_title: ct.role || undefined,
+              });
+            }
+          }
+          if (recips.length === 0) {
+            onToast('No contacts with an email at the selected companies');
+            return;
+          }
+          navigate('/outreach', { state: { composeRecipients: recips } });
+        }}
         onEnrich={() => { onToast(`Enrichment queued for ${selected.size} companies`); setSelected(new Set()); }} />
     </div>
   );
@@ -204,6 +227,7 @@ function ContactsTable({ contacts, companies, companiesById, onOpenContact, onOp
   const [hasEmail, setHasEmail] = useState<boolean | null>(null);
   const [recency, setRecency] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const sectors = useMemo(() => [...new Set(companies.map(c => c.sector))].map(s => ({ value: s, label: s })), [companies]);
 
@@ -360,7 +384,25 @@ function ContactsTable({ contacts, companies, companiesById, onOpenContact, onOp
 
       <SelectionBar count={selected.size} kind="contact"
         onClear={() => setSelected(new Set())}
-        onSend={() => { onToast(`${selected.size} contacts added to Outreach campaign draft`); setSelected(new Set()); }}
+        onSend={() => {
+          const recips: CreateRecipientRequest[] = [];
+          for (const id of selected) {
+            const ct = contacts.find(c => c.id === id);
+            if (!ct || !ct.email) continue;
+            const co = companiesById[ct.company_id];
+            recips.push({
+              tenant_name: co?.name || contactFullName(ct),
+              contact_email: ct.email,
+              contact_name: contactFullName(ct),
+              contact_title: ct.role || undefined,
+            });
+          }
+          if (recips.length === 0) {
+            onToast('Selected contacts have no email address');
+            return;
+          }
+          navigate('/outreach', { state: { composeRecipients: recips } });
+        }}
         onEnrich={() => { onToast(`Enrichment queued for ${selected.size} contacts`); setSelected(new Set()); }} />
     </div>
   );

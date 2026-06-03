@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Mail,
   Send,
@@ -17,6 +17,7 @@ import type {
   OutreachCampaignListItem,
   OutreachCampaign,
   CampaignStatus,
+  CreateRecipientRequest,
 } from '../types/outreach';
 
 // Status badge colors - industrial design
@@ -51,6 +52,9 @@ export function OutreachPage() {
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'all'>('all');
   const [selectedCampaign, setSelectedCampaign] = useState<OutreachCampaign | null>(null);
   const [showComposer, setShowComposer] = useState(false);
+  const [composeRecipients, setComposeRecipients] = useState<CreateRecipientRequest[]>([]);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const fetchCampaigns = async () => {
     try {
@@ -68,6 +72,17 @@ export function OutreachPage() {
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  // Open the composer pre-filled when navigated here from the Contacts directory
+  // ("Send to Outreach"). Clear the nav state so a refresh/back doesn't reopen it.
+  useEffect(() => {
+    const state = location.state as { composeRecipients?: CreateRecipientRequest[] } | null;
+    if (state?.composeRecipients?.length) {
+      setComposeRecipients(state.composeRecipients);
+      setShowComposer(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location, navigate]);
 
   // Filter campaigns
   const filteredCampaigns = campaigns.filter((campaign) => {
@@ -327,9 +342,14 @@ export function OutreachPage() {
           />
           <div className="relative w-full max-w-3xl mx-4">
             <EmailComposer
-              onClose={() => setShowComposer(false)}
+              initialRecipients={composeRecipients}
+              onClose={() => {
+                setShowComposer(false);
+                setComposeRecipients([]);
+              }}
               onCampaignCreated={() => {
                 setShowComposer(false);
+                setComposeRecipients([]);
                 fetchCampaigns();
               }}
             />

@@ -75,7 +75,7 @@ exactly the ones that made the app feel fake on the call.
 | --- | --- | --- |
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
-| **2 — Connect the spine** | "Create campaign from void/contacts" on-ramp; promote discovered tenants → Contacts | After P1 |
+| **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
 | **3 — Finish sending** | Gmail send + reply triage (`/outreach/threads`) *(tracking-id wiring done early, PR #34)* | After P2 |
 | **4 — Void depth** | leasing vs investment-memo modes · follow-up Qs · demographic list-scrubbing · intersections | Parallel-able |
 | **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
@@ -133,6 +133,8 @@ A campaign, concretely (the code already supports this shape):
 The missing piece is the **on-ramp**: a "Create campaign / Start outreach" action from a project or
 a void-analysis result that pre-fills recipients (discovered tenants + Contacts) and a drafted email,
 then drops the user into the existing composer. That single action is what makes campaigns feel real.
+
+> ✅ **Shipped (Phase 2):** the Contacts directory's "Send to Outreach" now pre-fills the composer with the selected contacts as recipients (sender pre-filled from your profile). Project / void-analysis on-ramps are the remaining entry points.
 
 ---
 
