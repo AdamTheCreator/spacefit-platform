@@ -17,6 +17,8 @@ from app.services.location_resolver import (
     _parse_commaless_address,
     _find_similar_cities,
     _normalize_state,
+    looks_like_intersection,
+    normalize_intersection,
     ResolvedLocation,
     ResolutionConfidence,
     ResolutionMethod,
@@ -357,3 +359,142 @@ class TestResolutionSuggestions:
         assert result.confidence == ResolutionConfidence.HIGH
         assert result.suggestions == []
         assert result.suggestion_message is None
+
+
+class TestLooksLikeIntersection:
+    """Tests for cross-street / intersection detection (pure)."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Main & 5th",
+            "Main & 5th, Reno, NV",
+            "Main St & 5th Ave, Reno NV",
+            "5th & Main St, Reno, NV",
+            "Main and 5th, Reno, NV",
+            "Main St and 5th Ave",
+            "Main @ 5th",
+            "Main / 5th",
+            "Main/5th, Reno NV",
+            "Main x 5th, Reno NV",
+            "corner of Main and 5th, Reno, NV",
+            "intersection of Broadway & 7th, New York, NY",
+            "Junction of Foxhall Rd and Reservoir Rd, Washington, DC",
+            "Cross streets: Main and 5th",
+        ],
+    )
+    def test_detects_intersections(self, text):
+        assert looks_like_intersection(text) is True
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "",
+            "Reno, NV",
+            "San Francisco, CA",
+            "Boston",
+            "123 Main St, Reno, NV 89501",  # house number => street address
+            "146-154 Main St weston ct",
+            "89501",
+            "Phoenix, AZ",  # 'x' inside a word, not " x "
+            "Land O' Lakes, FL",  # 'and' inside a word, not " and "
+            "Halifax, NS",
+            "The Walk Atlantic City NJ",
+        ],
+    )
+    def test_rejects_non_intersections(self, text):
+        assert looks_like_intersection(text) is False
+
+    def test_house_number_guard_beats_separator(self):
+        # A specific street address with a number is not a corner, even with "&".
+        assert looks_like_intersection("100 Main St & Suite 5, Reno NV") is False
+
+
+class TestNormalizeIntersection:
+    """Tests for cross-street normalization (pure)."""
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("Main & 5th", "Main and 5th"),
+            ("Main & 5th, Reno, NV", "Main and 5th, Reno, NV"),
+            ("Main St & 5th Ave, Reno, NV", "Main St and 5th Ave, Reno, NV"),
+            ("Main @ 5th, Reno NV", "Main and 5th, Reno NV"),
+            ("Main/5th, Reno NV", "Main and 5th, Reno NV"),
+            ("Main x 5th, Reno NV", "Main and 5th, Reno NV"),
+            ("Main and 5th, Reno, NV", "Main and 5th, Reno, NV"),
+            ("corner of Main & 5th, Reno, NV", "Main and 5th, Reno, NV"),
+            ("intersection of Broadway and 7th, New York, NY",
+             "Broadway and 7th, New York, NY"),
+            ("Cross streets: Main and 5th", "Main and 5th"),
+        ],
+    )
+    def test_normalizes(self, raw, expected):
+        assert normalize_intersection(raw) == expected
+
+    def test_only_first_separator_collapsed(self):
+        # The locality tail is preserved untouched; only the road join changes.
+        assert normalize_intersection("Foxhall Rd & Reservoir Rd, Washington, DC") == (
+            "Foxhall Rd and Reservoir Rd, Washington, DC"
+        )
+
+    def test_empty_passthrough(self):
+        assert normalize_intersection("") == ""
+
+
+@pytest.mark.asyncio
+class TestIntersectionResolution:
+    """resolve_location routes detected intersections straight to Google."""
+
+    @patch("app.services.location_resolver._geocode_with_google")
+    @patch("app.services.location_resolver._lookup_place_fips")
+    async def test_intersection_routes_to_google_with_normalized_query(
+        self, mock_place_fips, mock_google
+    ):
+        mock_place_fips.return_value = (
+            {
+                "name": "Reno city, Nevada",
+                "place_fips": "60600",
+                "state_fips": "32",
+                "population": 264165,
+            },
+            [],
+        )
+        mock_google.return_value = ResolvedLocation(
+            display_name="Main St & 5th Ave, Reno, NV, USA",
+            normalized_city="Reno",
+            state_abbrev="NV",
+            state_fips="32",
+            latitude=39.53,
+            longitude=-119.81,
+            primary_zip="89501",
+            confidence=ResolutionConfidence.HIGH,
+            method=ResolutionMethod.GOOGLE_GEOCODING,
+        )
+
+        result = await resolve_location("corner of Main St & 5th Ave, Reno, NV")
+
+        # Normalized form is what Google sees (no "corner of", join is " and ").
+        mock_google.assert_awaited_once_with("Main St and 5th Ave, Reno, NV")
+        # Place FIPS enrichment ran and the raw input is preserved.
+        assert result.place_fips == "60600"
+        assert result.original_input == "corner of Main St & 5th Ave, Reno, NV"
+        assert result.method == ResolutionMethod.GOOGLE_GEOCODING
+
+    @patch("app.services.location_resolver._geocode_with_google")
+    @patch("app.services.location_resolver._lookup_place_fips")
+    async def test_intersection_falls_through_when_google_unavailable(
+        self, mock_place_fips, mock_google
+    ):
+        # No Google key / no match -> the intersection branch returns None and the
+        # standard pipeline still produces a (low-confidence) result rather than
+        # raising or returning nothing.
+        mock_place_fips.return_value = (None, [])
+        mock_google.return_value = None
+
+        result = await resolve_location("Main & 5th, Reno, NV")
+
+        assert isinstance(result, ResolvedLocation)
+        # state is still recovered by the fallback pipeline
+        assert result.state_abbrev == "NV"
+        assert result.confidence == ResolutionConfidence.LOW
