@@ -7,6 +7,8 @@ This is the "game changer" feature that automates the manual spreadsheet + mail 
 
 from datetime import datetime, timezone
 from typing import Annotated
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import settings
 from app.db.models.user import User
 from app.db.models.outreach import (
     OutreachCampaign,
@@ -520,16 +523,23 @@ async def send_campaign(
     campaign.sent_at = datetime.utcnow()
     await db.commit()
 
+    # Ensure every recipient has a tracking id so the outgoing email can embed an
+    # open pixel + tracked links (rows created before the column default may lack one).
+    for r in recipients_to_send:
+        if not r.tracking_id:
+            r.tracking_id = str(uuid4())
+
     # Prepare recipients data
     recipients_data = [
         {
             "tenant_name": r.tenant_name,
             "contact_email": r.contact_email,
+            "tracking_id": r.tracking_id,
         }
         for r in recipients_to_send
     ]
 
-    # Send emails
+    # Send emails (tracking_base_url points opens/clicks back at this API)
     summary = await send_campaign_emails(
         recipients=recipients_data,
         subject_template=campaign.subject,
@@ -539,6 +549,7 @@ async def send_campaign(
         from_name=campaign.from_name,
         from_email=campaign.from_email,
         reply_to=campaign.reply_to,
+        tracking_base_url=settings.api_base_url,
     )
 
     # Update recipient statuses

@@ -175,6 +175,7 @@ async def send_campaign_emails(
     from_name: str,
     from_email: str,
     reply_to: str | None = None,
+    tracking_base_url: str | None = None,
     batch_size: int = 10,
     delay_between_batches: float = 1.0,
 ) -> CampaignSummary:
@@ -190,6 +191,7 @@ async def send_campaign_emails(
         from_name: Sender name
         from_email: Sender email
         reply_to: Reply-to address (optional)
+        tracking_base_url: Public base URL of this API for open/click tracking
         batch_size: Number of emails to send in parallel
         delay_between_batches: Seconds to wait between batches
 
@@ -231,6 +233,8 @@ async def send_campaign_emails(
                 from_name=from_name,
                 from_email=from_email,
                 reply_to=reply_to,
+                tracking_id=recipient.get("tracking_id"),
+                tracking_base_url=tracking_base_url,
             )
             batch_tasks.append(task)
 
