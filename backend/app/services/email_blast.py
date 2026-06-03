@@ -14,10 +14,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import asyncio
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from app.services.gmail import GmailTokens
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +93,16 @@ async def send_email(
     reply_to: str | None = None,
     tracking_id: str | None = None,
     tracking_base_url: str | None = None,
+    gmail_tokens: "GmailTokens | None" = None,
 ) -> EmailResult:
     """
     Send a single email.
 
-    For production, this should use a transactional email service
-    like SendGrid, Mailgun, or AWS SES for better deliverability.
+    Transport selection (in priority order):
+    1. Connected Gmail (when ``gmail_tokens`` is provided) — sends from the
+       user's actual Gmail account for better deliverability.
+    2. SMTP (when ``settings.smtp_host`` is configured).
+    3. Dev-log fallback (no transport configured).
 
     Args:
         to_email: Recipient email address
@@ -106,13 +113,49 @@ async def send_email(
         reply_to: Reply-to address (optional)
         tracking_id: Unique tracking ID for open/click tracking (optional)
         tracking_base_url: Base URL for tracking endpoints (optional)
+        gmail_tokens: User's Gmail OAuth tokens; when set, sends via Gmail
+            API instead of SMTP (optional)
     """
-    # Add tracking if configured
+    # Add tracking if configured. This runs before any transport so the
+    # tracked body (wrapped links + open pixel) is what actually gets sent,
+    # regardless of whether we send via Gmail, SMTP, or the dev-log path.
     if tracking_id and tracking_base_url:
         from app.api.tracking import add_tracking_pixel, wrap_links_for_tracking
 
         body_html = wrap_links_for_tracking(body_html, tracking_id, tracking_base_url)
         body_html = add_tracking_pixel(body_html, tracking_id, tracking_base_url)
+
+    # Connected-Gmail path: send from the user's actual Gmail account.
+    if gmail_tokens is not None:
+        from app.services.gmail import GmailService
+
+        try:
+            gmail_result = await GmailService(gmail_tokens).send_email_async(
+                to_email=to_email,
+                subject=subject,
+                body_html=body_html,
+                from_name=from_name,
+                reply_to=reply_to,
+            )
+        except Exception as e:  # noqa: BLE001 - surface as a failed result
+            return EmailResult(
+                success=False,
+                recipient_email=to_email,
+                error=str(e),
+            )
+
+        if gmail_result.success:
+            return EmailResult(
+                success=True,
+                recipient_email=to_email,
+                message_id=gmail_result.message_id,
+                sent_at=gmail_result.sent_at or datetime.utcnow(),
+            )
+        return EmailResult(
+            success=False,
+            recipient_email=to_email,
+            error=gmail_result.error,
+        )
 
     # Check if email is configured
     if not settings.smtp_host:
@@ -176,6 +219,7 @@ async def send_campaign_emails(
     from_email: str,
     reply_to: str | None = None,
     tracking_base_url: str | None = None,
+    gmail_tokens: "GmailTokens | None" = None,
     batch_size: int = 10,
     delay_between_batches: float = 1.0,
 ) -> CampaignSummary:
@@ -192,6 +236,8 @@ async def send_campaign_emails(
         from_email: Sender email
         reply_to: Reply-to address (optional)
         tracking_base_url: Public base URL of this API for open/click tracking
+        gmail_tokens: User's Gmail OAuth tokens; when set, all sends route
+            through the Gmail API instead of SMTP (optional)
         batch_size: Number of emails to send in parallel
         delay_between_batches: Seconds to wait between batches
 
@@ -235,6 +281,7 @@ async def send_campaign_emails(
                 reply_to=reply_to,
                 tracking_id=recipient.get("tracking_id"),
                 tracking_base_url=tracking_base_url,
+                gmail_tokens=gmail_tokens,
             )
             batch_tasks.append(task)
 

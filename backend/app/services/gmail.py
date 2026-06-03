@@ -24,8 +24,13 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.models.user import OAuthAccount
+
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +325,43 @@ class GmailService:
 def is_gmail_configured() -> bool:
     """Check if Gmail API credentials are configured."""
     return bool(settings.google_client_id and settings.google_client_secret)
+
+
+async def get_user_gmail_tokens(
+    db: AsyncSession, user_id: str
+) -> GmailTokens | None:
+    """
+    Load a user's connected Gmail OAuth tokens, if usable.
+
+    Returns a ``GmailTokens`` built from the stored ``OAuthAccount``
+    (provider == "google") combined with the platform Google client
+    credentials. Returns ``None`` when the user has no connected Google
+    account, the stored access token is missing, or the platform Google
+    client id/secret are not configured (in which case no refresh or send
+    could succeed anyway).
+    """
+    if not is_gmail_configured():
+        return None
+
+    result = await db.execute(
+        select(OAuthAccount).where(
+            OAuthAccount.user_id == user_id,
+            OAuthAccount.provider == "google",
+            OAuthAccount.access_token.is_not(None),
+        )
+    )
+    oauth_account = result.scalar_one_or_none()
+    if oauth_account is None:
+        return None
+
+    return GmailTokens(
+        access_token=oauth_account.access_token,
+        refresh_token=oauth_account.refresh_token or "",
+        token_uri=GOOGLE_TOKEN_URI,
+        client_id=settings.google_client_id,
+        client_secret=settings.google_client_secret,
+        expiry=oauth_account.expires_at,
+    )
 
 
 async def send_email_via_gmail(
