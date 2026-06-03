@@ -1,13 +1,17 @@
 import { useState, useMemo } from 'react';
 import { Sparkles } from 'lucide-react';
+import type { Company, Contact } from './data';
 import {
-  companies, contacts, companiesById, contactsForCompany,
   contactFullName, formatRelDays, formatSF,
 } from './data';
 import {
   CompanyLogo, ContactAvatar, VerifPill, ExpansionBadge,
   SearchInput, FilterChip, SelectionBar, thStyle, tdStyle,
 } from './ui';
+import { useCompanies, useContacts } from '../../hooks/useContacts';
+
+type CompaniesById = Record<string, Company>;
+type ContactsForCompany = (companyId: string) => Contact[];
 
 // ---- Tabs ----
 function Tabs({ tab, setTab, counts }: {
@@ -45,7 +49,9 @@ function Tabs({ tab, setTab, counts }: {
 }
 
 // ---- Companies table ----
-function CompaniesTable({ onOpenCompany, onToast }: {
+function CompaniesTable({ companies, contactsForCompany, onOpenCompany, onToast }: {
+  companies: Company[];
+  contactsForCompany: ContactsForCompany;
   onOpenCompany: (id: string) => void; onToast: (msg: string) => void;
 }) {
   const [q, setQ] = useState('');
@@ -55,12 +61,12 @@ function CompaniesTable({ onOpenCompany, onToast }: {
   const [sfBucket, setSfBucket] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const sectors = useMemo(() => [...new Set(companies.map(c => c.sector))].map(s => ({ value: s, label: s })), []);
+  const sectors = useMemo(() => [...new Set(companies.map(c => c.sector))].map(s => ({ value: s, label: s })), [companies]);
   const markets = useMemo(() => {
     const all = new Set<string>();
     companies.forEach(c => (c.target_markets || []).forEach(m => all.add(m)));
     return [...all].sort().map(m => ({ value: m, label: m }));
-  }, []);
+  }, [companies]);
 
   const filtered = useMemo(() => {
     return companies.filter(c => {
@@ -76,9 +82,9 @@ function CompaniesTable({ onOpenCompany, onToast }: {
       }
       return true;
     });
-  }, [q, sector, expanding, market, sfBucket]);
+  }, [companies, q, sector, expanding, market, sfBucket]);
 
-  const toggleSel = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSel = (id: string) => setSelected(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allSelected = filtered.length > 0 && filtered.every(c => selected.has(c.id));
   const toggleAll = () => {
     if (allSelected) setSelected(new Set());
@@ -183,7 +189,10 @@ function CompaniesTable({ onOpenCompany, onToast }: {
 }
 
 // ---- Contacts table ----
-function ContactsTable({ onOpenContact, onOpenCompany, onToast, staleOnly = false }: {
+function ContactsTable({ contacts, companies, companiesById, onOpenContact, onOpenCompany, onToast, staleOnly = false }: {
+  contacts: Contact[];
+  companies: Company[];
+  companiesById: CompaniesById;
   onOpenContact: (id: string) => void;
   onOpenCompany: (id: string) => void;
   onToast: (msg: string) => void;
@@ -196,7 +205,7 @@ function ContactsTable({ onOpenContact, onOpenCompany, onToast, staleOnly = fals
   const [recency, setRecency] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const sectors = useMemo(() => [...new Set(companies.map(c => c.sector))].map(s => ({ value: s, label: s })), []);
+  const sectors = useMemo(() => [...new Set(companies.map(c => c.sector))].map(s => ({ value: s, label: s })), [companies]);
 
   const filtered = useMemo(() => {
     return contacts.filter(ct => {
@@ -219,9 +228,9 @@ function ContactsTable({ onOpenContact, onOpenCompany, onToast, staleOnly = fals
       }
       return true;
     });
-  }, [q, sector, verif, hasEmail, recency]);
+  }, [contacts, companiesById, q, sector, verif, hasEmail, recency]);
 
-  const toggleSel = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSel = (id: string) => setSelected(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allSelected = filtered.length > 0 && filtered.every(c => selected.has(c.id));
   const toggleAll = () => {
     if (allSelected) setSelected(new Set());
@@ -315,11 +324,15 @@ function ContactsTable({ onOpenContact, onOpenCompany, onToast, staleOnly = fals
                   <td style={tdStyle()}>
                     <span style={{ color: 'var(--text-secondary)' }}>{ct.role}</span>
                   </td>
-                  <td style={tdStyle()} onClick={e => { e.stopPropagation(); onOpenCompany(co.id); }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <CompanyLogo company={co} size={24} radius={6} />
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{co?.name}</span>
-                    </div>
+                  <td style={tdStyle()} onClick={e => { if (co) { e.stopPropagation(); onOpenCompany(co.id); } }}>
+                    {co ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <CompanyLogo company={co} size={24} radius={6} />
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{co.name}</span>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>&mdash;</span>
+                    )}
                   </td>
                   <td style={tdStyle()}>
                     {ct.email ? (
@@ -361,15 +374,82 @@ export function Directory({ onOpenCompany, onOpenContact, onToast }: {
 }) {
   const [tab, setTab] = useState('companies');
 
+  const companiesQuery = useCompanies();
+  const contactsQuery = useContacts();
+  const companies = useMemo(() => companiesQuery.data ?? [], [companiesQuery.data]);
+  const contacts = useMemo(() => contactsQuery.data ?? [], [contactsQuery.data]);
+
+  const companiesById = useMemo<CompaniesById>(
+    () => Object.fromEntries(companies.map(c => [c.id, c])),
+    [companies],
+  );
+  const contactsForCompany = useMemo<ContactsForCompany>(
+    () => (companyId: string) => contacts.filter(c => c.company_id === companyId),
+    [contacts],
+  );
+
+  const isLoading = companiesQuery.isLoading || contactsQuery.isLoading;
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '64px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13.5 }}>
+        Loading contacts…
+      </div>
+    );
+  }
+
+  if (companies.length === 0 && contacts.length === 0) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+        gap: 14, padding: '56px 24px', maxWidth: 440, margin: '24px auto',
+        background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 16,
+      }}>
+        <img src="/mascots/goose-planner.webp" alt="" width={96} height={96} style={{ opacity: 0.95 }} />
+        <h3 className="font-display" style={{ fontSize: 18, color: 'var(--text-primary)' }}>No contacts yet</h3>
+        <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
+          Build your CRE network here. Use <strong>Add contact</strong> or <strong>Import CSV</strong> in the
+          page header to get started.
+        </p>
+      </div>
+    );
+  }
+
   const staleCount = contacts.filter(c => c.verif === 'stale' || c.verif === 'bounced').length;
   const counts = { companies: companies.length, contacts: contacts.length, stale: staleCount };
 
   return (
     <div>
       <Tabs tab={tab} setTab={setTab} counts={counts} />
-      {tab === 'companies' && <CompaniesTable onOpenCompany={onOpenCompany} onToast={onToast} />}
-      {tab === 'contacts' && <ContactsTable onOpenContact={onOpenContact} onOpenCompany={onOpenCompany} onToast={onToast} />}
-      {tab === 'stale' && <ContactsTable onOpenContact={onOpenContact} onOpenCompany={onOpenCompany} onToast={onToast} staleOnly />}
+      {tab === 'companies' && (
+        <CompaniesTable
+          companies={companies}
+          contactsForCompany={contactsForCompany}
+          onOpenCompany={onOpenCompany}
+          onToast={onToast}
+        />
+      )}
+      {tab === 'contacts' && (
+        <ContactsTable
+          contacts={contacts}
+          companies={companies}
+          companiesById={companiesById}
+          onOpenContact={onOpenContact}
+          onOpenCompany={onOpenCompany}
+          onToast={onToast}
+        />
+      )}
+      {tab === 'stale' && (
+        <ContactsTable
+          contacts={contacts}
+          companies={companies}
+          companiesById={companiesById}
+          onOpenContact={onOpenContact}
+          onOpenCompany={onOpenCompany}
+          onToast={onToast}
+          staleOnly
+        />
+      )}
     </div>
   );
 }

@@ -47,7 +47,7 @@ it just isn't connected to anything, so it feels missing.
 | Open/click tracking | ✅ Real | `tracking_id` model fix **+** threaded through the send path (open pixel + tracked links via `api_base_url`). **Phase 0 / PR #34.** |
 | Real sending (Gmail / Resend) | ⚠️ Not wired | Both exist; campaigns fall back to a dev SMTP log. |
 | Reply reading / triage queue | ❌ Stub | `gmail_monitor.py` watches for flyers, not replies. Dashboard fakes it off `replied_count`. |
-| Contacts directory | ❌ Mock | 100% hardcoded in `pages/contacts/data.ts`. No model, no API. |
+| Contacts directory | ✅ Real | Persisted `companies`/`contacts` + API + CSV import (migration 035). **Phase 1.** |
 | "Find properties" / Search | ❌ Mock | Hardcoded grid in `SearchPage.tsx`. |
 | Workflow / kanban board | ❌ Mock | Hardcoded columns that don't even match the real `DealStage` enum. |
 
@@ -74,7 +74,7 @@ exactly the ones that made the app feel fake on the call.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
-| **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | Next |
+| **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
 | **2 — Connect the spine** | "Create campaign from void/contacts" on-ramp; promote discovered tenants → Contacts | After P1 |
 | **3 — Finish sending** | Gmail send + reply triage (`/outreach/threads`) *(tracking-id wiring done early, PR #34)* | After P2 |
 | **4 — Void depth** | leasing vs investment-memo modes · follow-up Qs · demographic list-scrubbing · intersections | Parallel-able |
@@ -109,7 +109,7 @@ context, rather than static chips.
 
 ### 2) Side nav on Contacts — ✅ done (Phase 0)
 
-### 3) Bulk import of contacts — **Phase 1 (foundation)**
+### 3) Bulk import of contacts — ✅ **done (Phase 1)**
 - **Backend:** `Contact` + `Company` models, `/contacts` CRUD, `/contacts/import` (CSV). Model it
   on the existing `customers.py` + `useCustomers.ts` import pattern.
 - **Frontend:** `useContacts` hooks, replace mock `data.ts`, wire "Add contact" (one-by-one) and a

@@ -3,14 +3,16 @@ import {
   ArrowLeft, Send, Calendar, Sun, X, Check, ChevronRight,
   Mail, Phone, Sparkles, FileText,
 } from 'lucide-react';
-import type { Company, Contact, InteractionType } from './data';
+import type { Company, Contact, Interaction, InteractionType } from './data';
 import {
-  contactsById, companiesById, interactions,
   contactFullName, formatRelDays, sourceLabel,
 } from './data';
 import {
   ContactAvatar, CompanyLogo, VerifPill, SectionHeader, AttrRow,
 } from './ui';
+import {
+  useContact, useCompany, useContactInteractions, useAddInteraction,
+} from '../../hooks/useContacts';
 
 // ---- Contact detail page ----
 export function ContactDetailPage({ contactId, onBack, onOpenCompany, onToast }: {
@@ -19,16 +21,52 @@ export function ContactDetailPage({ contactId, onBack, onOpenCompany, onToast }:
   onOpenCompany: (id: string) => void;
   onToast: (msg: string) => void;
 }) {
-  const ct = contactsById[contactId];
-  if (!ct) return null;
-  const co = companiesById[ct.company_id];
+  const contactQuery = useContact(contactId);
+  const ct = contactQuery.data;
+  const companyQuery = useCompany(ct?.company_id ?? null);
+  const co = companyQuery.data;
+  const interactionsQuery = useContactInteractions(contactId);
+  const addInteraction = useAddInteraction(contactId);
+
   const [tab, setTab] = useState('history');
   const [enrichOpen, setEnrichOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [meetingOpen, setMeetingOpen] = useState(false);
-  const [extraEvents, setExtraEvents] = useState<TimelineEvent[]>([]);
 
-  const events = useMemo(() => buildTimeline(ct, extraEvents), [ct, extraEvents]);
+  const interactions = useMemo(
+    () => interactionsQuery.data ?? [],
+    [interactionsQuery.data],
+  );
+  const events = useMemo(() => buildTimeline(interactions), [interactions]);
+
+  if (contactQuery.isLoading) {
+    return (
+      <div style={{ padding: '64px 32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13.5 }}>
+        Loading contact…
+      </div>
+    );
+  }
+
+  if (!ct) {
+    return (
+      <div style={{ padding: '0 32px 80px', maxWidth: 1180, margin: '0 auto' }}>
+        <button onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, padding: '8px 0', marginBottom: 10 }}>
+          <ArrowLeft size={14} /> All contacts
+        </button>
+        <div style={{
+          padding: '48px 24px', textAlign: 'center', background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-default)', borderRadius: 16,
+        }}>
+          <h3 className="font-display" style={{ fontSize: 18, color: 'var(--text-primary)', marginBottom: 6 }}>Contact not found</h3>
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: 0 }}>
+            This contact may have been removed. Head back to the directory.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const stale = ct.verif === 'stale' || ct.verif === 'bounced';
 
   return (
@@ -64,11 +102,13 @@ export function ContactDetailPage({ contactId, onBack, onOpenCompany, onToast }:
             <VerifPill status={ct.verif} />
           </div>
           <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 14 }}>
-            {ct.role} at{' '}
-            <button onClick={() => onOpenCompany(co.id)}
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
-              <CompanyLogo company={co} size={20} radius={5} /> {co?.name}
-            </button>
+            {ct.role}{co ? ' at ' : ''}
+            {co && (
+              <button onClick={() => onOpenCompany(co.id)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+                <CompanyLogo company={co} size={20} radius={5} /> {co.name}
+              </button>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 13 }}>
             {ct.email && <InfoPiece icon={<Mail size={13} />} value={ct.email} mono />}
@@ -105,11 +145,14 @@ export function ContactDetailPage({ contactId, onBack, onOpenCompany, onToast }:
                   style={{ width: '100%', minHeight: 40, border: 'none', outline: 'none', fontSize: 13.5, color: 'var(--text-primary)', resize: 'vertical', padding: 0, background: 'transparent' }} />
                 {noteDraft.trim() && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <button className="btn-industrial-primary text-xs px-3 py-1.5 rounded-lg" onClick={() => {
-                      setExtraEvents(e => [{ id: `new_${Date.now()}`, type: 'note', when_days: 0, who: 'Adam Barlow', summary: noteDraft }, ...e]);
-                      setNoteDraft('');
-                      onToast('Note added');
-                    }}>Add note</button>
+                    <button className="btn-industrial-primary text-xs px-3 py-1.5 rounded-lg" disabled={addInteraction.isPending}
+                      onClick={() => {
+                        const summary = noteDraft.trim();
+                        addInteraction.mutate(
+                          { summary, type: 'note' },
+                          { onSuccess: () => { setNoteDraft(''); onToast('Note added'); } },
+                        );
+                      }}>{addInteraction.isPending ? 'Adding…' : 'Add note'}</button>
                     <button className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)]"
                       onClick={() => setNoteDraft('')}>Cancel</button>
                   </div>
@@ -157,10 +200,11 @@ export function ContactDetailPage({ contactId, onBack, onOpenCompany, onToast }:
       </div>
 
       {enrichOpen && <EnrichDrawer entity={ct} kind="contact" onClose={() => setEnrichOpen(false)} onToast={onToast} />}
-      {meetingOpen && <LogMeetingModal onClose={() => setMeetingOpen(false)} onSave={(m) => {
-        setExtraEvents(e => [{ id: `mt_${Date.now()}`, type: 'meeting', when_days: 0, who: 'Adam Barlow', title: m.title, summary: m.summary }, ...e]);
-        setMeetingOpen(false);
-        onToast('Meeting logged');
+      {meetingOpen && <LogMeetingModal pending={addInteraction.isPending} onClose={() => setMeetingOpen(false)} onSave={(m) => {
+        addInteraction.mutate(
+          { summary: m.summary, title: m.title, type: 'meeting' },
+          { onSuccess: () => { setMeetingOpen(false); onToast('Meeting logged'); } },
+        );
       }} />}
     </div>
   );
@@ -176,9 +220,15 @@ interface TimelineEvent {
   summary: string;
 }
 
-function buildTimeline(ct: Contact, extra: TimelineEvent[]): TimelineEvent[] {
-  const events: TimelineEvent[] = [...extra];
-  interactions.filter(i => i.contact_id === ct.id).forEach(i => events.push({ ...i }));
+function buildTimeline(interactions: Interaction[]): TimelineEvent[] {
+  const events: TimelineEvent[] = interactions.map(i => ({
+    id: i.id,
+    type: i.type,
+    when_days: i.when_days,
+    who: i.who,
+    title: i.title,
+    summary: i.summary,
+  }));
   events.sort((a, b) => (a.when_days ?? 999) - (b.when_days ?? 999));
   return events;
 }
@@ -356,9 +406,10 @@ export function EnrichDrawer({ entity, kind, onClose, onToast }: {
 }
 
 // ---- Log meeting modal ----
-function LogMeetingModal({ onClose, onSave }: {
+function LogMeetingModal({ onClose, onSave, pending }: {
   onClose: () => void;
   onSave: (m: { title: string; summary: string }) => void;
+  pending?: boolean;
 }) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
@@ -381,8 +432,8 @@ function LogMeetingModal({ onClose, onSave }: {
           style={{ minHeight: 120, resize: 'vertical' }} />
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)]" onClick={onClose}>Cancel</button>
-          <button className="btn-industrial-primary text-xs px-3 py-1.5 rounded-lg" disabled={!title.trim()}
-            onClick={() => onSave({ title, summary })}>Log meeting</button>
+          <button className="btn-industrial-primary text-xs px-3 py-1.5 rounded-lg" disabled={!title.trim() || pending}
+            onClick={() => onSave({ title, summary })}>{pending ? 'Logging…' : 'Log meeting'}</button>
         </div>
       </div>
     </div>

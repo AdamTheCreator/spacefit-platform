@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Send, Sun, Plus, Globe } from 'lucide-react';
 import {
-  companiesById, contactsForCompany, contactFullName,
+  contactFullName,
   formatRelDays, formatSF,
 } from './data';
 import {
@@ -9,6 +9,7 @@ import {
   SectionHeader, AttrRow,
 } from './ui';
 import { EnrichDrawer } from './ContactDetail';
+import { useCompany, useContacts } from '../../hooks/useContacts';
 
 export function CompanyDetailPage({ companyId, onBack, onOpenContact, onToast }: {
   companyId: string;
@@ -17,9 +18,39 @@ export function CompanyDetailPage({ companyId, onBack, onOpenContact, onToast }:
   onToast: (msg: string) => void;
 }) {
   const [enrichOpen, setEnrichOpen] = useState(false);
-  const co = companiesById[companyId];
-  if (!co) return null;
-  const cts = contactsForCompany(companyId);
+  const companyQuery = useCompany(companyId);
+  const contactsQuery = useContacts(companyId);
+  const co = companyQuery.data;
+  const cts = contactsQuery.data ?? [];
+
+  if (companyQuery.isLoading) {
+    return (
+      <div style={{ padding: '64px 32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13.5 }}>
+        Loading company…
+      </div>
+    );
+  }
+
+  if (!co) {
+    return (
+      <div style={{ padding: '0 32px 80px', maxWidth: 1280, margin: '0 auto' }}>
+        <button onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, padding: '8px 0', marginBottom: 10 }}>
+          <ArrowLeft size={14} /> All companies
+        </button>
+        <div style={{
+          padding: '48px 24px', textAlign: 'center', background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-default)', borderRadius: 16,
+        }}>
+          <h3 className="font-display" style={{ fontSize: 18, color: 'var(--text-primary)', marginBottom: 6 }}>Company not found</h3>
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: 0 }}>
+            This company may have been removed. Head back to the directory.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const verified = cts.filter(c => c.verif === 'verified').length;
   const stale = cts.filter(c => c.verif === 'stale' || c.verif === 'bounced').length;
 
