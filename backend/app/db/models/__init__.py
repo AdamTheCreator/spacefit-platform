@@ -1,4 +1,5 @@
 from app.db.models.chat import ChatMessage, ChatSession
+from app.db.models.contact import Company, Contact, ContactInteraction
 from app.db.models.credential import (
     AgentConnection,
     CredentialAuditLog,
@@ -40,6 +41,9 @@ __all__ = [
     "SSOConfiguration",
     "ChatSession",
     "ChatMessage",
+    "Company",
+    "Contact",
+    "ContactInteraction",
     "Customer",
     "CustomerContact",
     "SiteCredential",
