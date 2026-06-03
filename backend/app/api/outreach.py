@@ -33,6 +33,7 @@ from app.services.email_blast import (
     generate_void_outreach_body,
 )
 from app.services.gmail import get_user_gmail_tokens
+from app.services.outreach_replies import sync_replies_for_user
 from app.services.placer import get_void_opportunities_structured
 
 
@@ -132,6 +133,23 @@ class CampaignListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ThreadResponse(BaseModel):
+    """A recipient who replied — backs the dashboard reply-triage queue."""
+
+    id: str
+    campaign_id: str
+    campaign_name: str
+    tenant_name: str
+    contact_email: str
+    snippet: str | None
+    received_at: datetime | None
+    status: str
+
+
+class SyncRepliesResponse(BaseModel):
+    new_replies: int
 
 
 class VoidOpportunityResponse(BaseModel):
@@ -324,6 +342,59 @@ async def list_campaigns(
         )
         for c in campaigns
     ]
+
+
+@router.get("/threads", response_model=list[ThreadResponse])
+async def list_threads(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ThreadResponse]:
+    """List recipients who replied, newest first.
+
+    Backs the dashboard reply-triage queue. Returns ``[]`` when there are
+    no replied recipients — no mock data.
+    """
+    result = await db.execute(
+        select(OutreachRecipient, OutreachCampaign)
+        .join(
+            OutreachCampaign,
+            OutreachRecipient.campaign_id == OutreachCampaign.id,
+        )
+        .where(
+            OutreachCampaign.user_id == current_user.id,
+            OutreachRecipient.status == RecipientStatus.REPLIED.value,
+        )
+        .order_by(OutreachRecipient.replied_at.desc())
+    )
+
+    threads: list[ThreadResponse] = []
+    for recipient, campaign in result.all():
+        threads.append(
+            ThreadResponse(
+                id=recipient.id,
+                campaign_id=campaign.id,
+                campaign_name=campaign.name,
+                tenant_name=recipient.tenant_name,
+                contact_email=recipient.contact_email,
+                snippet=recipient.reply_snippet,
+                received_at=recipient.reply_received_at or recipient.replied_at,
+                status=recipient.status,
+            )
+        )
+    return threads
+
+
+@router.post("/sync-replies", response_model=SyncRepliesResponse)
+async def sync_replies(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SyncRepliesResponse:
+    """Scan the user's Gmail inbox for new outreach replies.
+
+    No-op (returns ``{"new_replies": 0}``) when Gmail isn't connected.
+    """
+    new_replies = await sync_replies_for_user(db, current_user)
+    return SyncRepliesResponse(new_replies=new_replies)
 
 
 @router.get("/campaigns/{campaign_id}", response_model=CampaignResponse)

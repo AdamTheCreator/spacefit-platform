@@ -67,6 +67,21 @@ export interface OutreachCampaignListItem {
   replied_count: number;
 }
 
+export interface OutreachThread {
+  id: string;
+  campaign_id: string;
+  campaign_name: string;
+  tenant_name: string;
+  contact_email: string;
+  snippet: string | null;
+  received_at: string | null;
+  status: RecipientStatus;
+}
+
+export interface SyncRepliesResponse {
+  new_replies: number;
+}
+
 export interface OutreachTemplate {
   id: string;
   name: string;

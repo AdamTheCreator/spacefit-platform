@@ -6,7 +6,7 @@ import { SetupCards } from '../components/Dashboard/SetupCards';
 import { useAuthStore } from '../stores/authStore';
 import { useProjects } from '../hooks/useProjects';
 import api from '../lib/axios';
-import type { OutreachCampaignListItem } from '../types/outreach';
+import type { OutreachCampaignListItem, OutreachThread } from '../types/outreach';
 import type { Project } from '../types/project';
 
 // ---------- Today / hero ----------
@@ -325,9 +325,12 @@ export function DashboardPage() {
 
   const { data: projectsData } = useProjects({ page: 1 });
 
-  // Outreach campaigns drive the triage queue + project stages.
+  // Outreach campaigns drive the follow-up rows + project stages.
   const [campaigns, setCampaigns] = useState<OutreachCampaignListItem[] | null>(null);
   const [campaignsError, setCampaignsError] = useState(false);
+
+  // Replied threads drive the reply rows (real replies only, no placeholders).
+  const [threads, setThreads] = useState<OutreachThread[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -344,32 +347,56 @@ export function DashboardPage() {
     };
   }, []);
 
-  // Derive triage rows from real campaign data only.
-  // TODO: replace with thread-level endpoints once they exist:
-  //   GET /outreach/threads?status=follow_up_needed
-  //   GET /outreach/threads?status=replied
+  useEffect(() => {
+    let cancelled = false;
+    const loadThreads = () =>
+      api
+        .get<OutreachThread[]>('/outreach/threads')
+        .then((r) => {
+          if (!cancelled) setThreads(r.data);
+        })
+        .catch(() => {
+          // Tolerate failure — the reply rows just stay empty.
+          if (!cancelled) setThreads([]);
+        });
+
+    // Fire-and-forget reply sync (silent no-op when Gmail isn't connected),
+    // then (re)load threads so freshly-detected replies show up.
+    api
+      .post('/outreach/sync-replies')
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) void loadThreads();
+      });
+
+    // Also load immediately so existing replies render without waiting on sync.
+    void loadThreads();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Derive triage rows from real data only — reply rows come from detected
+  // threads (GET /outreach/threads), follow-up rows from campaign stats.
   const triageRows = useMemo<TriageRow[]>(() => {
-    if (!campaigns) return [];
     const rows: TriageRow[] = [];
 
     // Replies come first — they're the freshest signal a human needs to see.
-    const replies = campaigns
-      .filter((c) => c.replied_count > 0)
-      .sort((a, b) => b.replied_count - a.replied_count);
-
-    replies.forEach((c) => {
+    // Backend already orders threads by received/replied time, newest first.
+    (threads ?? []).forEach((t) => {
       rows.push({
-        id: `rp-${c.id}`,
+        id: `rp-${t.id}`,
         kind: 'reply',
-        lead: c.name,
-        sub: `${c.replied_count} fresh repl${c.replied_count === 1 ? 'y' : 'ies'}`,
-        when: relativeTime(hoursSince(c.sent_at)),
+        lead: t.campaign_name,
+        sub: `${t.tenant_name} · ${t.snippet || 'replied'}`,
+        when: relativeTime(hoursSince(t.received_at)),
         actionLabel: 'Reply →',
         onAction: () => navigate('/outreach'),
       });
     });
 
-    const followUps = campaigns.filter(
+    const followUps = (campaigns ?? []).filter(
       (c) => c.status === 'sent' && c.sent_count - c.replied_count > 0,
     );
 
@@ -388,7 +415,7 @@ export function DashboardPage() {
     });
 
     return rows;
-  }, [campaigns, navigate]);
+  }, [threads, campaigns, navigate]);
 
   // Real counts feed the hero one-liner — no mock data, no placeholder events.
   const heroSummary = useMemo(() => {

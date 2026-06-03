@@ -46,7 +46,7 @@ it just isn't connected to anything, so it feels missing.
 | Batched bulk send | ✅ Real | `email_blast.py`, batches of 10. |
 | Open/click tracking | ✅ Real | `tracking_id` model fix **+** threaded through the send path (open pixel + tracked links via `api_base_url`). **Phase 0 / PR #34.** |
 | Real sending (Gmail / Resend) | ⚠️ Not wired | Both exist; campaigns fall back to a dev SMTP log. |
-| Reply reading / triage queue | ❌ Stub | `gmail_monitor.py` watches for flyers, not replies. Dashboard fakes it off `replied_count`. |
+| Reply reading / triage queue | ✅ Real | `/outreach/threads` + a Gmail reply-sync; dashboard shows real replied threads (Phase 3b). |
 | Contacts directory | ✅ Real | Persisted `companies`/`contacts` + API + CSV import (migration 035). **Phase 1.** |
 | "Find properties" / Search | ❌ Mock | Hardcoded grid in `SearchPage.tsx`. |
 | Workflow / kanban board | ❌ Mock | Hardcoded columns that don't even match the real `DealStage` enum. |
@@ -76,7 +76,7 @@ exactly the ones that made the app feel fake on the call.
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
 | **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
-| **3 — Finish sending** | ✅ Gmail send + SMTP/dev fallback (3a). ⏳ reply triage (`/outreach/threads`, 3b) | Partial |
+| **3 — Finish sending** | ✅ Gmail send (3a) + reply triage (`/outreach/threads`, 3b) | Done |
 | **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing. ⏳ intersection input | Mostly done |
 | **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
 
@@ -121,8 +121,7 @@ context, rather than static chips.
 - ✅ **Done (Phase 3a):** campaign sends route through the user's connected **Gmail** when available, else SMTP, else dev-log — open/click tracking applied in all paths.
 - ~~Generate + inject `tracking_id` in the send path~~ — **done early (PR #34):** the send path
   now embeds the open pixel + tracked links via the new `api_base_url` setting.
-- Build **reply triage**: `/outreach/threads`, map `gmail_monitor` replies to campaigns, replace
-  the dashboard's `replied_count` hack.
+- ✅ **Done (Phase 3b):** `/outreach/threads` + a Gmail reply-sync (`POST /outreach/sync-replies`) surface real replied threads on the dashboard, replacing the `replied_count` hack.
 - ✅ **Done (Phase 2):** recipients can come from the Contacts store (directory "Send to Outreach"), not just void output.
 
 ### 5) Campaign overhaul — **Phase 2**

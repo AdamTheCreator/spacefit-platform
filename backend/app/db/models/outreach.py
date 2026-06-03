@@ -151,6 +151,15 @@ class OutreachRecipient(Base):
     clicked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     replied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Inbound reply detection (Phase 3b) — populated by the Gmail-backed
+    # reply sync when a message from contact_email is found in the inbox.
+    reply_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reply_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    reply_message_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    reply_thread_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     # Error tracking
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     bounce_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
