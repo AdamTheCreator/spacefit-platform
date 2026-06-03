@@ -14,7 +14,7 @@
 **What's left** (smaller tail):
 - **Document-staleness** indicator / re-index; a real **traffic-count** source (Placer.ai is stubbed in `app/services/placer.py`).
 - **Legacy Customers** → migrate/deprecate onto the new `contacts` model (buy-box now lives on `Company`).
-- **CI** — the repo has no GitHub Actions; add a gate (frontend `tsc -b` + `eslint`; backend `ruff` + `pytest`).
+- ✅ **CI** — added in `.github/workflows/ci.yml` (this PR). **Hard gates:** frontend `npm run build` (tsc -b) and backend `pytest` (Postgres 16 service + `alembic upgrade head`, like prod boot). **Informational (non-blocking):** `eslint` (~34 baseline) and `ruff` (~1.3k baseline) — flip the `continue-on-error` to blocking once those backlogs are cleared, or move to a line-scoped "no new violations" reporter.
 - **Business/API track** (founder's side): Placer / SiteUSA / CREXi access — unblocks live data feeds.
 - **void → Contacts follow-ups**: structured promotion for the **matchmaker** specialist's prose output (today only the `void_analysis` tool's structured `suggested_tenants` are captured); a multi-select review step before saving.
 
