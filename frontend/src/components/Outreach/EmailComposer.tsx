@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -218,7 +218,7 @@ export function EmailComposer({
     }
   }, [editor]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     setAiNotice(null);
     setError(null);
     try {
@@ -227,6 +227,7 @@ export function EmailComposer({
         property_name: propertyName || undefined,
         property_address: propertyAddress || undefined,
         tenant_name: recipients.find((r) => r.tenant_name)?.tenant_name || undefined,
+        recipient_company: recipients.find((r) => r.tenant_name)?.tenant_name || undefined,
         extra_notes: aiNotes || undefined,
       });
       setSubject(res.subject);
@@ -239,7 +240,20 @@ export function EmailComposer({
     } catch {
       setError('Could not generate a draft. Try again or write the email manually.');
     }
-  };
+  }, [aiVoiceId, aiNotes, propertyName, propertyAddress, recipients, editor, generateDraft]);
+
+  // When the composer opens pre-filled from the Contacts "Send to Outreach"
+  // flow (initialRecipients present), auto-open the AI panel and draft once in
+  // the user's default voice. Fresh "New campaign" opens skip this — there the
+  // user explicitly chooses AI vs manual on the chooser screen.
+  const autoDraftedRef = useRef(false);
+  useEffect(() => {
+    if (autoDraftedRef.current) return;
+    if (initialRecipients.length === 0 || !editor) return;
+    autoDraftedRef.current = true;
+    setAiPanelOpen(true);
+    void handleGenerate();
+  }, [editor, handleGenerate, initialRecipients.length]);
 
   // Mode chooser
   if (mode === 'choose') {
