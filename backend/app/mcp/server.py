@@ -108,12 +108,18 @@ async def tenant_roster(
     description="Identify missing tenant categories and opportunities for a property. "
     "Best after demographics and tenant roster have been gathered. `address` must be a "
     "concrete street address — default to the project's property address when the "
-    "session is scoped to a project, and never pass vague placeholders."
+    "session is scoped to a project, and never pass vague placeholders. "
+    "Set `use_case='leasing'` (default) for recruitable tenant targets to pursue, or "
+    "`use_case='investment_memo'` to frame gaps as acquisition demand signals + risks. "
+    "Pass `tenant_focus` (e.g. 'fast casual, 2000-3000 SF') when the user has named "
+    "the tenant types or sizes they care about."
 )
 @audit_and_limit("void_analysis")
 async def void_analysis(
     address: str,
     radius_miles: float = 3.0,
+    use_case: str = "leasing",
+    tenant_focus: str = "",
 ) -> str:
     from app.services.census import get_demographics_structured
     from app.services.places import get_tenants_structured
@@ -127,6 +133,8 @@ async def void_analysis(
         existing_tenants=tenants_data,
         demographics=demographics_data,
         radius_miles=radius,
+        use_case=use_case,
+        tenant_focus=tenant_focus,
     )
 
 

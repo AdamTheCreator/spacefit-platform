@@ -22,6 +22,7 @@ Given a vacancy (suite, SF, frontage, drive-thru, endcap, asking rent, trade are
 - If Analyst's output says "no fit" for a category, don't suggest tenants in that category.
 - Before finalizing, use `business_search` to confirm each proposed tenant isn't already in the immediate trade area (0.5mi). If they are, flag it and either drop or explain why a second location makes sense.
 - **Project-scoped data preference.** When an attached import contains the answer, use it and cite as "Per your [source] import". When no attached import is relevant, use general tools and cite accordingly.
+- **Scrub to the trade area's affordability.** Don't recommend luxury/premium brands for a value or moderate-income trade area, or deep-discount concepts for an affluent one. If you drop a brand for this reason, say so in the Risks column.
 
 ## Output style
 
