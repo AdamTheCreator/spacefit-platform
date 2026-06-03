@@ -1,8 +1,21 @@
 # Space Goose — Roadmap to the next version
 
-> Source: partner call (Jun 2, 2026) + a full read of the codebase.
-> This doc is the plan of record. Phase 0 is already shipped on branch
-> `claude/eloquent-shannon-zMQPx`; everything below it is sequenced, not built.
+> Source: partner call (Jun 2, 2026) + a full read of the codebase. The plan of record — keep it updated as you ship.
+
+## Status & handoff (current)
+
+**Phases 0–5 are built and merged** (PRs #34–#39); the **Workflow kanban** is in **PR #40** (merge it so `master` is current). All five of the founder's original priorities plus four bonus phases shipped, and the three former mock surfaces — Search, Contacts, Workflow — are now real. Per-phase status is in the tables below; `CLAUDE.md` has the feature map + conventions.
+
+**What's left** (smaller tail):
+- **void → Contacts** — "save these tenants as Contacts" from a void/matchmaker chat result (the spine's other leg).
+- **Intersection / cross-streets** address input (geocode "Main & 5th"; `Property.intersection_quality` already exists).
+- **Cleanup** the founder flagged — stale SiteUSA "connect" remnant in chat recommendations + dead `backend/scripts/debug_siteusa_login.py`; orphaned `frontend/src/components/Search/PropertyCard.tsx`.
+- **Document-staleness** indicator / re-index; a real **traffic-count** source (Placer.ai is stubbed in `app/services/placer.py`).
+- **Legacy Customers** → migrate/deprecate onto the new `contacts` model (buy-box now lives on `Company`).
+- **CI** — the repo has no GitHub Actions; add a gate (frontend `tsc -b` + `eslint`; backend `ruff` + `pytest`).
+- **Business/API track** (founder's side): Placer / SiteUSA / CREXi access — unblocks live data feeds.
+
+**How to work:** feature branch → PR into `master`. This sandbox can't run the live stack (no `pytest` vs a real DB, no `alembic upgrade`, no live LLM/Gmail/provider calls), so validate via frontend `npm run build` (`tsc -b`) + `eslint`, and backend `py_compile` + `ruff` + targeted unit tests on pure logic (stubbed `AsyncSession`, `asyncio_mode=auto`). Migrations apply on deploy via the container's `alembic upgrade head`. Never edit a committed migration (latest is `037`).
 
 ---
 
