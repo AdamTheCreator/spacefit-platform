@@ -1554,6 +1554,50 @@ def _schedule_fact_extraction(
     )
 
 
+async def _notify_tenant_candidates(
+    websocket: WebSocket,
+    *,
+    session_id: str,
+    sink: list[dict],
+) -> None:
+    """Surface void-analysis tenant suggestions via a ``tenant_candidates`` event.
+
+    Drains the per-turn capture sink (populated by ``analyze_voids_for_property``
+    when a void runs this turn) and pushes the deduped tenant list so the chat
+    UI can offer "save these as Contacts". Best-effort: an empty sink or a closed
+    socket is a silent no-op, and the sink is cleared either way so candidates
+    never leak into the next turn.
+    """
+    from app.services.tenant_promotion import MAX_PROMOTABLE_TENANTS
+
+    if not sink:
+        return
+    seen: set[str] = set()
+    tenants: list[dict] = []
+    for t in sink:
+        name = str(t.get("name", "")).strip()
+        key = name.lower()
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        tenants.append(t)
+    sink.clear()
+    if not tenants:
+        return
+    try:
+        await send_ws_message(
+            websocket,
+            "tenant_candidates",
+            {
+                "session_id": session_id,
+                "tenants": tenants[:MAX_PROMOTABLE_TENANTS],
+                "source_address": tenants[0].get("source_address"),
+            },
+        )
+    except Exception:
+        logger.debug("[chat-ws] could not push tenant_candidates over closed WS")
+
+
 async def _stream_specialist_to_ws(
     websocket: WebSocket,
     *,
@@ -2118,6 +2162,12 @@ async def websocket_chat_endpoint(
             await save_message_to_db(session_id, "user", user_content)
             conversation_history.append({"role": "user", "content": user_content})
 
+            # Start capturing any tenant suggestions a void analysis produces
+            # this turn so we can offer "save as Contacts" once it completes.
+            from app.services.tenant_promotion import begin_tenant_capture
+
+            tenant_sink = begin_tenant_capture()
+
             # Extract address if mentioned
             content_lower = user_content.lower()
             address_keywords = ["mall", "center", "plaza", "shopping", "property", "leasing flyer"]
@@ -2168,6 +2218,9 @@ async def websocket_chat_endpoint(
                         s_prompt_id=s_prompt_id,
                         s_analysis_type=s_analysis_type,
                         user_resolved_llm=user_resolved_llm,
+                    )
+                    await _notify_tenant_candidates(
+                        websocket, session_id=session_id, sink=tenant_sink
                     )
                     continue
                 except Exception as e:
@@ -2265,6 +2318,12 @@ async def websocket_chat_endpoint(
                     assistant_response=response["content"],
                     resolved_llm=user_resolved_llm,
                 )
+
+            # A void analysis may have run via a tool this turn; surface any
+            # promotable tenants so the UI can offer "save as Contacts".
+            await _notify_tenant_candidates(
+                websocket, session_id=session_id, sink=tenant_sink
+            )
 
             # Legacy agent workflow path (browser-based agents removed in Phase 1)
             tools_to_run = response.get("tools_to_run", [])

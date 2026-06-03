@@ -154,3 +154,38 @@ class ContactImportResult(BaseModel):
     failed: int
     companies_created: int
     errors: list[str]
+
+
+# --------------------------------------------------------------------------- #
+# Void → Contacts promotion
+# --------------------------------------------------------------------------- #
+class TenantPromotionItem(BaseModel):
+    """One tenant brand/target a void analysis surfaced, saved as a Company."""
+
+    name: str
+    sector: str | None = None
+    category: str | None = None
+    estimated_sf: int | None = None
+    priority: str | None = None
+    match_score: int | None = None
+    rationale: str | None = None
+    source_address: str | None = None
+
+
+class PromoteTenantsRequest(BaseModel):
+    tenants: list[TenantPromotionItem]
+    # Optional source context (e.g. the property the void was run on).
+    source_address: str | None = None
+    project_id: str | None = None
+
+
+class PromotedCompany(BaseModel):
+    id: str
+    name: str
+    sector: str | None = None
+
+
+class PromoteTenantsResult(BaseModel):
+    created: int
+    skipped: int
+    companies: list[PromotedCompany]
