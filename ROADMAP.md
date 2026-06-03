@@ -77,7 +77,7 @@ exactly the ones that made the app feel fake on the call.
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
 | **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
 | **3 — Finish sending** | ✅ Gmail send (3a) + reply triage (`/outreach/threads`, 3b) | Done |
-| **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing. ⏳ intersection input | Mostly done |
+| **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing · intersection input | Done |
 | **5 — Search & kanban real** | ✅ client-fit matching engine (CSV interim feed) · Workflow kanban on real deals | Done |
 
 ---
@@ -165,14 +165,22 @@ rank listings; surface top matches per client
 
 ## Void-analysis depth (the differentiator) — Phase 4
 
-> ✅ **Shipped:** `void_analysis` (service + MCP tool) now takes `use_case` (leasing vs investment_memo) and `tenant_focus`; a deterministic `affordability_tier(median_income)` helper drives demographic scrubbing (with an `excluded_suggestions` list for override); and the analyst/matchmaker prompts ask the "specific tenant types/sizes?" follow-up + enforce the scrub. **Intersection input still remains (nugget B).**
+> ✅ **Shipped:** `void_analysis` (service + MCP tool) now takes `use_case` (leasing vs investment_memo) and `tenant_focus`; a deterministic `affordability_tier(median_income)` helper drives demographic scrubbing (with an `excluded_suggestions` list for override); and the analyst/matchmaker prompts ask the "specific tenant types/sizes?" follow-up + enforce the scrub. **Intersection input now shipped too** — `location_resolver` detects/normalizes cross-streets and geocodes them (see nugget B below).
 
 - **Leasing vs investment-memo modes** — same tool, two output shapes (today it's one-size-fits-all).
 - **Follow-up question** before running a leasing void — "any specific tenant types or sizes?"
 - **Demographic-aware list scrubbing** — filter suggestions against trade-area income/profile (the
   "no Neiman Marcus in a low-income area" problem), with a human-in-the-loop review.
-- **Intersection / cross-streets input** — brokers often have no address (ground-up dev), just
-  "Main & 5th." Geocoding handles it; small input change.
+- **Intersection / cross-streets input** — ✅ **shipped.** Brokers working ground-up deals often
+  have no address, just "Main & 5th." `app/services/location_resolver.py` now detects cross-street
+  inputs (`looks_like_intersection`) — `&`, ` and `, `@`, `/`, ` x `, plus "corner of / intersection
+  of / junction of" phrasing — normalizes the join (`normalize_intersection` → Google's preferred
+  " and " form, stripping the phrase, preserving the ", City, ST" tail) and routes straight to the
+  Google geocoder (the Census one-liner can't resolve a corner), falling through to the standard
+  pipeline if Google is unavailable. The free-text chat + project `property_address` paths feed this
+  resolver, so it works "anywhere an address is taken." Pure helpers are unit-tested
+  (`tests/test_location_resolver.py`). NOTE: `intersection_quality` on the `Deal` model is a
+  *separate* concept (a hard-corner rating in the qualification scorecard), unrelated to this input.
 
 ---
 
@@ -185,8 +193,15 @@ rank listings; surface top matches per client
   StreetLight or Caltrans/DOT are alternatives).
 - **Kanban (Workflow)** — wire to the real `Deal` / `DealStage` model so "start an outreach sequence"
   drops a card; today it's pure mock with mismatched stage names.
-- **Cleanup** — remove the stale SiteUSA "connect" remnant in recommendations and the dead
-  `scripts/debug_siteusa_login.py` Playwright scraper.
+- **Cleanup** — ✅ **shipped.** (a) The orchestrator's "DATA SOURCE STATUS" prompt no longer tells
+  users to "connect" CoStar/SiteUSA — those (and Placer.ai) are file-upload sources now (CSV/PDF
+  exports uploaded at `/connections`, repurposed in PR #28), so the guidance was reworded from
+  "connect an account / Go to Connections to set it up" → "upload your {CoStar CSV / Placer PDF /
+  SiteUSA CSV} export." (b) Deleted the dead `scripts/debug_siteusa_login.py` Playwright scraper.
+  (c) Deleted `frontend/src/components/Search/PropertyCard.tsx` (zero references after the Phase 5
+  Search rebuild). NOTE: `components/Imports/ImportUploadCard.tsx` is **still referenced** (by
+  `ConnectionsPage` + `CredentialModal`) despite CLAUDE.md's stale "no longer referenced" note —
+  left intact.
 - **BYOK direction validated** — partner endorsed "connect to what you already pay for" (TLO,
   ZoomInfo, …). Natural extension: let users plug their own *data* subscriptions, not just LLM keys.
 

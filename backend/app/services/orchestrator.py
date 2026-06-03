@@ -265,21 +265,35 @@ def _build_orchestrator_request(
         full_system_prompt += "\n\n" + redact_secrets(memory_context)
 
     _imported = has_imported_data or {}
-    disconnected_sources = []
+    # CoStar, Placer.ai and SiteUSA are file-upload import sources now (the user
+    # exports a CSV/PDF and uploads it at /connections) — they are NOT OAuth
+    # "connect an account" integrations, so the guidance points at uploading an
+    # export, never at "connecting".
+    missing_sources = []
     if not _imported.get("costar"):
-        disconnected_sources.append(("CoStar", "lease comps, tenant rosters, and property details"))
+        missing_sources.append(
+            ("CoStar", "CSV export",
+             "lease comps, tenant rosters, and property details")
+        )
     if not _imported.get("placer"):
-        disconnected_sources.append(("Placer.ai", "foot traffic and visitor demographics"))
+        missing_sources.append(
+            ("Placer.ai", "PDF report",
+             "foot traffic and visitor demographics")
+        )
     if not _imported.get("siteusa"):
-        disconnected_sources.append(("SiteUSA", "vehicle traffic (VPD) and enhanced demographics"))
-    if disconnected_sources:
+        missing_sources.append(
+            ("SiteUSA", "CSV export",
+             "vehicle traffic (VPD) and enhanced demographics")
+        )
+    if missing_sources:
         lines = ["\n\nDATA SOURCE STATUS:"]
-        for name, features in disconnected_sources:
+        for name, file_kind, features in missing_sources:
             lines.append(
-                f"- **{name}** is NOT connected. If the user asks about {features}, "
-                f'tell them: "I can pull that data from {name}, but your account isn\'t '
-                f'connected yet. Go to [Connections](/connections) to set it up." '
-                f"Do NOT say you lack access — the feature exists, it just needs setup."
+                f"- No **{name}** data has been uploaded yet. If the user asks "
+                f"about {features}, tell them: \"I can analyze that once you "
+                f"upload your {name} {file_kind} — head to "
+                f"[Connections](/connections) and drop the file in.\" Do NOT say "
+                f"you lack access — the feature exists, it just needs the upload."
             )
         full_system_prompt += "\n".join(lines)
 

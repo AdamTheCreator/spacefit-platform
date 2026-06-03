@@ -352,6 +352,112 @@ def _parse_location_input(location: str) -> tuple[str | None, str | None, str | 
     return None, location, None
 
 
+# --- Intersection / cross-street inputs -------------------------------------
+# Brokers working ground-up deals often have no street number — just a corner
+# ("Main & 5th"). The Census one-line geocoder can't resolve a corner, but
+# Google's geocoder handles intersections natively, so we detect the pattern,
+# normalize the join to Google's preferred " and ", and route straight to Google.
+
+_INTERSECTION_PHRASES = (
+    "corner of",
+    "intersection of",
+    "junction of",
+    "cross streets",
+    "cross street",
+    "crossroads",
+)
+
+# Symbols that join two cross-streets (matched with or without surrounding
+# spaces). A single street address never contains these, so keying off their
+# presence is safe.
+_INTERSECTION_SYMBOL_SEPARATORS = ("&", "@", "/")
+# Word separators carry their own spaces so they can't fire inside a word
+# (e.g. the "and" in "Land O' Lakes" or the "x" in "Halifax").
+_INTERSECTION_WORD_SEPARATORS = (" and ", " x ")
+
+
+def _road_token_is_plausible(token: str) -> bool:
+    """A cross-street side should be a short, non-empty street name."""
+    token = token.strip(" .,")
+    if not token:
+        return False
+    # Street names are short; reject sentence-like fragments.
+    if len(token.split()) > 4:
+        return False
+    return any(ch.isalnum() for ch in token)
+
+
+def looks_like_intersection(text: str) -> bool:
+    """
+    Detect a cross-street / intersection input such as ``Main & 5th``,
+    ``Main St and 5th Ave``, or ``corner of Main and 5th``.
+
+    Conservative on real street addresses — anything starting with a house
+    number is treated as an address, not a corner — but lenient otherwise: a
+    false positive merely routes the query to Google's geocoder, which resolves
+    place names and addresses too, so it degrades to the existing behavior.
+    """
+    if not text:
+        return False
+    stripped = text.strip()
+    # A leading house number means a specific street address, not a corner.
+    if re.match(r"^\d+\s", stripped):
+        return False
+
+    lowered = stripped.lower()
+    if any(phrase in lowered for phrase in _INTERSECTION_PHRASES):
+        return True
+
+    # Only inspect the road portion (before any ", City, ST" tail).
+    road = stripped.split(",", 1)[0]
+
+    for sep in _INTERSECTION_SYMBOL_SEPARATORS:
+        if sep in road:
+            left, _, right = road.partition(sep)
+            if _road_token_is_plausible(left) and _road_token_is_plausible(right):
+                return True
+
+    padded = f" {road} "
+    for sep in _INTERSECTION_WORD_SEPARATORS:
+        if sep in padded:
+            left, _, right = padded.partition(sep)
+            if _road_token_is_plausible(left) and _road_token_is_plausible(right):
+                return True
+
+    return False
+
+
+def normalize_intersection(text: str) -> str:
+    """
+    Rewrite a cross-street input into a Google-geocoder-friendly form: drop any
+    leading "corner of" / "intersection of" phrasing and normalize the join
+    between the two streets to " and ", preserving the ", City, ST" tail.
+
+    ``normalize_intersection("corner of Main & 5th, Reno, NV")``
+        -> ``"Main and 5th, Reno, NV"``
+    """
+    if not text:
+        return text
+
+    # Split off the locality tail so we only rewrite the road portion.
+    head, comma, tail = text.strip().partition(",")
+    road = head.strip()
+
+    lowered = road.lower()
+    for phrase in _INTERSECTION_PHRASES:
+        if lowered.startswith(phrase):
+            road = road[len(phrase):].lstrip(" :-")
+            break
+
+    # Collapse the first street-joining separator to a single " and " token:
+    # symbols (& @ /) first, then the broker shorthand " x ".
+    road = re.sub(r"\s*[&@/]\s*", " and ", road, count=1)
+    road = re.sub(r"\s+x\s+", " and ", road, count=1, flags=re.IGNORECASE)
+
+    road = re.sub(r"\s+", " ", road).strip()
+    return f"{road},{tail}" if comma else road
+
+
 async def _geocode_with_google(location: str) -> ResolvedLocation | None:
     """
     Use Google Geocoding API to resolve a location.
@@ -598,6 +704,20 @@ async def _lookup_zip_for_city(city: str, state_abbrev: str) -> list[str]:
     return []
 
 
+async def _attach_place_fips(result: ResolvedLocation) -> None:
+    """
+    Best-effort enrichment: fill ``place_fips`` from the resolved city/state and
+    bump confidence to HIGH when a match is found. Mutates ``result`` in place.
+    """
+    if result.normalized_city and result.state_abbrev:
+        place_info, _ = await _lookup_place_fips(
+            result.normalized_city, result.state_abbrev
+        )
+        if place_info:
+            result.place_fips = place_info["place_fips"]
+            result.confidence = ResolutionConfidence.HIGH
+
+
 async def resolve_location(input_string: str) -> ResolvedLocation:
     """
     Master location resolver function.
@@ -626,6 +746,18 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
             method=ResolutionMethod.FALLBACK,
             original_input=input_string,
         )
+
+    # Intersection / cross-street inputs ("Main & 5th, Reno, NV"): the Census
+    # one-line geocoder can't resolve a corner, but Google's geocoder can. Detect
+    # the pattern, normalize it, and go straight to Google — falling through to
+    # the standard pipeline if Google is unavailable or returns no match.
+    if looks_like_intersection(input_string):
+        google_result = await _geocode_with_google(normalize_intersection(input_string))
+        if google_result:
+            google_result.original_input = input_string
+            await _attach_place_fips(google_result)
+            logger.debug("[location_resolver] Intersection resolved via Google")
+            return google_result
 
     # Parse the input
     street, city, state_abbrev = _parse_location_input(input_string)
@@ -679,15 +811,7 @@ async def resolve_location(input_string: str) -> ResolvedLocation:
     google_result = await _geocode_with_google(input_string)
     if google_result:
         # Try to also get place FIPS if we have city/state
-        if google_result.normalized_city and google_result.state_abbrev:
-            place_info, _ = await _lookup_place_fips(
-                google_result.normalized_city,
-                google_result.state_abbrev
-            )
-            if place_info:
-                google_result.place_fips = place_info["place_fips"]
-                google_result.confidence = ResolutionConfidence.HIGH
-
+        await _attach_place_fips(google_result)
         logger.debug("[location_resolver] Google geocoding success")
         return google_result
 
