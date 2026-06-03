@@ -49,7 +49,7 @@ it just isn't connected to anything, so it feels missing.
 | Reply reading / triage queue | ✅ Real | `/outreach/threads` + a Gmail reply-sync; dashboard shows real replied threads (Phase 3b). |
 | Contacts directory | ✅ Real | Persisted `companies`/`contacts` + API + CSV import (migration 035). **Phase 1.** |
 | "Find properties" / Search | ❌ Mock | Hardcoded grid in `SearchPage.tsx`. |
-| Workflow / kanban board | ❌ Mock | Hardcoded columns that don't even match the real `DealStage` enum. |
+| Workflow / kanban board | ✅ Real | Wired to the `Deal`/`DealStage` API — real deals, drag-to-move stage. **Phase 5.** |
 
 **Cross-cutting theme — purge the mock data.** Our own `CLAUDE.md` rule says every number
 must trace to a real API. Three surfaces still violate it: **Search, Contacts, Workflow** —
@@ -78,7 +78,7 @@ exactly the ones that made the app feel fake on the call.
 | **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
 | **3 — Finish sending** | ✅ Gmail send (3a) + reply triage (`/outreach/threads`, 3b) | Done |
 | **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing. ⏳ intersection input | Mostly done |
-| **5 — Search & kanban real** | ✅ client-fit matching engine (CSV interim feed). ⏳ wire Workflow to real deals | Partial |
+| **5 — Search & kanban real** | ✅ client-fit matching engine (CSV interim feed) · Workflow kanban on real deals | Done |
 
 ---
 
