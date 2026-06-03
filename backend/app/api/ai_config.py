@@ -86,6 +86,23 @@ SUPPORTED_PROVIDERS = [
         "models": ["deepseek-chat", "deepseek-reasoner"],
     },
     {
+        "id": "huggingface",
+        "name": "Hugging Face",
+        "description": (
+            "Open models via the Hugging Face Inference Providers "
+            "router (use your hf_… token)"
+        ),
+        "requires_key": True,
+        "requires_base_url": False,
+        "default_model": PROVIDER_DEFAULT_MODELS["huggingface"],
+        "models": [
+            "Qwen/Qwen2.5-7B-Instruct",
+            "meta-llama/Llama-3.1-8B-Instruct",
+            "meta-llama/Llama-3.3-70B-Instruct",
+            "mistralai/Mistral-Small-24B-Instruct-2501",
+        ],
+    },
+    {
         "id": "openai_compatible",
         "name": "Custom (OpenAI-Compatible)",
         "description": "Any provider with an OpenAI-compatible API",

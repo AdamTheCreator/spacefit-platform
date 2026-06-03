@@ -158,6 +158,14 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="")
     openai_base_url: str = Field(default="https://api.openai.com/v1")
 
+    # Hugging Face Inference Providers (OpenAI-compatible router).
+    # BYOK: users supply their own ``hf_…`` token via /ai-config. These
+    # platform-level fields are an optional fallback; the base URL is the
+    # serverless router that fronts every inference provider.
+    huggingface_api_key: str = Field(default="")
+    huggingface_model: str = Field(default="Qwen/Qwen2.5-7B-Instruct")
+    huggingface_base_url: str = Field(default="https://router.huggingface.co/v1")
+
     # Census Bureau API
     census_api_key: str = Field(default="")
 

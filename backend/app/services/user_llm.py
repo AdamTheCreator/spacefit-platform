@@ -29,6 +29,7 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash",
     "deepseek": "deepseek-chat",
+    "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
     "openai_compatible": "",
 }
 
@@ -49,6 +50,7 @@ VALIDATION_MODELS: dict[str, str] = {
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash-lite",
     "deepseek": "deepseek-chat",
+    "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
 }
 
 # Previously-shipped model ids that can return provider-side 404s on some keys.
