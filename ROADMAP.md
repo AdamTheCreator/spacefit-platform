@@ -4,16 +4,19 @@
 
 ## Status & handoff (current)
 
-**Phases 0–5 are built and merged** (PRs #34–#39); the **Workflow kanban** is in **PR #40** (merge it so `master` is current). All five of the founder's original priorities plus four bonus phases shipped, and the three former mock surfaces — Search, Contacts, Workflow — are now real. Per-phase status is in the tables below; `CLAUDE.md` has the feature map + conventions.
+**Phases 0–5 are built and merged** (PRs #34–#40). All five of the founder's original priorities plus four bonus phases shipped, and the three former mock surfaces — Search, Contacts, Workflow — are now real. Per-phase status is in the tables below; `CLAUDE.md` has the feature map + conventions.
+
+**Recently shipped** (since this section was written):
+- **Intersection / cross-street input** — `location_resolver` detects + normalizes "Main & 5th" and geocodes it (PR #41). NOTE: `intersection_quality` is a `Deal` qualification field (hard-corner rating), unrelated to address input.
+- **Founder cleanup** — the SiteUSA/CoStar "connect" remnant reworded to "upload" (both are CSV/PDF import sources now), dead `backend/scripts/debug_siteusa_login.py` + orphaned `frontend/src/components/Search/PropertyCard.tsx` deleted (PR #41).
+- **void → Contacts** — "save these tenants as Contacts" from a void/matchmaker chat result, completing void → contacts → campaign (this PR).
 
 **What's left** (smaller tail):
-- **void → Contacts** — "save these tenants as Contacts" from a void/matchmaker chat result (the spine's other leg).
-- **Intersection / cross-streets** address input (geocode "Main & 5th"; `Property.intersection_quality` already exists).
-- **Cleanup** the founder flagged — stale SiteUSA "connect" remnant in chat recommendations + dead `backend/scripts/debug_siteusa_login.py`; orphaned `frontend/src/components/Search/PropertyCard.tsx`.
 - **Document-staleness** indicator / re-index; a real **traffic-count** source (Placer.ai is stubbed in `app/services/placer.py`).
 - **Legacy Customers** → migrate/deprecate onto the new `contacts` model (buy-box now lives on `Company`).
 - **CI** — the repo has no GitHub Actions; add a gate (frontend `tsc -b` + `eslint`; backend `ruff` + `pytest`).
 - **Business/API track** (founder's side): Placer / SiteUSA / CREXi access — unblocks live data feeds.
+- **void → Contacts follow-ups**: structured promotion for the **matchmaker** specialist's prose output (today only the `void_analysis` tool's structured `suggested_tenants` are captured); a multi-select review step before saving.
 
 **How to work:** feature branch → PR into `master`. This sandbox can't run the live stack (no `pytest` vs a real DB, no `alembic upgrade`, no live LLM/Gmail/provider calls), so validate via frontend `npm run build` (`tsc -b`) + `eslint`, and backend `py_compile` + `ruff` + targeted unit tests on pure logic (stubbed `AsyncSession`, `asyncio_mode=auto`). Migrations apply on deploy via the container's `alembic upgrade head`. Never edit a committed migration (latest is `037`).
 
@@ -88,7 +91,7 @@ exactly the ones that made the app feel fake on the call.
 | --- | --- | --- |
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
-| **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
+| **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill) · ✅ void→contacts promotion | Done |
 | **3 — Finish sending** | ✅ Gmail send (3a) + reply triage (`/outreach/threads`, 3b) | Done |
 | **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing · intersection input | Done |
 | **5 — Search & kanban real** | ✅ client-fit matching engine (CSV interim feed) · Workflow kanban on real deals | Done |
@@ -146,7 +149,7 @@ The missing piece is the **on-ramp**: a "Create campaign / Start outreach" actio
 a void-analysis result that pre-fills recipients (discovered tenants + Contacts) and a drafted email,
 then drops the user into the existing composer. That single action is what makes campaigns feel real.
 
-> ✅ **Shipped (Phase 2):** the Contacts directory's "Send to Outreach" now pre-fills the composer with the selected contacts as recipients (sender pre-filled from your profile). Project / void-analysis on-ramps are the remaining entry points.
+> ✅ **Shipped (Phase 2):** the Contacts directory's "Send to Outreach" pre-fills the composer with the selected contacts as recipients (sender pre-filled from your profile). And the **void → Contacts** leg is now wired: a void/matchmaker chat result surfaces a "Save these tenants as Contacts" panel (the backend emits a `tenant_candidates` event with the analysis's structured `suggested_tenants`; `POST /contacts/from-void` creates the `Company` rows). Those saved brands then flow into the same "Send to Outreach" on-ramp — closing void → contacts → campaign.
 
 ---
 

@@ -7,6 +7,7 @@ import type {
   VerificationStatus,
   ContactSource,
 } from '../pages/contacts/data';
+import type { TenantCandidate } from '../types/chat';
 
 // ---------------------------------------------------------------------------
 // API response shapes (snake_case, timestamps) + adapters to the UI interfaces.
@@ -317,6 +318,28 @@ export function useImportContacts() {
       const res = await api.post<ImportContactsResult>('/contacts/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: contactKeys.all }),
+  });
+}
+
+export interface PromoteTenantsResult {
+  created: number;
+  skipped: number;
+  companies: { id: string; name: string; sector: string | null }[];
+}
+
+/** Save void/matchmaker tenant suggestions into the Contacts directory. */
+export function usePromoteTenantsFromVoid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      tenants: TenantCandidate[];
+      source_address?: string | null;
+      project_id?: string | null;
+    }) => {
+      const res = await api.post<PromoteTenantsResult>('/contacts/from-void', data);
       return res.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: contactKeys.all }),

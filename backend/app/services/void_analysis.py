@@ -344,7 +344,22 @@ async def analyze_voids_for_property(
         elif "```" in response_text:
             response_text = response_text.split("```")[1].split("```")[0]
 
-        return json.loads(response_text)
+        analysis = json.loads(response_text)
+        # Best-effort: surface the recruitable tenants to the chat layer (gated
+        # on an active capture sink; a no-op for report/test callers) so the user
+        # can save them as Contacts without a second LLM call.
+        try:
+            from app.services.tenant_promotion import (
+                extract_promotable_tenants,
+                record_promotable_tenants,
+            )
+
+            record_promotable_tenants(
+                extract_promotable_tenants(analysis, source_address=address)
+            )
+        except Exception:  # pragma: no cover - capture must never break analysis
+            pass
+        return analysis
     except json.JSONDecodeError:
         # Return structured error response
         return {

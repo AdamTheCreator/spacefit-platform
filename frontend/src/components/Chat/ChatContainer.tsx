@@ -8,6 +8,7 @@ import { ChatInput } from './ChatInput';
 import { AgentStatusStrip } from './AgentStatusStrip';
 import { AnalysisProcessingView } from './AnalysisProcessingView';
 import { ExportBar } from './ExportBar';
+import { TenantSavePanel } from './TenantSavePanel';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import type { AgentType } from '../../types/chat';
 
@@ -308,6 +309,9 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
                 </div>
               </div>
             )}
+
+            {/* Save void/matchmaker tenant suggestions as Contacts */}
+            <TenantSavePanel key={currentSessionId ?? 'none'} />
 
             {/* Export bar — show when analysis is complete and session exists */}
             {!isProcessing && messages.length >= 3 && currentSessionId && (

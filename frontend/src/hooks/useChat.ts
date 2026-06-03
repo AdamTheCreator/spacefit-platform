@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '../stores/chatStore';
 import { projectKeys } from './useProjects';
 import api from '../lib/axios';
-import type { Message, WorkflowStep } from '../types/chat';
+import type { Message, TenantCandidate, WorkflowStep } from '../types/chat';
 
 const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
 
@@ -36,7 +36,8 @@ interface WebSocketMessage {
     | 'text_delta'
     | 'tool_use_start'
     | 'message_end'
-    | 'fact_candidates';
+    | 'fact_candidates'
+    | 'tenant_candidates';
   data: unknown;
 }
 
@@ -88,6 +89,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     setActiveAgentType,
     connectionStatus,
     setConnectionStatus,
+    setTenantCandidates,
   } = useChatStore();
 
   const streamingMessageIdsRef = useRef<Set<string>>(new Set());
@@ -393,13 +395,24 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         break;
       }
 
+      case 'tenant_candidates': {
+        // A void/matchmaker turn surfaced recruitable tenants — stash them so
+        // the chat can offer "save these as Contacts".
+        const payload = message.data as {
+          tenants?: TenantCandidate[];
+          source_address?: string | null;
+        };
+        setTenantCandidates(payload.tenants ?? [], payload.source_address ?? null);
+        break;
+      }
+
       case 'error': {
         console.error('Server error:', message.data);
         setIsProcessing(false);
         break;
       }
     }
-  }, [addMessage, updateMessage, appendToMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, queryClient]);
+  }, [addMessage, updateMessage, appendToMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, setTenantCandidates, queryClient]);
 
   // Send a message
   const sendMessage = useCallback((content: string) => {

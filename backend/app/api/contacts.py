@@ -28,6 +28,8 @@ from app.models.contact import (
     ContactUpdate,
     InteractionCreate,
     InteractionResponse,
+    PromoteTenantsRequest,
+    PromoteTenantsResult,
 )
 
 router = APIRouter(tags=["contacts"])
@@ -147,6 +149,35 @@ async def delete_company(
     company = await _get_company(db, current_user.id, company_id)
     await db.delete(company)
     await db.commit()
+
+
+# --------------------------------------------------------------------------- #
+# Void → Contacts promotion
+# --------------------------------------------------------------------------- #
+@router.post("/contacts/from-void", response_model=PromoteTenantsResult)
+async def promote_void_tenants(
+    data: PromoteTenantsRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> PromoteTenantsResult:
+    """Save tenant suggestions from a void/matchmaker analysis as Companies.
+
+    Completes the void → contacts → campaign spine: the tenant brands a void run
+    surfaced become real directory rows (de-duped by name within the user), ready
+    to enrich with people and pursue via outreach.
+    """
+    from app.services.tenant_promotion import promote_tenants_to_contacts
+
+    if not data.tenants:
+        return PromoteTenantsResult(created=0, skipped=0, companies=[])
+
+    result = await promote_tenants_to_contacts(
+        db,
+        current_user.id,
+        [t.model_dump() for t in data.tenants],
+        source={"address": data.source_address, "project_id": data.project_id},
+    )
+    return PromoteTenantsResult.model_validate(result)
 
 
 # --------------------------------------------------------------------------- #

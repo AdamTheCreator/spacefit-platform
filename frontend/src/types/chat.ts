@@ -26,6 +26,22 @@ export interface Message {
   pending?: boolean;
 }
 
+/**
+ * A recruitable tenant a void/matchmaker analysis surfaced, emitted by the
+ * backend `tenant_candidates` WS event so the chat can offer "save as Contacts".
+ * Mirrors the backend `TenantPromotionItem`.
+ */
+export interface TenantCandidate {
+  name: string;
+  sector?: string | null;
+  category?: string | null;
+  estimated_sf?: number | null;
+  priority?: string | null;
+  match_score?: number | null;
+  rationale?: string | null;
+  source_address?: string | null;
+}
+
 export type WorkflowStepStatus =
   | 'pending'
   | 'running'

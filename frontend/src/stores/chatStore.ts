@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import type { Message, WorkflowStep } from '../types/chat';
+import type { Message, TenantCandidate, WorkflowStep } from '../types/chat';
 
 interface ChatState {
   connectionStatus: 'connected' | 'connecting' | 'disconnected';
@@ -11,6 +11,10 @@ interface ChatState {
   workflowSteps: WorkflowStep[];
   isProcessing: boolean;
   activeAgentType: string | null;
+  // Tenant suggestions from the latest void/matchmaker turn, awaiting a
+  // "save to Contacts" decision (cleared when the user saves or switches chats).
+  tenantCandidates: TenantCandidate[];
+  tenantCandidatesSource: string | null;
 
   // Actions
   setCurrentSession: (sessionId: string | null, messages?: Message[]) => void;
@@ -24,6 +28,8 @@ interface ChatState {
   setActiveAgentType: (agentType: string | null) => void;
   setConnectionStatus: (status: 'connected' | 'connecting' | 'disconnected') => void;
   setCurrentProjectId: (projectId: string | null) => void;
+  setTenantCandidates: (tenants: TenantCandidate[], source: string | null) => void;
+  clearTenantCandidates: () => void;
   clearChat: () => void;
 }
 
@@ -35,6 +41,8 @@ export const useChatStore = create<ChatState>((set) => ({
   workflowSteps: [],
   isProcessing: false,
   activeAgentType: null,
+  tenantCandidates: [],
+  tenantCandidatesSource: null,
 
   setCurrentSession: (sessionId, messages = []) =>
     set({
@@ -43,6 +51,8 @@ export const useChatStore = create<ChatState>((set) => ({
       workflowSteps: [],
       isProcessing: false,
       activeAgentType: null,
+      tenantCandidates: [],
+      tenantCandidatesSource: null,
     }),
 
   addMessage: (message) =>
@@ -91,6 +101,12 @@ export const useChatStore = create<ChatState>((set) => ({
   setCurrentProjectId: (projectId: string | null) =>
     set({ currentProjectId: projectId }),
 
+  setTenantCandidates: (tenants, source) =>
+    set({ tenantCandidates: tenants, tenantCandidatesSource: source }),
+
+  clearTenantCandidates: () =>
+    set({ tenantCandidates: [], tenantCandidatesSource: null }),
+
   clearChat: () =>
     set({
       currentSessionId: null,
@@ -99,6 +115,8 @@ export const useChatStore = create<ChatState>((set) => ({
       workflowSteps: [],
       isProcessing: false,
       activeAgentType: null,
+      tenantCandidates: [],
+      tenantCandidatesSource: null,
     }),
 }));
 
@@ -131,6 +149,17 @@ export const useChatActions = () => useChatStore(
     setIsProcessing: state.setIsProcessing,
     setActiveAgentType: state.setActiveAgentType,
     setConnectionStatus: state.setConnectionStatus,
+    setTenantCandidates: state.setTenantCandidates,
+    clearTenantCandidates: state.clearTenantCandidates,
     clearChat: state.clearChat,
   }))
 );
+
+// Tenant suggestions awaiting a "save to Contacts" decision.
+export const useTenantCandidates = () =>
+  useChatStore(
+    useShallow(state => ({
+      tenantCandidates: state.tenantCandidates,
+      tenantCandidatesSource: state.tenantCandidatesSource,
+    }))
+  );
