@@ -5,6 +5,7 @@ Handles email outreach campaigns for tenant prospecting based on void analysis.
 This is the "game changer" feature that automates the manual spreadsheet + mail merge workflow.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
@@ -31,8 +32,11 @@ from app.services.email_blast import (
     generate_default_body,
     generate_void_outreach_body,
 )
+from app.services.gmail import get_user_gmail_tokens
 from app.services.placer import get_void_opportunities_structured
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/outreach", tags=["outreach"])
 
@@ -539,6 +543,21 @@ async def send_campaign(
         for r in recipients_to_send
     ]
 
+    # Prefer the user's connected Gmail; fall back to SMTP / dev-log when
+    # absent. Gmail sends as the authenticated account regardless of
+    # from_email, so from_name/from_email are left as-is.
+    gmail_tokens = await get_user_gmail_tokens(db, current_user.id)
+    if gmail_tokens:
+        transport = "gmail"
+    else:
+        transport = "smtp" if settings.smtp_host else "dev-log"
+    logger.info(
+        "[outreach] sending campaign %s via %s (%d recipients)",
+        campaign.id,
+        transport,
+        len(recipients_data),
+    )
+
     # Send emails (tracking_base_url points opens/clicks back at this API)
     summary = await send_campaign_emails(
         recipients=recipients_data,
@@ -550,6 +569,7 @@ async def send_campaign(
         from_email=campaign.from_email,
         reply_to=campaign.reply_to,
         tracking_base_url=settings.api_base_url,
+        gmail_tokens=gmail_tokens,
     )
 
     # Update recipient statuses

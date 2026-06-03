@@ -76,7 +76,7 @@ exactly the ones that made the app feel fake on the call.
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
 | **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
-| **3 — Finish sending** | Gmail send + reply triage (`/outreach/threads`) *(tracking-id wiring done early, PR #34)* | After P2 |
+| **3 — Finish sending** | ✅ Gmail send + SMTP/dev fallback (3a). ⏳ reply triage (`/outreach/threads`, 3b) | Partial |
 | **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing. ⏳ intersection input | Mostly done |
 | **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
 
@@ -118,12 +118,12 @@ context, rather than static chips.
   markets, budget / cap rate, tenant credit, demographics) — the Search matching engine depends on it.
 
 ### 4) Outreach overhaul (bulk email) — **Phase 3 (finish, don't build)**
-- Wire **Gmail OAuth** send (Resend fallback); replace the dev-log SMTP path.
+- ✅ **Done (Phase 3a):** campaign sends route through the user's connected **Gmail** when available, else SMTP, else dev-log — open/click tracking applied in all paths.
 - ~~Generate + inject `tracking_id` in the send path~~ — **done early (PR #34):** the send path
   now embeds the open pixel + tracked links via the new `api_base_url` setting.
 - Build **reply triage**: `/outreach/threads`, map `gmail_monitor` replies to campaigns, replace
   the dashboard's `replied_count` hack.
-- Let recipients come from the new Contacts store, not just void output.
+- ✅ **Done (Phase 2):** recipients can come from the Contacts store (directory "Send to Outreach"), not just void output.
 
 ### 5) Campaign overhaul — **Phase 2**
 A campaign, concretely (the code already supports this shape):
