@@ -129,11 +129,100 @@ BRAND_SUGGESTIONS = {
 }
 
 
+def affordability_tier(median_income: int | float | None) -> dict:
+    """Classify a trade area's affordability from median household income.
+
+    Used to scrub brand suggestions to the right price tier (e.g. don't pitch a
+    luxury concept into a value trade area). Pure + deterministic so it can be
+    unit-tested without an LLM.
+    """
+    if not median_income or median_income <= 0:
+        return {"key": "unknown", "label": "an income-unknown"}
+    if median_income < 50_000:
+        return {"key": "value", "label": "a value (lower-income)"}
+    if median_income < 90_000:
+        return {"key": "moderate", "label": "a moderate-income"}
+    if median_income < 150_000:
+        return {"key": "affluent", "label": "an affluent"}
+    return {"key": "luxury", "label": "a luxury (high-income)"}
+
+
+# Static prompt fragments (kept out of the f-string so the JSON braces below
+# don't need escaping).
+_VOID_CAVEAT = """IMPORTANT DATA CAVEAT: The existing tenant list comes from Google Places API and may NOT be exhaustive. Google Places can miss businesses, especially in dense markets. When identifying voids:
+- Use cautious language like "no [category] found in our data" rather than absolute claims like "there is no [business]"
+- If a common national chain (e.g., Chipotle, Panera, LA Fitness, Crunch) is not in the tenant list, note that it "was not found in our search data" rather than definitively stating it is absent from the market
+- Focus on categories that are clearly underserved relative to the demographics, rather than claiming specific brands don't exist
+- When suggesting brands, note whether similar concepts already appear in the data"""
+
+_VOID_JSON_SCHEMA = """For each void opportunity:
+1. Assess the demographic fit (is there demand?)
+2. Check existing competition (is the category underserved?)
+3. Consider co-tenancy (what existing tenants would complement?)
+4. Score the opportunity (0-100 match score)
+5. Suggest specific tenant brands appropriate for this trade area's price tier
+
+Return a JSON object with this structure:
+{
+    "property_summary": "Brief summary of the property and trade area",
+    "demographic_tier": "value | moderate | affluent | luxury | unknown",
+    "analysis_parameters": {
+        "address": "Address analyzed",
+        "radius_miles": 3.0,
+        "use_case": "leasing"
+    },
+    "categories": [
+        {
+            "category_name": "Fast Casual Mediterranean",
+            "parent_category": "Fast Casual Dining",
+            "is_void": true,
+            "match_score": 89,
+            "rationale": "Why this is a void/opportunity",
+            "demographic_support": "Which demographics support this",
+            "competitor_analysis": "Nearest competitor info",
+            "suggested_tenants": ["Cava", "Naf Naf Grill"],
+            "estimated_sf_need": 2200,
+            "priority": "high"
+        }
+    ],
+    "excluded_suggestions": [
+        {"tenant": "Brand name", "reason": "Too premium for this value trade area"}
+    ],
+    "summary": {
+        "total_voids": 5,
+        "high_priority": ["Category names"],
+        "medium_priority": ["Category names"],
+        "well_served": ["Category names already present"],
+        "key_recommendation": "Overall recommendation"
+    }
+}
+
+Analyze comprehensively but return ONLY valid JSON."""
+
+_LEASING_LENS = (
+    "You are supporting LEASING. The reader is filling vacant space and will reach "
+    "out to tenants. Emphasize concrete, recruitable targets: named brands that are "
+    "actively expanding, co-tenancy logic, and who to pursue first. Make it "
+    "actionable for outreach."
+)
+
+_INVESTMENT_LENS = (
+    "You are supporting an INVESTMENT MEMO. The reader is underwriting an "
+    "acquisition, not filling a suite. Frame each void as a demand signal and a "
+    "risk/return consideration: how deep and durable the unmet demand is, what it "
+    "implies for achievable rents / NOI / downside, and how confident the read is "
+    "given the data. De-emphasize specific brands to recruit; emphasize the "
+    "category-level thesis and the risks."
+)
+
+
 async def analyze_voids_for_property(
     address: str,
     existing_tenants: list[dict] | None = None,
     demographics: dict | None = None,
     radius_miles: float = 3.0,
+    use_case: str = "leasing",
+    tenant_focus: str = "",
     resolved_llm: ResolvedLLM | None = None,
 ) -> dict:
     """
@@ -192,53 +281,38 @@ async def analyze_voids_for_property(
 
     context = "\n".join(context_parts)
 
-    system_prompt = """You are a commercial real estate void/gap analyst. Your job is to identify missing tenant categories at a retail property based on demographics and existing tenant mix.
+    income = demographics.get("median_income") if demographics else None
+    tier = affordability_tier(income)
+    use_case = (use_case or "leasing").lower()
+    if use_case not in ("leasing", "investment_memo"):
+        use_case = "leasing"
+    lens = _INVESTMENT_LENS if use_case == "investment_memo" else _LEASING_LENS
 
-IMPORTANT DATA CAVEAT: The existing tenant list comes from Google Places API and may NOT be exhaustive. Google Places can miss businesses, especially in dense markets. When identifying voids:
-- Use cautious language like "no [category] found in our data" rather than absolute claims like "there is no [business]"
-- If a common national chain (e.g., Chipotle, Panera, LA Fitness, Crunch) is not in the tenant list, note that it "was not found in our search data" rather than definitively stating it is absent from the market
-- Focus on categories that are clearly underserved relative to the demographics, rather than claiming specific brands don't exist
-- When suggesting brands, note whether similar concepts already appear in the data
+    income_str = f"${income:,}" if income else "unknown"
+    scrub_clause = (
+        "\n\nDEMOGRAPHIC SCRUBBING (required): This is "
+        f"{tier['label']} trade area (median household income {income_str}). "
+        "Match every suggested brand's price tier to the trade area. Do NOT pitch "
+        "luxury/premium concepts into a value or moderate area, and do NOT pitch "
+        "deep-discount concepts into an affluent/luxury area. That is the single "
+        "most common way these lists go wrong (e.g. Neiman Marcus in a low-income "
+        "trade area). For any brand you would naturally list but exclude on these "
+        "grounds, add it to `excluded_suggestions` with a one-line reason so the "
+        "user can see what was filtered and override if they disagree."
+    )
+    focus_clause = ""
+    if tenant_focus and tenant_focus.strip():
+        focus_clause = (
+            "\n\nTENANT FOCUS: The user is specifically interested in: "
+            f"{tenant_focus.strip()}. Lead with categories/brands matching this focus "
+            "(type and/or size); you may note one or two adjacent opportunities, "
+            "but keep the focus front and center."
+        )
 
-For each void opportunity:
-1. Assess the demographic fit (is there demand?)
-2. Check existing competition (is the category underserved?)
-3. Consider co-tenancy (what existing tenants would complement?)
-4. Score the opportunity (0-100 match score)
-5. Suggest specific tenant brands
-
-Return a JSON object with this structure:
-{
-    "property_summary": "Brief summary of the property and trade area",
-    "analysis_parameters": {
-        "address": "Address analyzed",
-        "radius_miles": 3.0,
-        "date": "2025-01-11"
-    },
-    "categories": [
-        {
-            "category_name": "Fast Casual Mediterranean",
-            "parent_category": "Fast Casual Dining",
-            "is_void": true,
-            "match_score": 89,
-            "rationale": "Why this is a void/opportunity",
-            "demographic_support": "Which demographics support this",
-            "competitor_analysis": "Nearest competitor info",
-            "suggested_tenants": ["Cava", "Naf Naf Grill"],
-            "estimated_sf_need": 2200,
-            "priority": "high"
-        }
-    ],
-    "summary": {
-        "total_voids": 5,
-        "high_priority": ["Category names"],
-        "medium_priority": ["Category names"],
-        "well_served": ["Category names already present"],
-        "key_recommendation": "Overall recommendation"
-    }
-}
-
-Analyze comprehensively but return ONLY valid JSON."""
+    system_prompt = (
+        f"You are a commercial real estate void/gap analyst. {lens}\n\n"
+        f"{_VOID_CAVEAT}{scrub_clause}{focus_clause}\n\n{_VOID_JSON_SCHEMA}"
+    )
 
     llm = resolved_llm.client if resolved_llm else get_llm_client()
     model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
@@ -286,27 +360,42 @@ async def generate_void_report(
     existing_tenants: list[dict] | None = None,
     demographics: dict | None = None,
     radius_miles: float = 3.0,
+    use_case: str = "leasing",
+    tenant_focus: str = "",
+    resolved_llm: ResolvedLLM | None = None,
 ) -> str:
     """
     Generate a formatted void analysis report as text.
 
-    Returns a human-readable report string.
+    ``use_case`` is "leasing" (recruitable targets) or "investment_memo" (gaps as
+    acquisition demand signals). ``tenant_focus`` narrows to specific tenant
+    types/sizes. Returns a human-readable report string.
     """
     analysis = await analyze_voids_for_property(
         address=property_address,
         existing_tenants=existing_tenants,
         demographics=demographics,
         radius_miles=radius_miles,
+        use_case=use_case,
+        tenant_focus=tenant_focus,
+        resolved_llm=resolved_llm,
     )
 
     if "error" in analysis:
         return f"Error generating void analysis: {analysis['error']}"
 
     # Format as readable report
+    title = (
+        "Investment-Memo Void Analysis"
+        if use_case == "investment_memo"
+        else "Void Analysis Report"
+    )
     lines = []
-    lines.append(f"**Void Analysis Report**")
+    lines.append(f"**{title}**")
     lines.append(f"*{property_address}*")
     lines.append(f"Trade Area: {radius_miles}-mile radius")
+    if tenant_focus and tenant_focus.strip():
+        lines.append(f"Focus: {tenant_focus.strip()}")
     lines.append("")
 
     if analysis.get("property_summary"):
@@ -343,6 +432,20 @@ async def generate_void_report(
                     lines.append(f"  *Typical Size:* {cat['estimated_sf_need']:,} SF")
 
                 lines.append("")
+
+    # Demographic-mismatch suggestions the model filtered out (transparency,
+    # so the user can override if they disagree with a scrub).
+    excluded = analysis.get("excluded_suggestions") or []
+    if excluded:
+        lines.append("**Filtered out (demographic mismatch):**")
+        for item in excluded:
+            tenant = item.get("tenant", "?")
+            reason = item.get("reason", "")
+            line = f"- {tenant}"
+            if reason:
+                line += f": {reason}"
+            lines.append(line)
+        lines.append("")
 
     # Well-served categories
     if summary.get("well_served"):

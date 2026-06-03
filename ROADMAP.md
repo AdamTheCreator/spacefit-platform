@@ -77,7 +77,7 @@ exactly the ones that made the app feel fake on the call.
 | **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
 | **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
 | **3 — Finish sending** | Gmail send + reply triage (`/outreach/threads`) *(tracking-id wiring done early, PR #34)* | After P2 |
-| **4 — Void depth** | leasing vs investment-memo modes · follow-up Qs · demographic list-scrubbing · intersections | Parallel-able |
+| **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing. ⏳ intersection input | Mostly done |
 | **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
 
 ---
@@ -163,6 +163,8 @@ rank listings; surface top matches per client
 ---
 
 ## Void-analysis depth (the differentiator) — Phase 4
+
+> ✅ **Shipped:** `void_analysis` (service + MCP tool) now takes `use_case` (leasing vs investment_memo) and `tenant_focus`; a deterministic `affordability_tier(median_income)` helper drives demographic scrubbing (with an `excluded_suggestions` list for override); and the analyst/matchmaker prompts ask the "specific tenant types/sizes?" follow-up + enforce the scrub. **Intersection input still remains (nugget B).**
 
 - **Leasing vs investment-memo modes** — same tool, two output shapes (today it's one-size-fits-all).
 - **Follow-up question** before running a leasing void — "any specific tenant types or sizes?"
