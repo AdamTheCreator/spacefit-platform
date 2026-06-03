@@ -78,7 +78,7 @@ exactly the ones that made the app feel fake on the call.
 | **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
 | **3 — Finish sending** | ✅ Gmail send (3a) + reply triage (`/outreach/threads`, 3b) | Done |
 | **4 — Void depth** | ✅ leasing/investment modes · follow-up Qs · demographic scrubbing. ⏳ intersection input | Mostly done |
-| **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
+| **5 — Search & kanban real** | ✅ client-fit matching engine (CSV interim feed). ⏳ wire Workflow to real deals | Partial |
 
 ---
 
@@ -138,6 +138,8 @@ then drops the user into the existing composer. That single action is what makes
 ---
 
 ## Search → a client-fit matching engine (expanded vision)
+
+> ✅ **Shipped (Phase 5):** the Search page is a real matcher now — import CRE listings (CSV/XLSX), pick a client, and the LLM scores every listing against that client's buy-box (the Phase 1 `Company.criteria` + sector/SF/markets), returned ranked by fit with a rationale + risk flags (`/listings/match`). The interim feed is CSV import; a live CREXi API drops into the same scoring untouched. Wiring the **Workflow/kanban** to real deals is the remaining Phase 5 item.
 
 Search stops being a mock grid and becomes a **recommender**. Pull listings from a property database
 (CREXi first), and for each listing the LLM produces a **fit score = how likely this specific client
