@@ -38,6 +38,10 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://spacegoose.ai
+      - key: API_BASE_URL
+        # Public base URL of this API — used to build outreach open/click
+        # tracking links. Must match the deployed backend host.
+        value: https://api.spacegoose.ai
       - key: GOOGLE_REDIRECT_URI
         value: https://api.spacegoose.ai/api/v1/auth/google/callback
       - key: GMAIL_REDIRECT_URI

@@ -47,7 +47,7 @@ it just isn't connected to anything, so it feels missing.
 | Open/click tracking | ✅ Real | `tracking_id` model fix **+** threaded through the send path (open pixel + tracked links via `api_base_url`). **Phase 0 / PR #34.** |
 | Real sending (Gmail / Resend) | ⚠️ Not wired | Both exist; campaigns fall back to a dev SMTP log. |
 | Reply reading / triage queue | ❌ Stub | `gmail_monitor.py` watches for flyers, not replies. Dashboard fakes it off `replied_count`. |
-| Contacts directory | ❌ Mock | 100% hardcoded in `pages/contacts/data.ts`. No model, no API. |
+| Contacts directory | ✅ Real | Persisted `companies`/`contacts` + API + CSV import (migration 035). **Phase 1.** |
 | "Find properties" / Search | ❌ Mock | Hardcoded grid in `SearchPage.tsx`. |
 | Workflow / kanban board | ❌ Mock | Hardcoded columns that don't even match the real `DealStage` enum. |
 
@@ -74,8 +74,8 @@ exactly the ones that made the app feel fake on the call.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **0 — Quick wins** | Contacts sidebar fix · project chat suggestions + renamed goal field · tracking_id bug · (cleanup) | ✅ **Shipped** (this branch) |
-| **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | Next |
-| **2 — Connect the spine** | "Create campaign from void/contacts" on-ramp; promote discovered tenants → Contacts | After P1 |
+| **1 — Real Contacts** | `Contact` + `Company` models, CSV bulk import + one-by-one, **client buy-box schema** | ✅ Done |
+| **2 — Connect the spine** | ✅ Contacts → campaign on-ramp (composer pre-fill); ⏳ void→contacts promotion still to do | Partial |
 | **3 — Finish sending** | Gmail send + reply triage (`/outreach/threads`) *(tracking-id wiring done early, PR #34)* | After P2 |
 | **4 — Void depth** | leasing vs investment-memo modes · follow-up Qs · demographic list-scrubbing · intersections | Parallel-able |
 | **5 — Search & kanban real** | client-fit matching engine · wire Workflow to real deals | Gated on data + P1 |
@@ -109,7 +109,7 @@ context, rather than static chips.
 
 ### 2) Side nav on Contacts — ✅ done (Phase 0)
 
-### 3) Bulk import of contacts — **Phase 1 (foundation)**
+### 3) Bulk import of contacts — ✅ **done (Phase 1)**
 - **Backend:** `Contact` + `Company` models, `/contacts` CRUD, `/contacts/import` (CSV). Model it
   on the existing `customers.py` + `useCustomers.ts` import pattern.
 - **Frontend:** `useContacts` hooks, replace mock `data.ts`, wire "Add contact" (one-by-one) and a
@@ -133,6 +133,8 @@ A campaign, concretely (the code already supports this shape):
 The missing piece is the **on-ramp**: a "Create campaign / Start outreach" action from a project or
 a void-analysis result that pre-fills recipients (discovered tenants + Contacts) and a drafted email,
 then drops the user into the existing composer. That single action is what makes campaigns feel real.
+
+> ✅ **Shipped (Phase 2):** the Contacts directory's "Send to Outreach" now pre-fills the composer with the selected contacts as recipients (sender pre-filled from your profile). Project / void-analysis on-ramps are the remaining entry points.
 
 ---
 

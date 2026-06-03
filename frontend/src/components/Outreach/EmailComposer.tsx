@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import api from '../../lib/axios';
+import { useAuthStore } from '../../stores/authStore';
 import type { CreateCampaignRequest, CreateRecipientRequest } from '../../types/outreach';
 
 interface EmailComposerProps {
@@ -78,9 +79,12 @@ export function EmailComposer({
   const [campaignName, setCampaignName] = useState(
     propertyName ? `Outreach: ${propertyName}` : ''
   );
+  const user = useAuthStore((s) => s.user);
   const [subject, setSubject] = useState('');
-  const [fromName, setFromName] = useState('');
-  const [fromEmail, setFromEmail] = useState('');
+  const [fromName, setFromName] = useState(
+    () => [user?.first_name, user?.last_name].filter(Boolean).join(' '),
+  );
+  const [fromEmail, setFromEmail] = useState(() => user?.email ?? '');
   const [replyTo, setReplyTo] = useState('');
   const [recipients, setRecipients] = useState<RecipientRow[]>(
     initialRecipients.map((r, i) => ({

@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.customers import router as customers_router
+from app.api.contacts import router as contacts_router
 from app.api.credentials import router as credentials_router
 from app.api.onboarding import router as onboarding_router
 from app.api.deals import router as deals_router, properties_router, approvals_router
@@ -134,6 +135,7 @@ fastapi_app.include_router(ai_config_router, prefix=settings.api_prefix)
 fastapi_app.include_router(admin_router, prefix=settings.api_prefix)
 fastapi_app.include_router(imports_router, prefix=settings.api_prefix)
 fastapi_app.include_router(sales_router, prefix=settings.api_prefix)
+fastapi_app.include_router(contacts_router, prefix=settings.api_prefix)
 
 # Mount MCP HTTP+SSE transport -- external MCP clients (Claude Desktop, Cursor)
 # can connect at /mcp.  Internal agents use SpacegooseMCPClient (in-process).
