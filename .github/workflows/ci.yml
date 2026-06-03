@@ -1,0 +1,100 @@
+name: CI
+
+# First CI gate for the repo. Two jobs — frontend and backend — run on every PR
+# into master and on pushes to master.
+#
+# Hard gates (fail the build):
+#   * frontend: `npm run build` (tsc -b + vite) — the project's only type-check gate
+#   * backend:  `pytest` (against a real Postgres, migrations applied like prod boot)
+#
+# Informational for now (run but do not fail the build): `eslint` and `ruff`.
+# Both have a large pre-existing baseline (eslint ~34, ruff ~1.3k), so blocking on
+# `check .` would make every PR red. They surface annotations so new debt is
+# visible; flip the matching `continue-on-error` to remove once the backlog is
+# cleared (or switch to a line-scoped "no new violations" reporter).
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Cancel an in-progress run when the same ref is pushed again.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend (type-check + lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check + build (hard gate)
+        run: npm run build
+
+      - name: ESLint (informational — see header)
+        run: npm run lint
+        continue-on-error: true
+
+  backend:
+    name: Backend (ruff + pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: spacegoose
+          POSTGRES_PASSWORD: spacegoose
+          POSTGRES_DB: spacegoose_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spacegoose"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Only DATABASE_URL needs overriding — every other setting has a working
+      # default in app/core/config.py (SECRET_KEY, ENCRYPTION_MASTER_KEY, etc.).
+      DATABASE_URL: postgresql+asyncpg://spacegoose:spacegoose@localhost:5432/spacegoose_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install dependencies (app + dev tools)
+        run: pip install -e ".[dev]"
+
+      - name: Apply migrations
+        run: alembic upgrade head
+
+      - name: Ruff (informational — see header)
+        run: ruff check .
+        continue-on-error: true
+
+      - name: Pytest (hard gate)
+        run: pytest tests/
