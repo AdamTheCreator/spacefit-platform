@@ -1,0 +1,41 @@
+# QLoRA configuration. Tweak the LoRA + training knobs to learn how each one
+# moves quality / VRAM / overfitting (see README "The QLoRA mental model").
+
+# --- Base model -------------------------------------------------------------
+# Apache-2.0, ungated, strong tool use, fits in 4-bit on a single 16-24GB GPU.
+# Swap freely (e.g. meta-llama/Llama-3.1-8B-Instruct, mistralai/Mistral-7B-
+# Instruct-v0.3) — but then align the tool-call format to that model's template.
+base_model: Qwen/Qwen2.5-7B-Instruct
+
+# --- Paths ------------------------------------------------------------------
+train_file: data/train.jsonl
+eval_file: data/eval.jsonl
+output_dir: outputs/qlora-cre
+adapter_dir: outputs/qlora-cre/adapter
+
+# --- Sequence ---------------------------------------------------------------
+max_seq_length: 2048
+
+# --- LoRA -------------------------------------------------------------------
+lora_r: 16                 # adapter rank (capacity). 8-64 typical.
+lora_alpha: 32             # effective scale ~ alpha/r; ~2x rank is a good start.
+lora_dropout: 0.05
+target_modules:            # all attention + MLP projections = strongest adaptation
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# --- Training ---------------------------------------------------------------
+epochs: 3                  # small datasets overfit fast — watch eval loss.
+per_device_batch_size: 1
+grad_accum: 8              # effective batch = batch_size * grad_accum
+learning_rate: 2.0e-4      # LoRA tolerates higher LR than full FT
+warmup_ratio: 0.03
+weight_decay: 0.0
+logging_steps: 5
+packing: true              # pack short samples to use the sequence budget
+seed: 42
