@@ -21,7 +21,13 @@ import {
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { useAuthStore } from '../../stores/authStore';
+import { useOutreachVoices, useGenerateDraft } from '../../hooks/useOutreachVoices';
 import type { CreateCampaignRequest, CreateRecipientRequest } from '../../types/outreach';
+
+const FIELD_CLASS =
+  'w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]';
+const FIELD_LABEL_CLASS =
+  'block text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-1';
 
 interface EmailComposerProps {
   onClose: () => void;
@@ -32,7 +38,7 @@ interface EmailComposerProps {
   propertyAddress?: string;
 }
 
-type ComposeMode = 'choose' | 'manual' | 'ai';
+type ComposeMode = 'choose' | 'manual';
 
 interface RecipientRow {
   id: string;
@@ -97,6 +103,14 @@ export function EmailComposer({
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // AI draft assist
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiVoiceId, setAiVoiceId] = useState('');
+  const [aiNotes, setAiNotes] = useState('');
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const { data: voices } = useOutreachVoices();
+  const generateDraft = useGenerateDraft();
 
   const editor = useEditor({
     extensions: [
@@ -204,6 +218,29 @@ export function EmailComposer({
     }
   }, [editor]);
 
+  const handleGenerate = async () => {
+    setAiNotice(null);
+    setError(null);
+    try {
+      const res = await generateDraft.mutateAsync({
+        voice_id: aiVoiceId || undefined,
+        property_name: propertyName || undefined,
+        property_address: propertyAddress || undefined,
+        tenant_name: recipients.find((r) => r.tenant_name)?.tenant_name || undefined,
+        extra_notes: aiNotes || undefined,
+      });
+      setSubject(res.subject);
+      editor?.commands.setContent(res.body);
+      if (res.fallback_used) {
+        setAiNotice(
+          'AI was unavailable, so we inserted a template draft you can edit.',
+        );
+      }
+    } catch {
+      setError('Could not generate a draft. Try again or write the email manually.');
+    }
+  };
+
   // Mode chooser
   if (mode === 'choose') {
     return (
@@ -216,13 +253,16 @@ export function EmailComposer({
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
-            onClick={() => setMode('ai')}
+            onClick={() => {
+              setMode('manual');
+              setAiPanelOpen(true);
+            }}
             className="flex flex-col items-start p-5 rounded-xl border border-[var(--border-default)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent-subtle)] transition-all text-left group"
           >
             <Sparkles size={24} className="text-[var(--accent)] mb-3" />
             <span className="text-sm font-semibold text-industrial">AI draft</span>
             <span className="text-xs text-industrial-muted mt-1">
-              Describe your outreach goal and let AI write the email
+              Generate the email in your voice, then refine it
             </span>
           </button>
           <button
@@ -238,12 +278,6 @@ export function EmailComposer({
         </div>
       </div>
     );
-  }
-
-  // AI mode — redirect to chat with outreach context
-  if (mode === 'ai') {
-    window.location.href = '/chat?context=outreach';
-    return null;
   }
 
   // Manual compose mode
@@ -268,6 +302,78 @@ export function EmailComposer({
       )}
 
       <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        {/* AI draft assist */}
+        <div className="rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-subtle)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAiPanelOpen((o) => !o)}
+            aria-expanded={aiPanelOpen}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+          >
+            <Sparkles size={15} className="text-[var(--accent)]" />
+            <span className="text-sm font-semibold text-industrial flex-1">Draft with AI</span>
+            <span
+              className={`text-industrial-muted text-xs transition-transform ${aiPanelOpen ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            >
+              ▾
+            </span>
+          </button>
+          {aiPanelOpen && (
+            <div className="px-4 pb-4 pt-3 space-y-3 border-t border-[var(--accent)]/20">
+              <div>
+                <label className={FIELD_LABEL_CLASS}>Voice</label>
+                <select
+                  value={aiVoiceId}
+                  onChange={(e) => setAiVoiceId(e.target.value)}
+                  className={FIELD_CLASS}
+                >
+                  <option value="">
+                    {(voices?.length ?? 0) > 0
+                      ? 'Default voice'
+                      : 'Neutral (no saved voice)'}
+                  </option>
+                  {voices?.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                      {v.is_default ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={FIELD_LABEL_CLASS}>
+                  What's this about? <span className="font-normal lowercase">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={aiNotes}
+                  onChange={(e) => setAiNotes(e.target.value)}
+                  placeholder="e.g. 2,400 SF end-cap, ideal for a coffee concept; mention the new transit stop"
+                  className={FIELD_CLASS}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-industrial-muted">
+                  Uses your AI provider. Manage voices in Settings.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={generateDraft.isPending}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--accent)] text-white text-xs font-semibold hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50"
+                >
+                  <Sparkles size={14} />
+                  {generateDraft.isPending ? 'Generating…' : 'Generate draft'}
+                </button>
+              </div>
+              {aiNotice && (
+                <p className="text-[11px] text-industrial-muted">{aiNotice}</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Campaign name */}
         <div>
           <label className="block text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-1">

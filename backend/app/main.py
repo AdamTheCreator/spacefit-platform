@@ -18,6 +18,7 @@ from app.api.deals import router as deals_router, properties_router, approvals_r
 from app.api.documents import router as documents_router
 from app.api.preferences import router as preferences_router
 from app.api.outreach import router as outreach_router
+from app.api.outreach_voice import router as outreach_voice_router
 from app.api.tracking import router as tracking_router
 from app.api.subscription import router as subscription_router
 from app.api.billing import router as billing_router
@@ -123,6 +124,7 @@ fastapi_app.include_router(properties_router, prefix=settings.api_prefix)
 fastapi_app.include_router(documents_router, prefix=settings.api_prefix)
 fastapi_app.include_router(preferences_router, prefix=settings.api_prefix)
 fastapi_app.include_router(outreach_router, prefix=settings.api_prefix)
+fastapi_app.include_router(outreach_voice_router, prefix=settings.api_prefix)
 fastapi_app.include_router(tracking_router, prefix=settings.api_prefix)
 fastapi_app.include_router(subscription_router, prefix=settings.api_prefix)
 fastapi_app.include_router(billing_router, prefix=settings.api_prefix)

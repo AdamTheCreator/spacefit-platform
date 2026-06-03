@@ -56,7 +56,13 @@ def _build_client(
             max_concurrency=max_concurrency,
         )
 
-    if provider_norm in ("openai_compatible", "openai", "google", "deepseek"):
+    if provider_norm in (
+        "openai_compatible",
+        "openai",
+        "google",
+        "deepseek",
+        "huggingface",
+    ):
         resolved_key = api_key or settings.openai_api_key
         resolved_url = base_url or settings.openai_base_url
         # Provider-specific defaults for base_url
@@ -68,6 +74,11 @@ def _build_client(
                 resolved_url = "https://api.deepseek.com/v1"
             elif provider_norm == "openai":
                 resolved_url = "https://api.openai.com/v1"
+            elif provider_norm == "huggingface":
+                # Serverless router that fronts every HF inference provider and
+                # speaks the OpenAI chat-completions dialect.
+                resolved_key = api_key or settings.huggingface_api_key
+                resolved_url = settings.huggingface_base_url
         return OpenAICompatibleLLMClient(
             api_key=resolved_key,
             base_url=resolved_url,
@@ -77,8 +88,8 @@ def _build_client(
         )
 
     raise LLMConfigurationError(
-        f"Unsupported LLM provider={provider!r}. "
-        "Expected 'anthropic', 'openai', 'google', 'deepseek', or 'openai_compatible'."
+        f"Unsupported LLM provider={provider!r}. Expected 'anthropic', "
+        "'openai', 'google', 'deepseek', 'huggingface', or 'openai_compatible'."
     )
 
 

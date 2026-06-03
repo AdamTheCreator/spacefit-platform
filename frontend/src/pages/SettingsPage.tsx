@@ -9,6 +9,7 @@ import {
 } from '../hooks/usePreferences';
 import { useMemory, useClearMemory } from '../hooks/useMemory';
 import { MemoryFactsPanel } from '../components/Memory/MemoryFactsPanel';
+import { VoiceProfilesSection } from '../components/Outreach/VoiceProfilesSection';
 import {
   useAIConfig,
   useUpdateAIConfig,
@@ -662,6 +663,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
   google: 'Gemini',
   deepseek: 'DeepSeek',
+  huggingface: 'Hugging Face',
   openai_compatible: 'Custom',
   platform_default: 'Platform',
 };
@@ -1321,6 +1323,9 @@ export function SettingsPage() {
 
             {/* Per-specialist model overrides (BYOK only) */}
             <SpecialistModelsSection />
+
+            {/* Outreach email voice profiles (drives AI draft generation) */}
+            <VoiceProfilesSection />
 
             {/* AI Preferences */}
             <AIPreferencesSection />

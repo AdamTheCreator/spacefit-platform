@@ -21,6 +21,7 @@ from app.db.models.document import (
 from app.db.models.document_chunk import DocumentChunk
 from app.db.models.import_job import ImportJob
 from app.db.models.listing import PropertyListing
+from app.db.models.outreach_voice import OutreachVoiceProfile
 from app.db.models.project import Project
 from app.db.models.sales_lead import SalesLead, SalesLeadStatus
 from app.db.models.subscription import (
@@ -75,6 +76,7 @@ __all__ = [
     "Project",
     "ImportJob",
     "PropertyListing",
+    "OutreachVoiceProfile",
     "SalesLead",
     "SalesLeadStatus",
 ]
