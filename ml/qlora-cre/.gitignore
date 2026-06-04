@@ -1,0 +1,9 @@
+# Training artifacts and local data — never commit weights/checkpoints.
+.venv/
+__pycache__/
+data/
+outputs/
+merged/
+wandb/
+*.bin
+*.safetensors
