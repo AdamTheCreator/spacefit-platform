@@ -12,7 +12,8 @@
 - **void → Contacts** — "save these tenants as Contacts" from a void/matchmaker chat result, completing void → contacts → campaign (this PR).
 
 **What's left** (smaller tail):
-- **Document-staleness** indicator / re-index; a real **traffic-count** source (Placer.ai is stubbed in `app/services/placer.py`).
+- **Document-staleness** indicator / re-index.
+- ✅ **Traffic counts (vehicles/day, AADT)** — real counts from free public state-DOT ArcGIS layers (`app/services/traffic_counts.py`, a provider abstraction). Surfaced as a `traffic_counts` MCP tool (live in chat, scout+analyst), a `GET /api/v1/traffic/counts` endpoint, and `void_analysis` backfilling real VPD into the report. Live-validated CA/NC/VA; honest "not covered" elsewhere; HPMS national + more states drop in by config. (TomTom was rejected — it's speed/congestion, not counts; Placer.ai stub left as-is — foot-traffic is a different metric.) **A property "Traffic counts" UI card is the immediate follow-up** (endpoint is ready).
 - **Legacy Customers** → migrate/deprecate onto the new `contacts` model (buy-box now lives on `Company`).
 - ✅ **CI** — added in `.github/workflows/ci.yml` (this PR). **Hard gates:** frontend `npm run build` (tsc -b) and backend `pytest` (Postgres 16 service + `alembic upgrade head`, like prod boot). **Informational (non-blocking):** `eslint` (~34 baseline) and `ruff` (~1.3k baseline) — flip the `continue-on-error` to blocking once those backlogs are cleared, or move to a line-scoped "no new violations" reporter.
 - **Business/API track** (founder's side): Placer / SiteUSA / CREXi access — unblocks live data feeds.

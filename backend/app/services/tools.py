@@ -70,6 +70,32 @@ USE THIS TOOL WHEN:
         }
     },
     {
+        "name": "traffic_counts",
+        "description": (
+            "Get the daily vehicle traffic count (AADT, vehicles per day) at a "
+            "property's location, from public state-DOT data. Use it when the user "
+            "asks about traffic counts, vehicles per day (VPD), car counts, or how "
+            "busy the road by a property is (e.g. roadside retail exposure). Returns "
+            "the nearest official count (vehicles/day + road + year + distance), or "
+            "says plainly when the state isn't covered yet. Covered so far: CA, NC, VA."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "description": (
+                        "Concrete street address to look up a traffic count for. "
+                        "If the session is scoped to a project, default to the "
+                        "project's property address. Do NOT pass vague placeholders "
+                        "like 'the property'."
+                    )
+                }
+            },
+            "required": ["address"]
+        }
+    },
+    {
         "name": "tenant_roster",
         "description": """Get the current tenant roster for a shopping center or commercial property.
 

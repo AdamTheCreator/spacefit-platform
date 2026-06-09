@@ -498,6 +498,7 @@ async def handle_tool_calls(
         "demographics_analysis": AgentType.DEMOGRAPHICS,
         "tenant_roster": AgentType.TENANT_ROSTER,
         "void_analysis": AgentType.VOID_ANALYSIS,
+        "traffic_counts": AgentType.FOOT_TRAFFIC,
         "document_search": AgentType.ANALYST,
     }
 
@@ -506,6 +507,7 @@ async def handle_tool_calls(
         "demographics_analysis": "Analyzing trade area demographics",
         "tenant_roster": "Fetching tenant roster",
         "void_analysis": "Identifying tenant gaps & opportunities",
+        "traffic_counts": "Looking up daily traffic counts",
         "document_search": "Searching project documents",
     }
 
@@ -556,6 +558,7 @@ async def handle_tool_calls(
         "demographics_analysis": "address",
         "tenant_roster": "address",
         "void_analysis": "address",
+        "traffic_counts": "address",
     }
 
     def _is_unusable_location(value: object) -> bool:
