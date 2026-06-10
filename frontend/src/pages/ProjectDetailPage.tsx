@@ -11,6 +11,7 @@ import { AppLayout } from '../components/Layout/AppLayout';
 import { DeleteProjectModal } from '../components/Projects/DeleteProjectModal';
 import { ProjectSidebar } from '../components/Projects/ProjectSidebar';
 import { ProjectChatList } from '../components/Projects/ProjectChatList';
+import { AnalysisPlayground } from '../components/Playground/AnalysisPlayground';
 import {
   useProject,
   useCreateProjectSession,
@@ -176,6 +177,20 @@ export function ProjectDetailPage() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Analysis playground */}
+          <div className="px-6 pb-2">
+            <p className="text-[11px] font-bold text-industrial-muted uppercase tracking-widest mb-3">
+              Analyze
+            </p>
+            <AnalysisPlayground
+              documents={project.documents}
+              projectId={project.id}
+              subjectName={project.name}
+              subjectAddress={project.property_address}
+              recentSessions={project.sessions.filter((s) => s.analysis_type)}
+            />
           </div>
 
           {/* Previous chats */}
