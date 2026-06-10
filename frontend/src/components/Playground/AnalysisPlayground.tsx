@@ -71,13 +71,12 @@ const FOCUS_INSTRUCTION: Record<FocusValue, string> = {
     'Focus: investment memo — emphasize demand signals and risk for an investment thesis.',
 };
 
-// analysis type → the specialist whose model the switcher tunes. Every value
-// is a real AgentType member (see types/chat.ts), so the override key is valid.
-const ANALYSIS_SPECIALIST: Record<AnalysisTypeValue, string> = {
-  void_analysis: 'void-analysis',
-  competitive_analysis: 'analyst',
-  demographic_profile: 'demographics',
-};
+// The model switcher tunes the `analyst` specialist's default model — the
+// specialist that performs these property analyses. 'analyst' is a valid
+// SPECIALIST_REGISTRY key; the /ai-config/specialist-models endpoint rejects
+// anything outside {scout, analyst, matchmaker, outreach, orchestrator}, so the
+// AgentType values (void-analysis / demographics) must NOT be used here.
+const ANALYSIS_SPECIALIST_KEY = 'analyst';
 
 const ANALYSIS_LABEL: Record<string, string> = {
   void_analysis: 'Tenant gaps',
@@ -137,7 +136,7 @@ export function AnalysisPlayground({
   const hasByok = !!aiConfig?.has_byok_key && !!aiConfig?.is_key_valid;
   const activeProvider = providers?.find((p) => p.id === aiConfig?.effective_provider);
   const modelOptions = activeProvider?.models ?? [];
-  const specialistKey = ANALYSIS_SPECIALIST[analysisType];
+  const specialistKey = ANALYSIS_SPECIALIST_KEY;
   const selectedModel =
     specialist?.specialist_models?.[specialistKey] || aiConfig?.effective_model || '';
 
@@ -297,7 +296,7 @@ export function AnalysisPlayground({
                     ))}
                   </select>
                   <p className="mt-1.5 text-[11px] leading-snug text-industrial-muted">
-                    Saved as your default for {ANALYSIS_LABEL[analysisType]} runs.
+                    Saved as your default model for property analyses.
                   </p>
                 </>
               ) : (
