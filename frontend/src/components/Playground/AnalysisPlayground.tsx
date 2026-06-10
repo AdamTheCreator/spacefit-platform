@@ -165,7 +165,12 @@ export function AnalysisPlayground({
         tradeAreaMiles: radius,
         notes: composed || undefined,
       });
-      navigate(`/chat/${res.session_id}`, {
+      // Project runs open in the project chat so they stay in context (and the
+      // session is project-linked server-side); standalone runs use global chat.
+      const href = projectId
+        ? `/projects/${projectId}/chat/${res.session_id}`
+        : `/chat/${res.session_id}`;
+      navigate(href, {
         state: {
           initialMessage: 'Begin the analysis for this property.',
           documentId: docId,
