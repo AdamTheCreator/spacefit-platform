@@ -7,9 +7,10 @@ import {
   contactFullName, formatRelDays, formatSF,
 } from './data';
 import {
-  CompanyLogo, ContactAvatar, VerifPill, ExpansionBadge,
-  SearchInput, FilterChip, SelectionBar, thStyle, tdStyle,
+  CompanyLogo, ContactAvatar, VerifPill, ExpansionBadge, FilterChip, SelectionBar,
 } from './ui';
+import { DataTable, type Column } from '../../components/ui/DataTable';
+import { FilterBar } from '../../components/ui/FilterBar';
 import { useCompanies, useContacts } from '../../hooks/useContacts';
 
 type CompaniesById = Record<string, Company>;
@@ -21,29 +22,28 @@ function Tabs({ tab, setTab, counts }: {
   counts: { companies: number; contacts: number; stale: number };
 }) {
   const items = [
-    { id: 'companies', label: 'Companies', count: counts.companies },
-    { id: 'contacts', label: 'Contacts', count: counts.contacts },
+    { id: 'companies', label: 'Companies', count: counts.companies, pill: false },
+    { id: 'contacts', label: 'Contacts', count: counts.contacts, pill: false },
     { id: 'stale', label: 'Needs attention', count: counts.stale, pill: true },
   ];
   return (
-    <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border-default)', marginBottom: 18 }}>
+    <div className="flex gap-0.5 border-b border-[var(--border-default)] mb-[18px]">
       {items.map(it => (
-        <button key={it.id} onClick={() => setTab(it.id)}
-          style={{
-            padding: '10px 14px', border: 'none', background: 'transparent',
-            cursor: 'pointer', fontSize: 13.5,
-            fontWeight: tab === it.id ? 600 : 500,
-            color: tab === it.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-            borderBottom: `2px solid ${tab === it.id ? 'var(--accent)' : 'transparent'}`,
-            marginBottom: -1, display: 'flex', alignItems: 'center', gap: 8,
-          }}>
+        <button
+          key={it.id}
+          onClick={() => setTab(it.id)}
+          className={`flex items-center gap-2 px-3.5 py-2.5 text-[13.5px] -mb-px border-b-2 transition-colors ${
+            tab === it.id
+              ? 'font-semibold text-[var(--text-primary)] border-[var(--accent)]'
+              : 'font-medium text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]'
+          }`}
+        >
           {it.label}
-          <span style={{
-            fontSize: 11, padding: '1px 7px', borderRadius: 999,
-            background: it.pill && it.count > 0 ? '#FCE3DA' : 'var(--bg-tertiary)',
-            color: it.pill && it.count > 0 ? '#C25E1F' : 'var(--text-secondary)',
-            fontWeight: 500,
-          }}>{it.count}</span>
+          <span className={`text-[11px] px-1.5 py-px rounded-full font-medium ${
+            it.pill && it.count > 0
+              ? 'bg-[var(--bg-error)] text-[var(--color-error)]'
+              : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+          }`}>{it.count}</span>
         </button>
       ))}
     </div>
@@ -94,94 +94,113 @@ function CompaniesTable({ companies, contactsForCompany, onOpenCompany, onToast 
     else setSelected(new Set(filtered.map(c => c.id)));
   };
 
+  const columns: Column<Company>[] = [
+    {
+      key: 'name', header: 'Brand',
+      sortValue: (c) => c.name.toLowerCase(),
+      render: (c) => (
+        <div className="flex items-center gap-3">
+          <CompanyLogo company={c} size={36} />
+          <div className="min-w-0">
+            <div className="font-semibold text-[var(--text-primary)] text-[13.5px]">{c.name}</div>
+            <div className="text-[11.5px] text-[var(--text-muted)] mt-px">{c.website}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'sector', header: 'Sector', width: 160,
+      sortValue: (c) => c.sector,
+      render: (c) => (
+        <>
+          <div className="text-[var(--text-secondary)]">{c.sector}</div>
+          {c.subsector && <div className="text-[11.5px] text-[var(--text-muted)]">{c.subsector}</div>}
+        </>
+      ),
+    },
+    {
+      key: 'locations', header: 'Locations', width: 120, align: 'right',
+      sortValue: (c) => c.us_locations ?? -1,
+      render: (c) => (
+        <span>
+          <span className="text-[var(--text-primary)] font-medium">{c.us_locations?.toLocaleString() || '—'}</span>
+          <span className="text-[var(--text-muted)] text-[11.5px] ml-1">US</span>
+        </span>
+      ),
+    },
+    {
+      key: 'sf', header: 'Typical SF', width: 130,
+      sortValue: (c) => (((c.sf_min || 0) + (c.sf_max || 0)) / 2) || null,
+      render: (c) => <span className="text-[var(--text-secondary)]">{formatSF(c.sf_min, c.sf_max)}</span>,
+    },
+    {
+      key: 'expanding', header: 'Expanding', width: 140,
+      sortValue: (c) => (c.is_expanding === true ? 2 : c.is_expanding === false ? 1 : 0),
+      render: (c) => <ExpansionBadge value={c.is_expanding} />,
+    },
+    {
+      key: 'contacts', header: 'Contacts', width: 150,
+      sortValue: (c) => contactsForCompany(c.id).length,
+      render: (c) => {
+        const cts = contactsForCompany(c.id);
+        const verifCount = cts.filter(x => x.verif === 'verified').length;
+        const staleCount = cts.filter(x => x.verif === 'stale' || x.verif === 'bounced').length;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[var(--text-primary)] font-medium">{cts.length}</span>
+            <span className="text-[var(--text-muted)] text-[11.5px]">· {verifCount} verified</span>
+            {staleCount > 0 && (
+              <span className="text-[var(--color-warning)] text-[11px] font-medium">· {staleCount} stale</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'last', header: 'Last activity', width: 120,
+      sortValue: (c) => {
+        const m = Math.min(...contactsForCompany(c.id).map(x => x.last_contacted_days ?? 9999));
+        return m === 9999 ? null : m;
+      },
+      render: (c) => {
+        const lastContacted = Math.min(...contactsForCompany(c.id).map(x => x.last_contacted_days ?? 9999));
+        return (
+          <span className={`text-[12.5px] ${lastContacted < 30 ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+            {formatRelDays(lastContacted === 9999 ? null : lastContacted)}
+          </span>
+        );
+      },
+    },
+  ];
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-        <SearchInput value={q} onChange={setQ} placeholder="Search companies\u2026" />
+      <FilterBar
+        search={{ value: q, onChange: setQ, placeholder: 'Search companies…' }}
+        trailing={`${filtered.length} of ${companies.length}`}
+      >
         <FilterChip label="Sector" value={sector} onChange={setSector} options={sectors} allLabel="All sectors" />
         <FilterChip label="Expanding" value={expanding} onChange={setExpanding}
           options={[{ value: true, label: 'Yes' }, { value: false, label: 'No' }]} allLabel="Any" />
         <FilterChip label="Market" value={market} onChange={setMarket} options={markets} allLabel="All markets" />
         <FilterChip label="Size" value={sfBucket} onChange={setSfBucket}
-          options={[{ value: 'sm', label: '< 2K sf' }, { value: 'md', label: '2\u20133.5K sf' }, { value: 'lg', label: '3.5K+ sf' }]}
+          options={[{ value: 'sm', label: '< 2K sf' }, { value: 'md', label: '2–3.5K sf' }, { value: 'lg', label: '3.5K+ sf' }]}
           allLabel="Any size" />
-        <div style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--text-secondary)' }}>
-          {filtered.length} of {companies.length}
-        </div>
-      </div>
+      </FilterBar>
 
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 14, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-default)' }}>
-              <th style={thStyle(48)}>
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ cursor: 'pointer' }} />
-              </th>
-              <th style={thStyle()}>Brand</th>
-              <th style={thStyle(160)}>Sector</th>
-              <th style={thStyle(120)}>Locations</th>
-              <th style={thStyle(130)}>Typical SF</th>
-              <th style={thStyle(140)}>Expanding</th>
-              <th style={thStyle(130)}>Contacts</th>
-              <th style={thStyle(120)}>Last activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(c => {
-              const cts = contactsForCompany(c.id);
-              const verifCount = cts.filter(x => x.verif === 'verified').length;
-              const staleCount = cts.filter(x => x.verif === 'stale' || x.verif === 'bounced').length;
-              const lastContacted = Math.min(...cts.map(x => x.last_contacted_days ?? 9999));
-              return (
-                <tr key={c.id} onClick={() => onOpenCompany(c.id)}
-                  className="hover:bg-[var(--bg-tertiary)] transition-colors"
-                  style={{ borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
-                  <td style={tdStyle()} onClick={e => e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSel(c.id)} style={{ cursor: 'pointer' }} />
-                  </td>
-                  <td style={tdStyle()}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <CompanyLogo company={c} size={36} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13.5 }}>{c.name}</div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 1 }}>{c.website}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <div style={{ color: 'var(--text-secondary)' }}>{c.sector}</div>
-                    {c.subsector && <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{c.subsector}</div>}
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{c.us_locations?.toLocaleString() || '\u2014'}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 11.5, marginLeft: 4 }}>US</span>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{formatSF(c.sf_min, c.sf_max)}</span>
-                  </td>
-                  <td style={tdStyle()}>
-                    <ExpansionBadge value={c.is_expanding} />
-                  </td>
-                  <td style={tdStyle()}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{cts.length}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>&middot; {verifCount} verified</span>
-                      {staleCount > 0 && (
-                        <span style={{ color: '#C25E1F', fontSize: 11, fontWeight: 500 }}>&middot; {staleCount} stale</span>
-                      )}
-                    </div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={{ color: lastContacted < 30 ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: 12.5 }}>
-                      {formatRelDays(lastContacted === 9999 ? null : lastContacted)}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        rowKey={(c) => c.id}
+        onRowClick={(c) => onOpenCompany(c.id)}
+        initialSort={{ key: 'name', dir: 'asc' }}
+        selectable
+        isSelected={(c) => selected.has(c.id)}
+        onToggleRow={(c) => toggleSel(c.id)}
+        allSelected={allSelected}
+        onToggleAll={toggleAll}
+        empty="No companies match your filters."
+      />
 
       <SelectionBar count={selected.size} kind="company"
         onClear={() => setSelected(new Set())}
@@ -261,11 +280,79 @@ function ContactsTable({ contacts, companies, companiesById, onOpenContact, onOp
     else setSelected(new Set(filtered.map(c => c.id)));
   };
 
+  const columns: Column<Contact>[] = [
+    {
+      key: 'name', header: 'Name',
+      sortValue: (ct) => contactFullName(ct).toLowerCase(),
+      render: (ct) => (
+        <div className="flex items-center gap-2.5">
+          <ContactAvatar contact={ct} size={32} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-[var(--text-primary)]">{contactFullName(ct)}</span>
+              {(ct.verif === 'stale' || ct.verif === 'bounced') && <VerifPill status={ct.verif} sm />}
+            </div>
+            {ct.linkedin && <div className="text-[11px] text-[var(--text-muted)] mt-px">LinkedIn</div>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'role', header: 'Role', width: 220,
+      sortValue: (ct) => ct.role,
+      render: (ct) => <span className="text-[var(--text-secondary)]">{ct.role}</span>,
+    },
+    {
+      key: 'company', header: 'Company', width: 200,
+      sortValue: (ct) => companiesById[ct.company_id]?.name ?? '',
+      render: (ct) => {
+        const co = companiesById[ct.company_id];
+        return co ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onOpenCompany(co.id); }}
+            className="flex items-center gap-2 hover:underline"
+          >
+            <CompanyLogo company={co} size={24} radius={6} />
+            <span className="text-[var(--text-primary)] font-medium">{co.name}</span>
+          </button>
+        ) : (
+          <span className="text-[var(--text-muted)] text-[12.5px]">—</span>
+        );
+      },
+    },
+    {
+      key: 'email', header: 'Email', width: 230,
+      sortValue: (ct) => ct.email ?? null,
+      render: (ct) => ct.email ? (
+        <span className="font-mono text-[12px] text-[var(--text-secondary)]">{ct.email}</span>
+      ) : (
+        <span className="text-[12px] text-[var(--text-muted)] italic">No email</span>
+      ),
+    },
+    {
+      key: 'last', header: 'Last contacted', width: 140,
+      sortValue: (ct) => ct.last_contacted_days,
+      render: (ct) => (
+        <div className="flex flex-col">
+          <span className={`text-[12.5px] ${ct.last_contacted_days !== null && ct.last_contacted_days < 30 ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+            {formatRelDays(ct.last_contacted_days)}
+          </span>
+          {ct.last_reply_days !== null && ct.last_reply_days !== undefined && (
+            <span className="text-[11px] text-[var(--color-success)] mt-px">↵ replied {formatRelDays(ct.last_reply_days)}</span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       {!staleOnly && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-          <SearchInput value={q} onChange={setQ} placeholder="Search people, roles, brands\u2026" />
+        <FilterBar
+          search={{ value: q, onChange: setQ, placeholder: 'Search people, roles, brands…' }}
+          trailing={`${filtered.length} of ${contacts.length}`}
+        >
           <FilterChip label="Sector" value={sector} onChange={setSector} options={sectors} allLabel="All sectors" />
           <FilterChip label="Status" value={verif} onChange={setVerif}
             options={[
@@ -282,105 +369,39 @@ function ContactsTable({ contacts, companies, companiesById, onOpenContact, onOp
               { value: 'month', label: 'Past 30 days' },
               { value: 'never', label: 'Never' },
             ]} allLabel="Any time" />
-          <div style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--text-secondary)' }}>
-            {filtered.length} of {contacts.length}
-          </div>
-        </div>
+        </FilterBar>
       )}
 
       {staleOnly && (
-        <div style={{
-          padding: '14px 16px', borderRadius: 12,
-          background: '#FDF5E7', border: '1px solid #F3DFA6',
-          display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
-        }}>
-          <Sparkles size={18} color="#8A6417" />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#8A6417' }}>
+        <div className="flex items-center gap-3 mb-4 px-4 py-3.5 rounded-xl bg-[var(--bg-warning)] border border-[var(--color-warning)]/30">
+          <Sparkles size={18} className="text-[var(--color-warning)] flex-shrink-0" />
+          <div className="flex-1">
+            <div className="text-[13.5px] font-semibold text-[var(--color-warning)]">
               {filtered.length} contacts need attention
             </div>
-            <div style={{ fontSize: 12.5, color: '#8A6417', marginTop: 2, opacity: 0.85 }}>
+            <div className="text-[12.5px] text-[var(--color-warning)] mt-0.5 opacity-85">
               Unverified for 90+ days, bounced on last send, or flagged via LinkedIn re-check. Re-enrich or archive.
             </div>
           </div>
-          <button className="btn-industrial-secondary text-xs px-3 py-1.5 rounded-lg" onClick={() => onToast(`Re-enriching ${filtered.length} contacts\u2026`)}>
+          <button className="btn-industrial-secondary text-xs px-3 py-1.5 rounded-lg" onClick={() => onToast(`Re-enriching ${filtered.length} contacts…`)}>
             Re-enrich all
           </button>
         </div>
       )}
 
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 14, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-default)' }}>
-              <th style={thStyle(48)}>
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ cursor: 'pointer' }} />
-              </th>
-              <th style={thStyle()}>Name</th>
-              <th style={thStyle(220)}>Role</th>
-              <th style={thStyle(200)}>Company</th>
-              <th style={thStyle(230)}>Email</th>
-              <th style={thStyle(140)}>Last contacted</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(ct => {
-              const co = companiesById[ct.company_id];
-              return (
-                <tr key={ct.id} onClick={() => onOpenContact(ct.id)}
-                  className="hover:bg-[var(--bg-tertiary)] transition-colors"
-                  style={{ borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
-                  <td style={tdStyle()} onClick={e => e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(ct.id)} onChange={() => toggleSel(ct.id)} style={{ cursor: 'pointer' }} />
-                  </td>
-                  <td style={tdStyle()}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <ContactAvatar contact={ct} size={32} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{contactFullName(ct)}</span>
-                          {(ct.verif === 'stale' || ct.verif === 'bounced') && <VerifPill status={ct.verif} sm />}
-                        </div>
-                        {ct.linkedin && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>LinkedIn</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{ct.role}</span>
-                  </td>
-                  <td style={tdStyle()} onClick={e => { if (co) { e.stopPropagation(); onOpenCompany(co.id); } }}>
-                    {co ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <CompanyLogo company={co} size={24} radius={6} />
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{co.name}</span>
-                      </div>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>&mdash;</span>
-                    )}
-                  </td>
-                  <td style={tdStyle()}>
-                    {ct.email ? (
-                      <span className="font-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{ct.email}</span>
-                    ) : (
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No email</span>
-                    )}
-                  </td>
-                  <td style={tdStyle()}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ color: ct.last_contacted_days !== null && ct.last_contacted_days < 30 ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: 12.5 }}>
-                        {formatRelDays(ct.last_contacted_days)}
-                      </span>
-                      {ct.last_reply_days !== null && ct.last_reply_days !== undefined && (
-                        <span style={{ fontSize: 11, color: '#2F7A3B', marginTop: 1 }}>&crarr; replied {formatRelDays(ct.last_reply_days)}</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        rowKey={(ct) => ct.id}
+        onRowClick={(ct) => onOpenContact(ct.id)}
+        initialSort={{ key: 'name', dir: 'asc' }}
+        selectable
+        isSelected={(ct) => selected.has(ct.id)}
+        onToggleRow={(ct) => toggleSel(ct.id)}
+        allSelected={allSelected}
+        onToggleAll={toggleAll}
+        empty={staleOnly ? 'No contacts need attention right now.' : 'No contacts match your filters.'}
+      />
 
       <SelectionBar count={selected.size} kind="contact"
         onClear={() => setSelected(new Set())}
