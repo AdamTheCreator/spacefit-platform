@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Upload, Sparkles } from 'lucide-react';
 import { AppLayout } from '../components/Layout/AppLayout';
+import { FilterBar } from '../components/ui/FilterBar';
+import { FilterChip } from './contacts/ui';
 import { useCompanies } from '../hooks/useContacts';
 import {
   useListings,
@@ -52,6 +54,14 @@ function scoreTone(score: number): { bg: string; fg: string } {
   return { bg: 'var(--color-error-light)', fg: 'var(--color-error)' };
 }
 
+/** Compare nullable numerics, always sorting nulls last. */
+function cmpNullable(a: number | null, b: number | null, dir: 1 | -1): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return (a - b) * dir;
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -60,6 +70,9 @@ export function SearchPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [assetType, setAssetType] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState('fit');
 
   const companies = useCompanies();
   const listings = useListings();
@@ -68,6 +81,46 @@ export function SearchPage() {
 
   const listingCount = listings.data?.length ?? 0;
   const result = matchListings.data;
+
+  const assetTypes = useMemo(() => {
+    const s = new Set<string>();
+    (result?.matches ?? []).forEach((m) => {
+      if (m.listing.asset_type) s.add(m.listing.asset_type);
+    });
+    return [...s].sort().map((a) => ({ value: a, label: a }));
+  }, [result]);
+
+  const displayed = useMemo(() => {
+    let arr = result?.matches ?? [];
+    if (q) {
+      const needle = q.toLowerCase();
+      arr = arr.filter((m) => {
+        const l = m.listing;
+        return [l.address, l.city, l.state, l.asset_type]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(needle);
+      });
+    }
+    if (assetType) arr = arr.filter((m) => m.listing.asset_type === assetType);
+    const sorted = [...arr];
+    sorted.sort((a, b) => {
+      switch (sortKey) {
+        case 'price_asc':
+          return cmpNullable(a.listing.price, b.listing.price, 1);
+        case 'price_desc':
+          return cmpNullable(a.listing.price, b.listing.price, -1);
+        case 'size_desc':
+          return cmpNullable(a.listing.size_sf, b.listing.size_sf, -1);
+        case 'cap_desc':
+          return cmpNullable(a.listing.cap_rate, b.listing.cap_rate, -1);
+        default:
+          return b.fit_score - a.fit_score;
+      }
+    });
+    return sorted;
+  }, [result, q, assetType, sortKey]);
 
   const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,18 +230,50 @@ export function SearchPage() {
               </SoftNote>
             ) : (
               <>
-                <div className="mb-4 text-sm text-[var(--text-secondary)]">
-                  <b className="text-[var(--text-primary)]">{result.matches.length}</b>{' '}
-                  {result.matches.length === 1 ? 'listing' : 'listings'} scored for{' '}
+                <div className="mb-3 text-sm text-[var(--text-secondary)]">
+                  Scored for{' '}
                   <span className="text-[var(--text-primary)] font-medium">
                     {result.client_name}
-                  </span>{' '}
-                  · ranked by fit
+                  </span>
                 </div>
+                <FilterBar
+                  search={{ value: q, onChange: setQ, placeholder: 'Filter by address, city, type…' }}
+                  trailing={
+                    <div className="flex items-center gap-3">
+                      <span>
+                        {displayed.length} of {result.matches.length}
+                      </span>
+                      <select
+                        aria-label="Sort listings"
+                        value={sortKey}
+                        onChange={(e) => setSortKey(e.target.value)}
+                        className="text-[12.5px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-industrial px-2 py-1 cursor-pointer focus:outline-none focus:border-[var(--accent)]"
+                      >
+                        <option value="fit">Best fit</option>
+                        <option value="price_asc">Price ↑</option>
+                        <option value="price_desc">Price ↓</option>
+                        <option value="size_desc">Largest</option>
+                        <option value="cap_desc">Highest cap</option>
+                      </select>
+                    </div>
+                  }
+                >
+                  {assetTypes.length > 1 && (
+                    <FilterChip
+                      label="Type"
+                      value={assetType}
+                      onChange={setAssetType}
+                      options={assetTypes}
+                      allLabel="All types"
+                    />
+                  )}
+                </FilterBar>
                 <div className="flex flex-col gap-3 pb-8">
-                  {result.matches.map((m) => (
-                    <MatchCard key={m.listing.id} match={m} />
-                  ))}
+                  {displayed.length === 0 ? (
+                    <SoftNote>No listings match those filters.</SoftNote>
+                  ) : (
+                    displayed.map((m) => <MatchCard key={m.listing.id} match={m} />)
+                  )}
                 </div>
               </>
             )
