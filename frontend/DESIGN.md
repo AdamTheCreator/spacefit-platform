@@ -133,11 +133,14 @@ Largely N/A for this product (no public API console). If we add usage/billing da
 
 ## Rollout status
 
-- ✅ **Playground** — shared `AnalysisPlayground` live on `/projects/:id` and `/property/:id`
+- ✅ **Playground** — shared `AnalysisPlayground` on `/projects/:id` and `/property/:id`
   (PropertyDetailPage's old hardcoded stats/comps/timeline were removed as part of this).
-- ⏳ **Workbench density pass** — Contacts, Search, Pipeline, Outreach, Analytics, Admin to adopt the
-  data-density + parsed-metadata + side-drawer patterns. A shared `DataTable` + `FilterBar` primitive
-  should be extracted during this pass.
+- ✅ **Workbench density pass** — shared `DataTable` (sortable/selectable), `FilterBar`, and
+  `SideDrawer` primitives extracted and applied to **Contacts**, **Search**, **Pipeline**, **Admin**,
+  and **Analytics** (rebuilt on real pipeline/commission data — no more hardcoded KPIs). **Outreach**
+  already shipped search + filter + sort.
+- ⏳ **Follow-ups** — Contacts Company/Contact detail could move from full-page swap into the shared
+  `SideDrawer`; Outreach's bespoke filter buttons could adopt `FilterBar` for consistency.
 
 *Originally authored from a Gemini design review (2026-03-08); rewritten 2026-06-10 to adopt the
 "Designing for AI Engineers" pattern language and the hybrid-by-surface density model.*
