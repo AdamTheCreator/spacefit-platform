@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Upload, Sparkles } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { AppLayout } from '../components/Layout/AppLayout';
 import { FilterBar } from '../components/ui/FilterBar';
 import { FilterChip } from './contacts/ui';
@@ -45,6 +45,15 @@ function listingLocation(l: Listing): string | null {
   return cityState || null;
 }
 
+function listingFacts(l: Listing): string[] {
+  return [
+    l.asset_type,
+    formatSf(l.size_sf),
+    formatMoney(l.price),
+    formatCap(l.cap_rate),
+  ].filter(Boolean) as string[];
+}
+
 /** Score badge token mapping: ≥75 green, 40–74 amber, <40 muted/red. */
 function scoreTone(score: number): { bg: string; fg: string } {
   if (score >= 75)
@@ -61,6 +70,9 @@ function cmpNullable(a: number | null, b: number | null, dir: 1 | -1): number {
   if (b == null) return -1;
   return (a - b) * dir;
 }
+
+// A unified row: every listing browses; a `match` is present once ranked.
+type Row = { listing: Listing; match: MatchedListing | null };
 
 // ---------------------------------------------------------------------------
 // Page
@@ -81,21 +93,29 @@ export function SearchPage() {
 
   const listingCount = listings.data?.length ?? 0;
   const result = matchListings.data;
+  const ranked = !!result;
+
+  // Browse the imported listings by default; once a client is picked the same
+  // rows carry a fit score and rationale.
+  const rows: Row[] = useMemo(() => {
+    if (result) return result.matches.map((m) => ({ listing: m.listing, match: m }));
+    return (listings.data ?? []).map((l) => ({ listing: l, match: null }));
+  }, [result, listings.data]);
 
   const assetTypes = useMemo(() => {
     const s = new Set<string>();
-    (result?.matches ?? []).forEach((m) => {
-      if (m.listing.asset_type) s.add(m.listing.asset_type);
+    rows.forEach((r) => {
+      if (r.listing.asset_type) s.add(r.listing.asset_type);
     });
     return [...s].sort().map((a) => ({ value: a, label: a }));
-  }, [result]);
+  }, [rows]);
 
   const displayed = useMemo(() => {
-    let arr = result?.matches ?? [];
+    let arr = rows;
     if (q) {
       const needle = q.toLowerCase();
-      arr = arr.filter((m) => {
-        const l = m.listing;
+      arr = arr.filter((r) => {
+        const l = r.listing;
         return [l.address, l.city, l.state, l.asset_type]
           .filter(Boolean)
           .join(' ')
@@ -103,7 +123,7 @@ export function SearchPage() {
           .includes(needle);
       });
     }
-    if (assetType) arr = arr.filter((m) => m.listing.asset_type === assetType);
+    if (assetType) arr = arr.filter((r) => r.listing.asset_type === assetType);
     const sorted = [...arr];
     sorted.sort((a, b) => {
       switch (sortKey) {
@@ -116,11 +136,16 @@ export function SearchPage() {
         case 'cap_desc':
           return cmpNullable(a.listing.cap_rate, b.listing.cap_rate, -1);
         default:
-          return b.fit_score - a.fit_score;
+          // "fit" — by score when ranked; a no-op (import order) while browsing.
+          return cmpNullable(
+            a.match?.fit_score ?? null,
+            b.match?.fit_score ?? null,
+            -1,
+          );
       }
     });
     return sorted;
-  }, [result, q, assetType, sortKey]);
+  }, [rows, q, assetType, sortKey]);
 
   const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,7 +164,11 @@ export function SearchPage() {
   const onPickClient = (companyId: string) => {
     setSelectedCompanyId(companyId);
     if (companyId) matchListings.mutate({ company_id: companyId });
+    // Back to "Browse all" — drop any ranked result so the plain list returns.
+    else matchListings.reset();
   };
+
+  const noClients = (companies.data?.length ?? 0) === 0;
 
   return (
     <AppLayout>
@@ -152,15 +181,11 @@ export function SearchPage() {
                 Find properties
               </h1>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                Score the market against a client&rsquo;s buy-box
+                Browse imported listings &mdash; and rank them against a client&rsquo;s
+                buy-box
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {listingCount > 0 && (
-                <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
-                  {listingCount} {listingCount === 1 ? 'listing' : 'listings'} on file
-                </span>
-              )}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -170,7 +195,11 @@ export function SearchPage() {
                 onChange={onFilePicked}
               />
               <button
-                className="btn-industrial-secondary text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`${
+                  listingCount === 0
+                    ? 'btn-industrial-primary'
+                    : 'btn-industrial-secondary'
+                } text-sm px-4 py-2 rounded-lg flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
                 disabled={importListings.isPending}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -178,36 +207,6 @@ export function SearchPage() {
                 {importListings.isPending ? 'Importing…' : 'Import listings'}
               </button>
             </div>
-          </div>
-
-          {/* Client picker */}
-          <div className="card-industrial-static p-4 mb-6">
-            <label
-              htmlFor="client-picker"
-              className="block text-sm font-medium text-[var(--text-primary)] mb-1.5"
-            >
-              Score for client
-            </label>
-            <select
-              id="client-picker"
-              value={selectedCompanyId}
-              onChange={(e) => onPickClient(e.target.value)}
-              disabled={listingCount === 0 || companies.isLoading}
-              className="input-industrial w-full sm:max-w-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <option value="">
-                {companies.isLoading
-                  ? 'Loading clients…'
-                  : (companies.data?.length ?? 0) === 0
-                    ? 'No clients yet'
-                    : 'Select a client…'}
-              </option>
-              {companies.data?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Body */}
@@ -219,72 +218,115 @@ export function SearchPage() {
             <SoftNote>
               Couldn&rsquo;t score these listings. Pick the client again to retry.
             </SoftNote>
-          ) : result ? (
-            result.matches.length === 0 ? (
-              <SoftNote>
-                No matches for{' '}
-                <span className="font-medium text-[var(--text-primary)]">
-                  {result.client_name}
-                </span>{' '}
-                yet — try importing more listings or a different client.
-              </SoftNote>
-            ) : (
-              <>
-                <div className="mb-3 text-sm text-[var(--text-secondary)]">
-                  Scored for{' '}
-                  <span className="text-[var(--text-primary)] font-medium">
-                    {result.client_name}
-                  </span>
-                </div>
-                <FilterBar
-                  search={{ value: q, onChange: setQ, placeholder: 'Filter by address, city, type…' }}
-                  trailing={
-                    <div className="flex items-center gap-3">
-                      <span>
-                        {displayed.length} of {result.matches.length}
-                      </span>
-                      <select
-                        aria-label="Sort listings"
-                        value={sortKey}
-                        onChange={(e) => setSortKey(e.target.value)}
-                        className="text-[12.5px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-industrial px-2 py-1 cursor-pointer focus:outline-none focus:border-[var(--accent)]"
-                      >
-                        <option value="fit">Best fit</option>
-                        <option value="price_asc">Price ↑</option>
-                        <option value="price_desc">Price ↓</option>
-                        <option value="size_desc">Largest</option>
-                        <option value="cap_desc">Highest cap</option>
-                      </select>
-                    </div>
-                  }
-                >
-                  {assetTypes.length > 1 && (
-                    <FilterChip
-                      label="Type"
-                      value={assetType}
-                      onChange={setAssetType}
-                      options={assetTypes}
-                      allLabel="All types"
-                    />
-                  )}
-                </FilterBar>
-                <div className="flex flex-col gap-3 pb-8">
-                  {displayed.length === 0 ? (
-                    <SoftNote>No listings match those filters.</SoftNote>
-                  ) : (
-                    displayed.map((m) => <MatchCard key={m.listing.id} match={m} />)
-                  )}
-                </div>
-              </>
-            )
           ) : (
-            <SoftNote>
-              <span className="inline-flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-                Pick a client above to score your {listingCount} imported{' '}
-                {listingCount === 1 ? 'listing' : 'listings'} against their buy-box.
-              </span>
-            </SoftNote>
+            <>
+              {/* Toolbar — count + optional client ranking (not a gate) */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                <div className="text-sm text-[var(--text-secondary)]">
+                  <b className="text-[var(--text-primary)]">{listingCount}</b>{' '}
+                  {listingCount === 1 ? 'listing' : 'listings'} on file
+                  {ranked && result.matches.length > 0 && (
+                    <>
+                      {' '}
+                      · ranked for{' '}
+                      <span className="font-medium text-[var(--text-primary)]">
+                        {result.client_name}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="client-picker"
+                    className="text-xs text-[var(--text-muted)] whitespace-nowrap"
+                  >
+                    Rank for a client
+                  </label>
+                  <select
+                    id="client-picker"
+                    value={selectedCompanyId}
+                    onChange={(e) => onPickClient(e.target.value)}
+                    disabled={companies.isLoading}
+                    className="input-industrial text-sm py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {companies.isLoading
+                        ? 'Loading clients…'
+                        : noClients
+                          ? 'No clients yet'
+                          : 'Browse all (no ranking)'}
+                    </option>
+                    {companies.data?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {ranked && result.matches.length === 0 ? (
+                <SoftNote>
+                  No matches for{' '}
+                  <span className="font-medium text-[var(--text-primary)]">
+                    {result.client_name}
+                  </span>{' '}
+                  yet — try importing more listings or a different client.
+                </SoftNote>
+              ) : (
+                <>
+                  <FilterBar
+                    search={{
+                      value: q,
+                      onChange: setQ,
+                      placeholder: 'Filter by address, city, type…',
+                    }}
+                    trailing={
+                      <div className="flex items-center gap-3">
+                        <span>
+                          {displayed.length} of {rows.length}
+                        </span>
+                        <select
+                          aria-label="Sort listings"
+                          value={sortKey}
+                          onChange={(e) => setSortKey(e.target.value)}
+                          className="text-[12.5px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] text-industrial px-2 py-1 cursor-pointer focus:outline-none focus:border-[var(--accent)]"
+                        >
+                          <option value="fit">{ranked ? 'Best fit' : 'Default order'}</option>
+                          <option value="price_asc">Price ↑</option>
+                          <option value="price_desc">Price ↓</option>
+                          <option value="size_desc">Largest</option>
+                          <option value="cap_desc">Highest cap</option>
+                        </select>
+                      </div>
+                    }
+                  >
+                    {assetTypes.length > 1 && (
+                      <FilterChip
+                        label="Type"
+                        value={assetType}
+                        onChange={setAssetType}
+                        options={assetTypes}
+                        allLabel="All types"
+                      />
+                    )}
+                  </FilterBar>
+                  <div className="flex flex-col gap-3 pb-8">
+                    {displayed.length === 0 ? (
+                      <SoftNote>No listings match those filters.</SoftNote>
+                    ) : (
+                      displayed.map((r) =>
+                        r.match ? (
+                          <MatchCard key={r.listing.id} match={r.match} />
+                        ) : (
+                          <ListingCard key={r.listing.id} listing={r.listing} />
+                        ),
+                      )
+                    )}
+                  </div>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -295,19 +337,49 @@ export function SearchPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Result card
+// Cards
 // ---------------------------------------------------------------------------
 
+/** A plain listing row (browse mode — no client score). */
+function ListingCard({ listing: l }: { listing: Listing }) {
+  const location = listingLocation(l);
+  const facts = listingFacts(l);
+
+  return (
+    <div className="card-industrial p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">
+          {listingTitle(l)}
+        </h3>
+        {l.listing_url && (
+          <a
+            href={l.listing_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--accent)] hover:underline shrink-0"
+          >
+            View listing
+          </a>
+        )}
+      </div>
+      {location && (
+        <div className="text-xs text-[var(--text-muted)] mt-0.5">{location}</div>
+      )}
+      {facts.length > 0 && (
+        <div className="text-[13px] text-[var(--text-secondary)] mt-2">
+          {facts.join(' · ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A listing ranked against a client's buy-box (score + rationale + flags). */
 function MatchCard({ match }: { match: MatchedListing }) {
   const { listing: l, fit_score, rationale, flags } = match;
   const tone = scoreTone(fit_score);
   const location = listingLocation(l);
-  const facts = [
-    l.asset_type,
-    formatSf(l.size_sf),
-    formatMoney(l.price),
-    formatCap(l.cap_rate),
-  ].filter(Boolean) as string[];
+  const facts = listingFacts(l);
 
   return (
     <div className="card-industrial p-5 flex gap-4">
@@ -398,9 +470,9 @@ function EmptyState() {
       <p className="text-sm text-[var(--text-secondary)] mb-1">
         No listings on file yet.
       </p>
-      <p className="text-sm text-[var(--text-muted)] mb-4 max-w-sm mx-auto">
-        Import a CSV or Excel of for-sale properties and the matcher will rank them
-        against any client&rsquo;s buy-box.
+      <p className="text-sm text-[var(--text-muted)] mb-5 max-w-sm mx-auto">
+        Import a CSV or Excel of for-sale properties to browse them here — then
+        optionally rank them against any client&rsquo;s buy-box.
       </p>
       <input
         ref={fileInputRef}
@@ -413,8 +485,9 @@ function EmptyState() {
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={importListings.isPending}
-        className="text-sm text-[var(--accent)] font-medium hover:underline disabled:opacity-50"
+        className="btn-industrial-primary text-sm px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50"
       >
+        <Upload className="h-4 w-4" />
         {importListings.isPending ? 'Importing…' : 'Import listings'}
       </button>
     </div>
