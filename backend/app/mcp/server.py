@@ -186,14 +186,16 @@ async def traffic_counts(address: str) -> str:
 
 
 @mcp.tool(
-    description="Get live foot-traffic metrics for a commercial property or shopping center "
-    "from Placer.ai mobile-location data: monthly + daily visitors, vehicles per day (VPD), "
-    "peak day/hour, year-over-year trend, average dwell time, and the visitor trade-area "
-    "radius. Use when the user asks how busy a location is, its foot traffic, visitor volume, "
-    "VPD, or how a retail site performs. Reflects ACTUAL visitors (mobile data), not just "
-    "nearby residents — distinct from demographics_analysis. `address` must be a concrete "
-    "street address — default to the project's property address when the session is scoped "
-    "to a project, and never pass vague placeholders like 'this property'."
+    description="Get live PEDESTRIAN foot-traffic metrics for a commercial property or "
+    "shopping center from Placer.ai mobile-location data: monthly + daily visitor counts, "
+    "peak day/hour, year-over-year visit trend, average dwell time, and the visitor "
+    "trade-area radius. Use when the user asks how busy a location is by people, its foot "
+    "traffic, visitor volume, or how a retail site performs by actual visitors. Reflects "
+    "ACTUAL visitors (mobile data), not just nearby residents — distinct from "
+    "demographics_analysis. For vehicle/road traffic (cars per day, AADT), use "
+    "traffic_counts instead, not this tool. `address` must be a concrete street address — "
+    "default to the project's property address when the session is scoped to a project, "
+    "and never pass vague placeholders like 'this property'."
 )
 @audit_and_limit("foot_traffic")
 async def foot_traffic(

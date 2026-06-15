@@ -149,15 +149,14 @@ NOTE: This tool works best when demographics and tenant data have already been g
     },
     {
         "name": "foot_traffic",
-        "description": """Get live foot-traffic metrics for a commercial property from Placer.ai mobile-location data.
+        "description": """Get live PEDESTRIAN foot-traffic metrics for a commercial property from Placer.ai mobile-location data.
 
 USE THIS TOOL WHEN:
-- User asks how busy a location is, its foot traffic, or visitor volume
-- User asks about vehicles per day (VPD), peak days/hours, or dwell time
-- User wants to gauge how a retail site performs (actual visitors, not just residents)
-- User asks about the year-over-year traffic trend for a property
+- User asks how busy a location is by people, its foot traffic, or visitor volume
+- User asks about peak days/hours, dwell time, or the year-over-year visit trend
+- User wants to gauge how a retail site performs by actual visitors (not just residents)
 
-Returns ACTUAL visitor counts from mobile data — distinct from demographics_analysis (who lives nearby). Requires a concrete street address; if the session is scoped to a project, default to that project's property address unless the user names another place. Do NOT pass vague placeholders like 'this property' — ask the user for an address instead.""",
+Returns ACTUAL pedestrian visitor counts from mobile data — distinct from demographics_analysis (who lives nearby). For vehicle/road traffic counts (cars per day, AADT), use the traffic_counts tool instead, NOT this one. Requires a concrete street address; if the session is scoped to a project, default to that project's property address unless the user names another place. Do NOT pass vague placeholders like 'this property' — ask the user for an address instead.""",
         "input_schema": {
             "type": "object",
             "properties": {
