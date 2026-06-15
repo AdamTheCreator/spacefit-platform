@@ -6,6 +6,7 @@ Mounted at /mcp in the FastAPI app (see backend/app/main.py).
 Tools are organized by category:
   - Free/public data: business_search, demographics_analysis, tenant_roster
   - LLM synthesis:    void_analysis
+  - Location intel:   foot_traffic
   - User imports:     costar_import, placer_import, siteusa_import
   - Actions:          draft_outreach
 
@@ -136,6 +137,30 @@ async def void_analysis(
         use_case=use_case,
         tenant_focus=tenant_focus,
     )
+
+
+# ---------------------------------------------------------------------------
+# Live location-intelligence tools (paid third-party APIs)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    description="Get live foot-traffic metrics for a commercial property or shopping center "
+    "from Placer.ai mobile-location data: monthly + daily visitors, vehicles per day (VPD), "
+    "peak day/hour, year-over-year trend, average dwell time, and the visitor trade-area "
+    "radius. Use when the user asks how busy a location is, its foot traffic, visitor volume, "
+    "VPD, or how a retail site performs. Reflects ACTUAL visitors (mobile data), not just "
+    "nearby residents — distinct from demographics_analysis. `address` must be a concrete "
+    "street address — default to the project's property address when the session is scoped "
+    "to a project, and never pass vague placeholders like 'this property'."
+)
+@audit_and_limit("foot_traffic")
+async def foot_traffic(
+    address: str,
+) -> str:
+    from app.services.placer import analyze_foot_traffic
+
+    return await analyze_foot_traffic(address)
 
 
 # ---------------------------------------------------------------------------

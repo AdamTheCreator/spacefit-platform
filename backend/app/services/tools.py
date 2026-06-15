@@ -122,6 +122,28 @@ NOTE: This tool works best when demographics and tenant data have already been g
         }
     },
     {
+        "name": "foot_traffic",
+        "description": """Get live foot-traffic metrics for a commercial property from Placer.ai mobile-location data.
+
+USE THIS TOOL WHEN:
+- User asks how busy a location is, its foot traffic, or visitor volume
+- User asks about vehicles per day (VPD), peak days/hours, or dwell time
+- User wants to gauge how a retail site performs (actual visitors, not just residents)
+- User asks about the year-over-year traffic trend for a property
+
+Returns ACTUAL visitor counts from mobile data — distinct from demographics_analysis (who lives nearby). Requires a concrete street address; if the session is scoped to a project, default to that project's property address unless the user names another place. Do NOT pass vague placeholders like 'this property' — ask the user for an address instead.""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "description": "Concrete street address of the commercial property or shopping center (e.g., '2425 S 6th Ave, Tucson, AZ'). If the session is scoped to a project, default to the project's property address unless the user names another place."
+                }
+            },
+            "required": ["address"]
+        }
+    },
+    {
         "name": "costar_import",
         "description": """Parse a user-uploaded CoStar CSV export (lease comps, tenant roster, or property lookup) into structured property + tenant data.
 

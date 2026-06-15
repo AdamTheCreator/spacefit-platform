@@ -35,6 +35,7 @@ RATE_LIMITS_PER_MIN: dict[str, int] = {
     "demographics_analysis": 30,
     "tenant_roster": 30,
     "void_analysis": 20,
+    "foot_traffic": 30,
     "costar_import": 60,
     "placer_import": 60,
     "siteusa_import": 60,

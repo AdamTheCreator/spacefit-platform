@@ -198,3 +198,39 @@ def test_specialist_agent_type_map_is_complete():
             f"Specialist {name!r} has no AgentType mapping in chat.py — "
             f"workflow strip would render it as 'orchestrator'."
         )
+
+
+def test_every_allowed_tool_has_a_schema():
+    # _build_specialist_request only hands Claude the tools whose name appears
+    # in SPACEGOOSE_TOOLS. An allowed_tool with no schema is silently dropped,
+    # so the LLM never learns the tool exists. Guard against that drift.
+    from app.services.tools import SPACEGOOSE_TOOLS
+
+    schema_names = {t["name"] for t in SPACEGOOSE_TOOLS}
+    for spec in SPECIALIST_REGISTRY.values():
+        missing = set(spec.allowed_tools) - schema_names
+        assert not missing, (
+            f"Specialist {spec.name!r} allows tools with no SPACEGOOSE_TOOLS "
+            f"schema: {missing}"
+        )
+
+
+def test_foot_traffic_tool_is_wired():
+    # End-to-end wiring for the live Placer foot-traffic tool: the LLM must be
+    # told about it (schema), the in-process client must be able to route a
+    # call to it (FastMCP registry), and the discovery + quantitative
+    # specialists must be allowed to use it.
+    from app.mcp.client import _get_tool_registry
+    from app.services.tools import SPACEGOOSE_TOOLS
+
+    by_name = {t["name"]: t for t in SPACEGOOSE_TOOLS}
+    assert "foot_traffic" in by_name, "foot_traffic missing from SPACEGOOSE_TOOLS"
+    assert by_name["foot_traffic"]["input_schema"]["required"] == ["address"]
+
+    assert "foot_traffic" in _get_tool_registry(), (
+        "foot_traffic is not registered as an MCP tool — call_tool would "
+        "return 'Unknown tool'."
+    )
+
+    assert "foot_traffic" in SPECIALIST_REGISTRY["scout"].allowed_tools
+    assert "foot_traffic" in SPECIALIST_REGISTRY["analyst"].allowed_tools
