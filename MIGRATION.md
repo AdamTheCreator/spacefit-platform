@@ -284,6 +284,43 @@ Lesson: **synthetic evals flatter models** — they're cleaner than reality. Fol
 prompts in (pending owner sign-off on the ambiguous labels) makes the baseline more honest;
 real-world tool-call accuracy is likely *below* the 85.7% measured on the clean set.
 
+### 4.3 Candidate smoke test — Qwen2.5-7B-Instruct on the HF router (2026-06-15)
+
+Scored `Qwen/Qwen2.5-7B-Instruct` on the same suite via Hugging Face's serverless router
+(zero Baseten cost). Headline numbers looked bad (81.5%, then 66.7%) — **but the gap is the
+measurement instrument, not the model.** Most "failures" were `BYOKError: malformed request`,
+and they **move between runs**:
+
+| Run | Tool cases that errored `malformed` |
+|---|---|
+| auto-router | biz, traffic, abstain (3, scattered) |
+| diagnostic (each ×3) | biz failed 2/3; traffic 0/3; abstain 1/3 |
+| pinned `:together` | the first 6 tool cases, then clean |
+
+Non-determinism ⇒ infrastructure. The HF router multiplexes across third-party providers with
+**inconsistent OpenAI tool-calling support** (some 400 on `tools`/`tool_choice:"required"`),
+and a free token hits **rate limits** mid-run. Even pinning a provider didn't fix it.
+
+**The model signal, separated from the noise:**
+- On every cleanly-served case, Qwen picked the **correct** tool — `business_search`,
+  `demographics_analysis`, `tenant_roster`, `traffic_counts`, `document_search`,
+  `void_analysis`, `costar_import`, `placer_import`, `draft_outreach` all observed correct.
+- It **passed `tool-out-draft-01`** (`draft_outreach`) — the case the **Haiku baseline
+  failed**.
+- Its one genuine miss is `tool-scout-abstain-01` (over-eager: calls 3 tools on a vague,
+  address-less prompt) — the **same** weakness Haiku showed.
+- Routing: 11/13 — slightly looser than Haiku (13/13); the 2 misses are *over-routing*
+  (adding an extra specialist), not wrong picks.
+
+**Verdict:** Qwen2.5-7B-Instruct is **at parity-or-better with Haiku on tool-calling** (D10
+holds). But a trustworthy benchmark needs a **controlled serving stack** — the whole point of
+self-hosting. Next real number comes from Baseten (single vLLM, known tool-call parser, our
+own rate limits), not a shared router.
+
+**Two harness improvements this surfaced (next increments):** (a) classify infra errors
+(`malformed`/429) separately from model failures in the scorecard, so the headline % reflects
+quality; (b) fold in the §4.2 real prompts.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -324,6 +361,12 @@ real-world tool-call accuracy is likely *below* the 85.7% measured on the clean 
 
 ## 7. Changelog
 
+- **2026-06-15 — Candidate smoke-tested on HF router (§4.3).** Qwen2.5-7B-Instruct picks the
+  correct tool on every cleanly-served case and even passes the `draft_outreach` case Haiku
+  failed; its only genuine miss (over-eager on a vague prompt) is shared with Haiku. Headline
+  router scores (81.5%/66.7%) were depressed by non-deterministic `malformed`/rate-limit
+  errors — an instrument problem, not the model. Verdict: parity-or-better on tool-calling;
+  trustworthy benchmark needs controlled serving → **Baseten next** (needs Baseten key).
 - **2026-06-15 — Candidate model selected + real eval material found.** Primary candidate
   `Qwen/Qwen2.5-7B-Instruct` (D10) via a 4-point selection rubric (§2.1). Vetted two
   owner-raised models and rejected both as the self-host default: GLM-5.1 (744B MoE — ~15–30×
