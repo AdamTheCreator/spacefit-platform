@@ -353,6 +353,40 @@ Two insights that shape the project:
 Qwen (and later the fine-tuned model) get scored on this same dimension — "good enough" now
 means parity-or-better on **both** tool-calling and advisory quality.
 
+### 4.5 Controlled benchmark — Qwen2.5-7B on Baseten L4 (2026-06-15)
+
+Re-ran BOTH eval dimensions against the dedicated vLLM deployment. The tool-call
+infrastructure flakiness from the HF router (§4.3) is **gone** — a clean run, zero
+`malformed` errors — confirming the serving-control thesis.
+
+| Dimension | Haiku 4.5 (baseline) | Qwen2.5-7B (Baseten L4) |
+|---|---|---|
+| **Tool-calling** | 12/14 = 85.7% | **13/14 = 92.9%** — ✓ beats baseline, clears the 90% bar |
+| Routing | 13/13 = 100% | 11/13 = 84.6% (2 over-routes) |
+| Overall tool/routing | 25/27 = 92.6% | 24/27 = 88.9% |
+| **Advisory quality** | **4.35/5, 3/4 pass** | **2.80/5, 0/4 pass** — ✗ big regression |
+| Warm TTFT | n/a (hosted) | **~0.6–1.3 s (median ~0.9 s)** — ✓ good chat UX |
+
+**The decisive finding:** base Qwen **matches/beats Haiku at *gathering data* but is much
+weaker at the *advisory reasoning + voice*** — the exact dimension that is the product. It
+drops across every criterion (client-fit 2.5 vs 4.25, recommendation clarity 3.0 vs 5.0,
+tone 2.5 vs 4.75); the judge flagged factual slips, indecisiveness, and glossing the memo's
+rollover risk. **0 of 4 scenarios were 'send-to-client'.**
+
+**Conclusion: do NOT ship base Qwen as-is — it would regress the advisory experience.**
+Tool-calling is solved (controlled serving + `hermes` parser); latency is good (~0.9 s warm
+TTFT on an L4). The one remaining gap is advisory quality — which is *precisely* what the
+void/memo fine-tune (Phases 2–3) targets. And the two-dimension eval (D11) earned its keep:
+tool-calling alone (88.9%) would have looked shippable; the advisory dimension caught the
+real regression. That gap is the project's reason for existing.
+
+Deployment is scale-to-zero — the L4 sleeps automatically after ~15 min idle (no action
+needed; flip `min_replica` to 1 for a demo).
+
+**Phase status:** Phase 0 (baseline + evals) ✅ and Phase 1 (model selected + validated on an
+L4) ✅. Next: **Phase 2 — fine-tuning data prep** from the OneDrive void analyses / memos, to
+close the advisory gap.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -393,6 +427,11 @@ means parity-or-better on **both** tool-calling and advisory quality.
 
 ## 7. Changelog
 
+- **2026-06-15 — Controlled benchmark complete (§4.5). Phase 0 + Phase 1 done.** Qwen2.5-7B
+  on the Baseten L4: tool-calling **92.9%** (beats Haiku's 85.7%, clears the bar; serving
+  control eliminated the router flakiness), warm TTFT **~0.9 s**, but advisory quality
+  **2.80/5 vs Haiku 4.35** (0/4 send-to-client). Verdict: don't ship base Qwen — the advisory
+  gap is real and is the fine-tune's job. **Next: Phase 2, fine-tuning data prep (OneDrive).**
 - **2026-06-15 — Qwen2.5-7B deployed to Baseten L4 (building).** `truss push` of the
   config-only vLLM Truss (`backend/baseten/qwen25-7b-instruct/`). Model `3m50kp6w`,
   endpoint `https://model-3m50kp6w.api.baseten.co`; scale-to-zero confirmed (min 0 / max 1,
