@@ -393,6 +393,11 @@ means parity-or-better on **both** tool-calling and advisory quality.
 
 ## 7. Changelog
 
+- **2026-06-15 — Qwen2.5-7B deployed to Baseten L4 (building).** `truss push` of the
+  config-only vLLM Truss (`backend/baseten/qwen25-7b-instruct/`). Model `3m50kp6w`,
+  endpoint `https://model-3m50kp6w.api.baseten.co`; scale-to-zero confirmed (min 0 / max 1,
+  one L4). Controlled serving stack (single `--tool-call-parser hermes`) replaces the flaky
+  HF router. Next: on ACTIVE, re-run BOTH eval dimensions + measure cold-start / warm TTFT.
 - **2026-06-15 — Advisory-quality eval added (§4.4, D11).** New LLM-as-judge dimension
   measures the *advisor*, not just the tool-picker (property→client-fit reasoning + go/no-go).
   Haiku baseline 4.35/5 (3/4 pass); weakest on groundedness; the investment-memo scenario is
