@@ -140,6 +140,7 @@ very portable.
 | D7 | **Fine-tune on Baseten IF cost-competitive; otherwise cheapest option.** Cost analysis required before committing. | Owner wants Baseten learning, not at a large premium. |
 | D8 | **Success bar: ≥90% tool-call accuracy; P95 latency at chat-app industry norm.** All other targets default to industry standard. | Owner-set quality floor + latency target. |
 | D9 | **Migration gate = non-regression vs the Anthropic baseline (parity-or-better), not a hard absolute 90%.** The incumbent (Haiku 4.5) itself scores 85.7% tool-call on the seed eval, so an absolute-90% gate would reject a Haiku-equivalent open model. 90% stays a stretch goal we reach by fixing the real gaps the eval surfaced. | Industry-standard migration framing; measured 2026-06-15, see §4.1. |
+| D10 | **Candidate base model = `Qwen/Qwen2.5-7B-Instruct`** (to be eval-validated before commit). | Apache-2.0 (clean commercial license), best-in-class 7B tool-caller, fits L4 (≈15 GB bf16 / ≈8 GB quantized), first-class vLLM/Truss serving + LoRA ecosystem, and already the repo's configured `huggingface_model` default. Alternatives: Qwen3-8B (level-up if it misses), Llama-3.1-8B (license fallback). |
 
 ### Leading architectural recommendation (to confirm in Phase 1)
 
@@ -150,6 +151,37 @@ cheapest L4-friendly shape and the most scale-to-zero-friendly (one cold start, 
 five). Utility calls (planner/classifier/title/facts) either reuse the base model or,
 if we want them faster/cheaper, a small 1–3B model as a second deployment — decided by
 eval + cost, not assumed.
+
+### 2.1 Model-selection rubric — and why two tempting models don't fit
+
+Every candidate is filtered through four constraints **before** the eval; the eval then
+decides among survivors. Leaderboard rank and launch hype are deliberately *not* on the
+list — they answer questions we aren't asking.
+
+1. **Fits the hardware budget** (L4 / 24 GB → ~7–8B dense, or a small MoE whose *total*
+   params fit in 24 GB — MoE saves compute, not memory; all experts stay resident).
+2. **Strong at the load-bearing capability — tool-calling — proven on *our* eval**, not on
+   academic benchmarks.
+3. **Clean commercial license.**
+4. **First-class serving (vLLM/Truss) + fine-tuning (LoRA) support** — we fine-tune it
+   ourselves for void/memo, so we want a clean, well-understood base.
+
+Two models the owner raised, rejected for *opposite* reasons (a useful teaching pair):
+
+- **GLM-5.1** (z.ai, Apr 2026) — 744B-param MoE (~40B active), MIT, open weights, SOTA
+  agentic / SWE-Bench. Genuinely excellent — but **~15–30× too big for an L4**: MoE cuts
+  compute, not memory, so all 744B weights must be resident (~370–400 GB even at 4-bit → a
+  multi-H100 node, thousands/mo). Wrong *cost/size class* for a cheap self-hosted default.
+  Keep as a possible **BYOK / premium-tier / distillation-teacher** option, not an L4 target.
+- **Qwen2.5-RomboTiesTest-7B** (community TIES merge; the name literally says "Test") —
+  right *size* (7B) but optimized for the **Open LLM Leaderboard** (MMLU/MATH/IFEval), which
+  does **not** measure tool-calling. Merges are known to break the base's tool-call chat
+  template (reports of `<function_call>` vs `<tool_call>`, `finish_reason=stop`); license
+  inheritance from merge parents is murky; and it's a worse fine-tune base than the clean
+  instruct model. Fine to run through the eval as a *challenger*, not as a foundation.
+
+Net: **primary candidate stays `Qwen/Qwen2.5-7B-Instruct`** (D10) — validate on the eval
+before committing; optionally eval RomboTies head-to-head and let the tool-call score decide.
 
 ---
 
@@ -231,6 +263,27 @@ swapped a single model.
 **Caveats:** N=27 is small (each case ≈ 3.7%); scores are directional. Grow the
 seed set as real chat traffic arrives.
 
+### 4.2 Real eval material discovered (2026-06-15)
+
+The orphaned `backend/spacefit.db` (flagged in CLAUDE.md as a leftover) turned out to hold
+**real dogfooding chat data**: 7 sessions / 22 messages / **7 user turns (4 distinct
+prompts)** from Jan 2026. The seed eval cases (§3, Phase 0) are **synthetic** — hand-authored
+from the tool schemas + routing patterns, *not* from these conversations (the harness was
+built before this DB was found). The real prompts are messier than the synthetic ones, in
+instructive ways:
+
+- "coffee shops … in a **20 min driving radius** of downtown san francisco" — radius given
+  in *time*, but the tool takes miles.
+- "Get **foot traffic** data for 525 N Lamar Blvd, Austin TX" — *no tool serves foot traffic*
+  without a Placer upload → correct behavior is to ask for the upload, not call a tool.
+- "analyze demographics for **Westfield Mall**" (×4) — *ambiguous, non-unique* location
+  (which Westfield?) → arguably should clarify, not geocode a guess.
+- "Please **research** downtown westport" — vague verb; routes to scout but the tool is unclear.
+
+Lesson: **synthetic evals flatter models** — they're cleaner than reality. Folding these real
+prompts in (pending owner sign-off on the ambiguous labels) makes the baseline more honest;
+real-world tool-call accuracy is likely *below* the 85.7% measured on the clean set.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -271,6 +324,12 @@ seed set as real chat traffic arrives.
 
 ## 7. Changelog
 
+- **2026-06-15 — Candidate model selected + real eval material found.** Primary candidate
+  `Qwen/Qwen2.5-7B-Instruct` (D10) via a 4-point selection rubric (§2.1). Vetted two
+  owner-raised models and rejected both as the self-host default: GLM-5.1 (744B MoE — ~15–30×
+  too big for an L4) and RomboTiesTest-7B (leaderboard merge — measures the wrong thing +
+  tool-template risk). Found real dogfooding prompts in `spacefit.db` (§4.2) to fold into the
+  eval. Next: HF-router eval of the candidate (needs an HF token).
 - **2026-06-15 — Phase 0 baseline measured (§4.1).** Ran the harness live against
   `claude-haiku-4-5`: routing 100%, tool-call 85.7%, overall 92.6%. Confirmed the
   stale `anthropic_model` default 404s. Locked D9 (gate = parity-or-better vs
