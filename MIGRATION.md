@@ -228,6 +228,26 @@ zero-code Baseten smoke test** and **the stale-model-ID baseline fix**.
 
 ## 7. Changelog
 
+- **2026-06-15 — Phase 0 started: eval harness landed (`backend/evals/`).** The
+  instrument that lets us prove "good enough" before switching. Built:
+  - `grade.py` — pure-stdlib grading (routing set-match; tool-call = right tool +
+    schema-valid, non-placeholder args; abstain cases). Verifiable offline
+    (`python evals/grade.py`).
+  - `harness.py` — drives the **real** `app.llm` path (`plan_workflow` /
+    `call_specialist`); provider-agnostic via `EVAL_*` env vars, so the same suite
+    scores Anthropic / Gemini / Baseten on equal footing.
+  - `run_eval.py` — CLI; writes timestamped JSON+MD scorecards; exits non-zero
+    below the 90% tool-call bar (CI-gateable later).
+  - Seed datasets: 13 routing + 14 tool cases (incl. 2 abstain), grounded in the
+    real tool schemas + routing patterns. `tests/test_evals.py` unit-tests the
+    grader offline.
+  - **Verified here (no deps/keys needed):** grader self-check passes; datasets
+    parse; every tool case is satisfiable (expected tool ∈ specialist allowlist);
+    all modules compile. **Not yet run against a live model** — needs
+    `uv pip install -e .` + an API key.
+  - Remaining Phase 0: (a) run the baseline scorecard against the current models;
+    (b) verify/fix the stale Anthropic model IDs so that baseline is real;
+    (c) zero-code Baseten smoke test (needs Baseten API key).
 - **2026-06-14** — Orientation complete. Baseline architecture documented (§1).
   Kickoff decisions locked (§2, D1–D8). Phase map drafted (§3). Doc created. No code
   changes yet. Next: owner green-light on the phase map, then execute Phase 0.
