@@ -556,6 +556,7 @@ async def handle_tool_calls(
         "demographics_analysis": "address",
         "tenant_roster": "address",
         "void_analysis": "address",
+        "foot_traffic": "address",
     }
 
     def _is_unusable_location(value: object) -> bool:
