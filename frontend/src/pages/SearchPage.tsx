@@ -120,8 +120,7 @@ export function SearchPage() {
               <SearchIcon size={16} color={C.slate} />
               <input
                 style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: 14, fontFamily: C.inter, color: C.navy }}
-                placeholder="City, submarket, or address…"
-                defaultValue="Multifamily · Sun Belt · 80+ units"
+                placeholder="Multifamily · Sun Belt · 80+ units"
               />
             </div>
 
