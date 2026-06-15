@@ -141,6 +141,7 @@ very portable.
 | D8 | **Success bar: ≥90% tool-call accuracy; P95 latency at chat-app industry norm.** All other targets default to industry standard. | Owner-set quality floor + latency target. |
 | D9 | **Migration gate = non-regression vs the Anthropic baseline (parity-or-better), not a hard absolute 90%.** The incumbent (Haiku 4.5) itself scores 85.7% tool-call on the seed eval, so an absolute-90% gate would reject a Haiku-equivalent open model. 90% stays a stretch goal we reach by fixing the real gaps the eval surfaced. | Industry-standard migration framing; measured 2026-06-15, see §4.1. |
 | D10 | **Candidate base model = `Qwen/Qwen2.5-7B-Instruct`** (to be eval-validated before commit). | Apache-2.0 (clean commercial license), best-in-class 7B tool-caller, fits L4 (≈15 GB bf16 / ≈8 GB quantized), first-class vLLM/Truss serving + LoRA ecosystem, and already the repo's configured `huggingface_model` default. Alternatives: Qwen3-8B (level-up if it misses), Llama-3.1-8B (license fallback). |
+| D11 | **The eval has TWO dimensions: tool-calling (can it gather the right data?) AND advisory quality (can it reason about property-to-client fit and give a go/no-go?).** The advisory dimension is graded by LLM-as-judge on a 5-criterion rubric; the void/memo fine-tune primarily targets it. "Good enough" = parity-or-better on **both**. | Owner: "this is an agent… conversational… is it a good property to proceed on" — the advisory voice is the product value, not tool-picking. |
 
 ### Leading architectural recommendation (to confirm in Phase 1)
 
@@ -321,6 +322,37 @@ own rate limits), not a shared router.
 (`malformed`/429) separately from model failures in the scorecard, so the headline % reflects
 quality; (b) fold in the §4.2 real prompts.
 
+### 4.4 Advisory-quality eval + baseline (2026-06-15)
+
+Tool-calling is necessary but it isn't the product. The owner's point: the model is an
+*advisor* — it should read a property, connect it to *this broker's client and their book of
+business*, and say whether it's worth pursuing. So we added a second eval dimension graded by
+**LLM-as-judge** (`evals/judge.py`, `evals/run_advisory.py`): the candidate writes a
+recommendation for a property + data + client scenario; a strong, *separate* model (Claude
+Sonnet 4.6, so it isn't grading itself) scores it 1–5 on five criteria — property
+understanding, client-fit reasoning, recommendation clarity, groundedness, tone.
+
+**Baseline — Haiku 4.5 advisor, 4 scenarios: mean 4.35/5, 3/4 'send-to-client' pass.**
+
+| Criterion | Mean /5 |
+|---|---|
+| recommendation_clarity | 5.00 |
+| tone | 4.75 |
+| client_fit_reasoning | 4.25 |
+| property_understanding | 4.00 |
+| **grounded** | **3.75** (lowest) |
+
+Two insights that shape the project:
+- **`grounded` is the weakest criterion** — claims beyond the supplied data, the failure mode
+  that erodes broker trust. Watch it on every candidate.
+- **The one scenario that failed the send-to-client bar was `adv-memo-invest`** — the
+  investment-memo case (cap rate vs target, rollover risk). That is *exactly* the domain the
+  owner's human-written memos will fine-tune. Direct evidence the fine-tune has real work to
+  do, and a built-in way to measure its payoff: we expect the memo scenario to improve most.
+
+Qwen (and later the fine-tuned model) get scored on this same dimension — "good enough" now
+means parity-or-better on **both** tool-calling and advisory quality.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -361,6 +393,11 @@ quality; (b) fold in the §4.2 real prompts.
 
 ## 7. Changelog
 
+- **2026-06-15 — Advisory-quality eval added (§4.4, D11).** New LLM-as-judge dimension
+  measures the *advisor*, not just the tool-picker (property→client-fit reasoning + go/no-go).
+  Haiku baseline 4.35/5 (3/4 pass); weakest on groundedness; the investment-memo scenario is
+  the one that fails the bar — validating the void/memo fine-tune target. Baseten key received;
+  controlled deploy is the next step.
 - **2026-06-15 — Candidate smoke-tested on HF router (§4.3).** Qwen2.5-7B-Instruct picks the
   correct tool on every cleanly-served case and even passes the `draft_outreach` case Haiku
   failed; its only genuine miss (over-eager on a vague prompt) is shared with Haiku. Headline
