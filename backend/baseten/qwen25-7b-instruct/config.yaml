@@ -1,0 +1,45 @@
+# Qwen2.5-7B-Instruct on Baseten (L4) — vLLM custom server, OpenAI-compatible.
+#
+# This is a config-only Truss: Baseten runs the official vLLM server image, and
+# Truss just tells it how to start, where to health-check, and what hardware to
+# use. No Python, no Dockerfile. `truss push baseten/qwen25-7b-instruct` deploys it.
+#
+# Why each piece is here is documented in the sibling README.md.
+
+model_name: qwen25-7b-instruct-tools
+
+# The serving engine: vLLM's official OpenAI-compatible server image (pinned).
+base_image:
+  image: vllm/vllm-openai:v0.12.0
+
+docker_server:
+  # vLLM pulls the (public, ungated) weights from HF on first boot. Simple and
+  # robust for the first deploy; we add weight caching later to speed cold starts.
+  #   --enable-auto-tool-choice + --tool-call-parser hermes  ← the fix for the
+  #     HF-router flakiness: a single, known tool-call parser for Qwen2.5, so
+  #     tool calls are emitted and parsed consistently every time.
+  #   --max-model-len 16384  ← caps context so KV cache fits beside the ~15 GB
+  #     bf16 weights on a 24 GB L4 (our eval prompts are a few k tokens).
+  start_command: >-
+    vllm serve Qwen/Qwen2.5-7B-Instruct
+    --host 0.0.0.0
+    --port 8000
+    --served-model-name Qwen/Qwen2.5-7B-Instruct
+    --max-model-len 16384
+    --gpu-memory-utilization 0.90
+    --enable-prefix-caching
+    --enable-auto-tool-choice
+    --tool-call-parser hermes
+  server_port: 8000
+  predict_endpoint: /v1/chat/completions
+  readiness_endpoint: /health
+  liveness_endpoint: /health
+
+resources:
+  accelerator: L4
+  use_gpu: true
+
+runtime:
+  # How many requests Baseten routes to the replica at once; vLLM batches them.
+  # Conservative for a 7B on one L4 — raise after we see headroom.
+  predict_concurrency: 32

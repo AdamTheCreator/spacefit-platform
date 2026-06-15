@@ -1,0 +1,4 @@
+# Scorecards are per-run, per-model evidence — regenerate them, don't commit them.
+# Keep the directory so run_eval.py has somewhere to write.
+*
+!.gitignore

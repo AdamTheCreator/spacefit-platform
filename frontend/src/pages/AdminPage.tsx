@@ -7,8 +7,6 @@ import {
   FolderOpen,
   Kanban,
   Search,
-  ChevronDown,
-  ChevronUp,
   Shield,
   AlertTriangle,
   CheckCircle2,
@@ -24,6 +22,8 @@ import {
   useAdminAbuse,
 } from '../hooks/useAdmin';
 import type { AdminUserSummary } from '../hooks/useAdmin';
+import { DataTable, type Column } from '../components/ui/DataTable';
+import { SideDrawer } from '../components/ui/SideDrawer';
 
 function StatCard({ label, value, icon: Icon }: { label: string; value: number | string; icon: React.ElementType }) {
   return (
@@ -82,94 +82,116 @@ function OverviewSection() {
   );
 }
 
-function UserRow({ user, isExpanded, onToggle }: { user: AdminUserSummary; isExpanded: boolean; onToggle: () => void }) {
-  const { data: detail, isLoading } = useAdminUserDetail(isExpanded ? user.id : null);
+function UserDetailDrawer({ user, onClose }: { user: AdminUserSummary | null; onClose: () => void }) {
+  const { data: detail, isLoading } = useAdminUserDetail(user?.id ?? null);
 
   return (
-    <>
-      <tr
-        onClick={onToggle}
-        className="cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors border-b border-[var(--border-subtle)]"
-      >
-        <td className="py-2.5 px-3 text-sm text-industrial">{user.email}</td>
-        <td className="py-2.5 px-3 text-sm text-industrial-secondary hidden md:table-cell">
-          {user.first_name} {user.last_name}
-        </td>
-        <td className="py-2.5 px-3 text-xs text-industrial-muted hidden md:table-cell">{user.tier}</td>
-        <td className="py-2.5 px-3 text-xs text-industrial-muted text-right hidden sm:table-cell">{user.session_count}</td>
-        <td className="py-2.5 px-3 text-xs text-industrial-muted text-right hidden sm:table-cell">{user.document_count}</td>
-        <td className="py-2.5 px-3 text-xs text-industrial-muted text-right hidden lg:table-cell">{user.deal_count}</td>
-        <td className="py-2.5 px-3 text-xs text-industrial-muted hidden lg:table-cell">
-          {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
-        </td>
-        <td className="py-2.5 px-3 text-xs text-industrial-muted hidden lg:table-cell">
-          {user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}
-        </td>
-        <td className="py-2.5 px-3 w-8">
-          {isExpanded ? <ChevronUp size={14} className="text-industrial-muted" /> : <ChevronDown size={14} className="text-industrial-muted" />}
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr>
-          <td colSpan={9} className="bg-[var(--bg-secondary)] px-4 py-3">
-            {isLoading ? (
-              <div className="flex items-center gap-2 text-xs text-industrial-muted py-2">
-                <Loader2 size={12} className="animate-spin" /> Loading...
-              </div>
-            ) : detail ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-4 text-xs text-industrial-secondary">
-                  <span>Tier: <strong>{detail.tier}</strong></span>
-                  <span>Active: {detail.is_active ? 'Yes' : 'No'}</span>
-                  <span>Admin: {detail.is_admin ? 'Yes' : 'No'}</span>
-                  <span>Sessions: {detail.session_count}</span>
-                  <span>Docs: {detail.document_count}</span>
-                  <span>Deals: {detail.deal_count}</span>
-                  <span>Projects: {detail.project_count}</span>
+    <SideDrawer open={!!user} onClose={onClose} title={user?.email ?? 'User'}>
+      <div className="p-6">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-xs text-industrial-muted py-2">
+            <Loader2 size={12} className="animate-spin" /> Loading...
+          </div>
+        ) : detail ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-4 text-xs text-industrial-secondary">
+              <span>Tier: <strong>{detail.tier}</strong></span>
+              <span>Active: {detail.is_active ? 'Yes' : 'No'}</span>
+              <span>Admin: {detail.is_admin ? 'Yes' : 'No'}</span>
+              <span>Sessions: {detail.session_count}</span>
+              <span>Docs: {detail.document_count}</span>
+              <span>Deals: {detail.deal_count}</span>
+              <span>Projects: {detail.project_count}</span>
+            </div>
+
+            {detail.token_usage.length > 0 && (
+              <div>
+                <p className="text-xs text-industrial-muted mb-1">Token usage</p>
+                <div className="flex flex-wrap gap-3">
+                  {detail.token_usage.map((t) => (
+                    <div key={t.period_start} className="text-xs text-industrial-secondary">
+                      <span className="text-industrial-muted">{new Date(t.period_start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}:</span>{' '}
+                      {(t.input_tokens + t.output_tokens).toLocaleString()} tokens, {t.llm_calls} calls
+                    </div>
+                  ))}
                 </div>
-
-                {detail.token_usage.length > 0 && (
-                  <div>
-                    <p className="text-xs text-industrial-muted mb-1">Token usage</p>
-                    <div className="flex flex-wrap gap-3">
-                      {detail.token_usage.map((t) => (
-                        <div key={t.period_start} className="text-xs text-industrial-secondary">
-                          <span className="text-industrial-muted">{new Date(t.period_start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}:</span>{' '}
-                          {(t.input_tokens + t.output_tokens).toLocaleString()} tokens, {t.llm_calls} calls
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {detail.recent_sessions.length > 0 && (
-                  <div>
-                    <p className="text-xs text-industrial-muted mb-1">Recent sessions</p>
-                    <div className="space-y-1">
-                      {detail.recent_sessions.slice(0, 5).map((s) => (
-                        <div key={s.id} className="text-xs text-industrial-secondary flex items-center gap-2">
-                          <span className="text-industrial-muted">{new Date(s.created_at).toLocaleDateString()}</span>
-                          <span className="truncate max-w-xs">{s.title || 'Untitled'}</span>
-                          <span className="text-industrial-muted">({s.message_count} msgs)</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            ) : null}
-          </td>
-        </tr>
-      )}
-    </>
+            )}
+
+            {detail.recent_sessions.length > 0 && (
+              <div>
+                <p className="text-xs text-industrial-muted mb-1">Recent sessions</p>
+                <div className="space-y-1">
+                  {detail.recent_sessions.slice(0, 5).map((s) => (
+                    <div key={s.id} className="text-xs text-industrial-secondary flex items-center gap-2">
+                      <span className="text-industrial-muted">{new Date(s.created_at).toLocaleDateString()}</span>
+                      <span className="truncate max-w-xs">{s.title || 'Untitled'}</span>
+                      <span className="text-industrial-muted">({s.message_count} msgs)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-industrial-muted">No detail available.</p>
+        )}
+      </div>
+    </SideDrawer>
   );
 }
 
 function UsersSection() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUserSummary | null>(null);
   const { data, isLoading } = useAdminUsers(page, search);
+
+  const fmtDate = (s: string | null | undefined) =>
+    s ? new Date(s).toLocaleDateString() : '—';
+
+  const columns: Column<AdminUserSummary>[] = [
+    {
+      key: 'email', header: 'Email',
+      sortValue: (u) => u.email,
+      render: (u) => <span className="text-sm text-industrial">{u.email}</span>,
+    },
+    {
+      key: 'name', header: 'Name', cellClassName: 'hidden md:table-cell',
+      sortValue: (u) => `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim().toLowerCase(),
+      render: (u) => <span className="text-sm text-industrial-secondary">{u.first_name} {u.last_name}</span>,
+    },
+    {
+      key: 'tier', header: 'Tier', cellClassName: 'hidden md:table-cell',
+      sortValue: (u) => u.tier,
+      render: (u) => <span className="text-xs text-industrial-muted">{u.tier}</span>,
+    },
+    {
+      key: 'sessions', header: 'Sessions', align: 'right', cellClassName: 'hidden sm:table-cell',
+      sortValue: (u) => u.session_count,
+      render: (u) => <span className="text-xs text-industrial-muted">{u.session_count}</span>,
+    },
+    {
+      key: 'docs', header: 'Docs', align: 'right', cellClassName: 'hidden sm:table-cell',
+      sortValue: (u) => u.document_count,
+      render: (u) => <span className="text-xs text-industrial-muted">{u.document_count}</span>,
+    },
+    {
+      key: 'deals', header: 'Deals', align: 'right', cellClassName: 'hidden lg:table-cell',
+      sortValue: (u) => u.deal_count,
+      render: (u) => <span className="text-xs text-industrial-muted">{u.deal_count}</span>,
+    },
+    {
+      key: 'joined', header: 'Joined', cellClassName: 'hidden lg:table-cell',
+      sortValue: (u) => u.created_at ?? null,
+      render: (u) => <span className="text-xs text-industrial-muted">{fmtDate(u.created_at)}</span>,
+    },
+    {
+      key: 'last_active', header: 'Last active', cellClassName: 'hidden lg:table-cell',
+      sortValue: (u) => u.last_active ?? null,
+      render: (u) => <span className="text-xs text-industrial-muted">{fmtDate(u.last_active)}</span>,
+    },
+  ];
 
   return (
     <section className="mb-10">
@@ -189,33 +211,14 @@ function UsersSection() {
         <SectionLoader />
       ) : data ? (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--border-subtle)]">
-                  <th className="py-2 px-3 text-left text-[11px] text-industrial-muted font-medium">Email</th>
-                  <th className="py-2 px-3 text-left text-[11px] text-industrial-muted font-medium hidden md:table-cell">Name</th>
-                  <th className="py-2 px-3 text-left text-[11px] text-industrial-muted font-medium hidden md:table-cell">Tier</th>
-                  <th className="py-2 px-3 text-right text-[11px] text-industrial-muted font-medium hidden sm:table-cell">Sessions</th>
-                  <th className="py-2 px-3 text-right text-[11px] text-industrial-muted font-medium hidden sm:table-cell">Docs</th>
-                  <th className="py-2 px-3 text-right text-[11px] text-industrial-muted font-medium hidden lg:table-cell">Deals</th>
-                  <th className="py-2 px-3 text-left text-[11px] text-industrial-muted font-medium hidden lg:table-cell">Joined</th>
-                  <th className="py-2 px-3 text-left text-[11px] text-industrial-muted font-medium hidden lg:table-cell">Last active</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.users.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    user={u}
-                    isExpanded={expandedId === u.id}
-                    onToggle={() => setExpandedId(expandedId === u.id ? null : u.id)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            rows={data.users}
+            rowKey={(u) => u.id}
+            onRowClick={(u) => setSelectedUser(u)}
+            initialSort={{ key: 'email', dir: 'asc' }}
+            empty="No users found."
+          />
 
           {data.total > data.page_size && (
             <div className="flex items-center gap-2 mt-3">
@@ -240,6 +243,8 @@ function UsersSection() {
           )}
         </>
       ) : null}
+
+      <UserDetailDrawer user={selectedUser} onClose={() => setSelectedUser(null)} />
     </section>
   );
 }
@@ -271,24 +276,28 @@ function UsageSection() {
       {data.top_consumers.length > 0 && (
         <>
           <p className="text-xs text-industrial-muted mb-2">Top consumers</p>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[var(--border-subtle)]">
-                <th className="py-2 px-3 text-left text-[11px] text-industrial-muted font-medium">Email</th>
-                <th className="py-2 px-3 text-right text-[11px] text-industrial-muted font-medium">Total tokens</th>
-                <th className="py-2 px-3 text-right text-[11px] text-industrial-muted font-medium hidden sm:table-cell">Calls</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.top_consumers.map((c) => (
-                <tr key={c.user_id} className="border-b border-[var(--border-subtle)]">
-                  <td className="py-2 px-3 text-sm text-industrial">{c.email}</td>
-                  <td className="py-2 px-3 text-sm text-industrial-secondary text-right">{c.total_tokens.toLocaleString()}</td>
-                  <td className="py-2 px-3 text-sm text-industrial-muted text-right hidden sm:table-cell">{c.llm_calls.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            rows={data.top_consumers}
+            rowKey={(c) => c.user_id}
+            initialSort={{ key: 'total', dir: 'desc' }}
+            columns={[
+              {
+                key: 'email', header: 'Email',
+                sortValue: (c) => c.email,
+                render: (c) => <span className="text-sm text-industrial">{c.email}</span>,
+              },
+              {
+                key: 'total', header: 'Total tokens', align: 'right',
+                sortValue: (c) => c.total_tokens,
+                render: (c) => <span className="text-sm text-industrial-secondary">{c.total_tokens.toLocaleString()}</span>,
+              },
+              {
+                key: 'calls', header: 'Calls', align: 'right', cellClassName: 'hidden sm:table-cell',
+                sortValue: (c) => c.llm_calls,
+                render: (c) => <span className="text-sm text-industrial-muted">{c.llm_calls.toLocaleString()}</span>,
+              },
+            ]}
+          />
         </>
       )}
     </section>

@@ -128,6 +128,22 @@ async def void_analysis(
 
     radius = max(0.5, min(25.0, radius_miles))
     demographics_data = await get_demographics_structured(address)
+    # Backfill vehicles/day from the public AADT source so the report carries a real
+    # traffic count even without a SiteUSA upload (no-op if already set or uncovered).
+    if demographics_data is not None and not demographics_data.get("traffic_count"):
+        try:
+            from app.services.location_resolver import resolve_location
+            from app.services.traffic_counts import get_traffic_count
+
+            resolved = await resolve_location(address)
+            if resolved.has_coordinates():
+                tc = await get_traffic_count(
+                    resolved.latitude, resolved.longitude, resolved.state_abbrev
+                )
+                if tc is not None:
+                    demographics_data["traffic_count"] = tc.aadt
+        except Exception:  # pragma: no cover - enrichment must never break the report
+            pass
     tenants_data = await get_tenants_structured(address, radius_miles=radius)
     return await generate_void_report(
         property_address=address,
@@ -137,6 +153,31 @@ async def void_analysis(
         use_case=use_case,
         tenant_focus=tenant_focus,
     )
+
+
+@mcp.tool(
+    description="Get the daily vehicle traffic count (AADT, vehicles per day) at a "
+    "property's location, from free public state-DOT data. `address` must be a "
+    "concrete street address — default to the project's property address when the "
+    "session is scoped to a project; never pass vague placeholders. Returns the "
+    "nearest official count (vehicles/day + road + year + distance), or says plainly "
+    "when the state isn't covered yet or no count is nearby. Covered: CA, NC, VA."
+)
+@audit_and_limit("traffic_counts")
+async def traffic_counts(address: str) -> str:
+    from app.services.location_resolver import resolve_location
+    from app.services.traffic_counts import format_traffic_summary, get_traffic_count
+
+    resolved = await resolve_location(address)
+    if not resolved.has_coordinates():
+        return (
+            f"I couldn't pinpoint coordinates for '{address}', so I can't pull a "
+            "traffic count. Try a more specific street address."
+        )
+    count = await get_traffic_count(
+        resolved.latitude, resolved.longitude, resolved.state_abbrev
+    )
+    return format_traffic_summary(count, resolved.state_abbrev)
 
 
 # ---------------------------------------------------------------------------

@@ -161,9 +161,14 @@ async def create_analysis_session_from_document(
     }
     system_prompt_id = prompt_id_map.get(analysis_type, DEFAULT_PROMPT_ID)
 
-    # Create session with document link and explicit prompt selection
+    # Create session with document link and explicit prompt selection.
+    # Inherit the document's project so analyses started from a project's
+    # Playground show up in that project's sessions / Recent runs (the document
+    # is the source of truth for project scope — it carries project_id from
+    # upload time).
     session = ChatSession(
         user_id=user_id,
+        project_id=document.project_id,
         title=generate_session_title(context),
         source_document_id=document.id,
         document_context=document_context,

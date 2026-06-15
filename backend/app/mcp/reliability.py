@@ -36,6 +36,7 @@ TOOL_TIMEOUTS: dict[str, float] = {
     "business_search": 5.0,
     "demographics_analysis": 10.0,
     "tenant_roster": 8.0,
+    "traffic_counts": 12.0,
     "void_analysis": 15.0,
     "foot_traffic": 15.0,
     "costar_import": 20.0,

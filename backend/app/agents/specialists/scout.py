@@ -4,7 +4,7 @@ from app.agents.prompts.scout import SCOUT_SYSTEM_PROMPT
 SCOUT = SpecialistConfig(
     name="scout",
     system_prompt=SCOUT_SYSTEM_PROMPT,
-    allowed_tools=["business_search", "tenant_roster", "demographics_analysis", "foot_traffic", "document_search"],
+    allowed_tools=["business_search", "tenant_roster", "demographics_analysis", "traffic_counts", "foot_traffic", "document_search"],
     default_model_tier="fast",
     description="Finds properties, nearby businesses, and site characteristics. Fast, broad discovery.",
 )
