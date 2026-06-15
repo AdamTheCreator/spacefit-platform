@@ -139,6 +139,7 @@ very portable.
 | D6 | **Scale-to-zero by default + a quick toggle to always-on** for onboarding/demos. | Cheap when idle; warm when it matters. (See latency note in §4.) |
 | D7 | **Fine-tune on Baseten IF cost-competitive; otherwise cheapest option.** Cost analysis required before committing. | Owner wants Baseten learning, not at a large premium. |
 | D8 | **Success bar: ≥90% tool-call accuracy; P95 latency at chat-app industry norm.** All other targets default to industry standard. | Owner-set quality floor + latency target. |
+| D9 | **Migration gate = non-regression vs the Anthropic baseline (parity-or-better), not a hard absolute 90%.** The incumbent (Haiku 4.5) itself scores 85.7% tool-call on the seed eval, so an absolute-90% gate would reject a Haiku-equivalent open model. 90% stays a stretch goal we reach by fixing the real gaps the eval surfaced. | Industry-standard migration framing; measured 2026-06-15, see §4.1. |
 
 ### Leading architectural recommendation (to confirm in Phase 1)
 
@@ -188,6 +189,48 @@ zero-code Baseten smoke test** and **the stale-model-ID baseline fix**.
   general-chat slices; target ≥ parity (tie-or-better) on a majority of cases. Exact
   threshold set in Phase 0.
 
+### 4.1 Phase 0 baseline (measured 2026-06-15)
+
+First live run of the harness, against the current Anthropic Haiku — the model
+the paid-tier chat is meant to use, and therefore the thing a self-hosted model
+must not regress against.
+
+**Stale-ID check — CONFIRMED BROKEN.** A one-call probe:
+
+| Model id | Result |
+|---|---|
+| `claude-3-5-haiku-20241022` (the repo's configured `anthropic_model` default) | **404 `not_found_error`** — retired Feb 2026 |
+| `claude-haiku-4-5` (current) | OK |
+
+So any platform path that falls through to the code default (rather than a prod
+env override) is 404-ing today. Fix is owed before this baseline reflects a
+real running config — tracked as a Phase 0 task.
+
+**Baseline scores — `claude-haiku-4-5`, 27-case seed suite:**
+
+| Slice | Score | Notes |
+|---|---|---|
+| Routing | 13/13 = **100%** | `plan_workflow` picks specialists reliably |
+| Tool-call | 12/14 = **85.7%** | below the 90% stretch bar — see failures |
+| Overall | 25/27 = **92.6%** | |
+
+**The two failures are real system gaps, not eval artifacts:**
+
+1. `tool-out-draft-01` — outreach specialist asked to draft outreach to two
+   named tenants **called no tool** (expected `draft_outreach`). The
+   `should_force_tool_use` heuristic doesn't catch "draft outreach …" phrasing,
+   so the model is free to answer in prose instead of invoking its one tool.
+2. `tool-scout-abstain-01` — scout, given a vague "I'm looking at a site, where
+   do we start?" with **no address**, called `demographics_analysis` instead of
+   asking for the address. Over-eager tool-calling on under-specified input.
+
+Both are fixable in prompts / forcing logic and improve the product regardless
+of the migration — a concrete example of the eval earning its keep before we've
+swapped a single model.
+
+**Caveats:** N=27 is small (each case ≈ 3.7%); scores are directional. Grow the
+seed set as real chat traffic arrives.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -228,6 +271,11 @@ zero-code Baseten smoke test** and **the stale-model-ID baseline fix**.
 
 ## 7. Changelog
 
+- **2026-06-15 — Phase 0 baseline measured (§4.1).** Ran the harness live against
+  `claude-haiku-4-5`: routing 100%, tool-call 85.7%, overall 92.6%. Confirmed the
+  stale `anthropic_model` default 404s. Locked D9 (gate = parity-or-better vs
+  baseline). Two real system gaps surfaced (outreach tool not triggering; scout
+  over-calling on vague input). Remaining Phase 0: stale-ID fix; Baseten smoke test.
 - **2026-06-15 — Phase 0 started: eval harness landed (`backend/evals/`).** The
   instrument that lets us prove "good enough" before switching. Built:
   - `grade.py` — pure-stdlib grading (routing set-match; tool-call = right tool +
