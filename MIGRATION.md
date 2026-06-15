@@ -142,6 +142,13 @@ very portable.
 | D9 | **Migration gate = non-regression vs the Anthropic baseline (parity-or-better), not a hard absolute 90%.** The incumbent (Haiku 4.5) itself scores 85.7% tool-call on the seed eval, so an absolute-90% gate would reject a Haiku-equivalent open model. 90% stays a stretch goal we reach by fixing the real gaps the eval surfaced. | Industry-standard migration framing; measured 2026-06-15, see §4.1. |
 | D10 | **Candidate base model = `Qwen/Qwen2.5-7B-Instruct`** (to be eval-validated before commit). | Apache-2.0 (clean commercial license), best-in-class 7B tool-caller, fits L4 (≈15 GB bf16 / ≈8 GB quantized), first-class vLLM/Truss serving + LoRA ecosystem, and already the repo's configured `huggingface_model` default. Alternatives: Qwen3-8B (level-up if it misses), Llama-3.1-8B (license fallback). |
 | D11 | **The eval has TWO dimensions: tool-calling (can it gather the right data?) AND advisory quality (can it reason about property-to-client fit and give a go/no-go?).** The advisory dimension is graded by LLM-as-judge on a 5-criterion rubric; the void/memo fine-tune primarily targets it. "Good enough" = parity-or-better on **both**. | Owner: "this is an agent… conversational… is it a good property to proceed on" — the advisory voice is the product value, not tool-picking. |
+| D12 | **Proceed with LoRA fine-tuning** (Gap 1). The diagnosis (§4.6) shows base Qwen's advisory failures are (a) voice/disposition + (b) calibration — *in-corpus, fixable by SFT* — with **no hard reasoning ceiling (c)**. | A fine-tune can move voice/format/disposition and knowledge that lives in the training data; it can't add raw reasoning capacity. The failures are the former. |
+| D13 | **Data strategy = human-memo gold set with inputs templated to the live advisory format; use real source-data reconstruction where it exists; teacher-generated data only for input-distribution augmentation, never as the voice source** (Gap 2, §4.7). | The human memos are the irreplaceable voice/judgment asset (the moat). We control the input format, so we kill train/serve skew by templating rather than by replacing human outputs with the teacher's. |
+| D14 | **Build a held-out advisory test set the fine-tune never sees, grow the eval with real dogfood prompts, add human spot-checks — before trusting any fine-tune delta** (Gap 3). | LLM-as-judge on a tiny suite is gameable; an untainted held-out set + human eyes is how we avoid overfitting to the judge. |
+| D15 | **Fine-tune in bf16 first, lock quality, THEN quantize to FP8 and re-run both evals** (Gap 5). Never fine-tune and quantize in the same step. | Two simultaneous changes make a quality delta unattributable. Separate them to know what caused what. |
+| D16 | **Serving architecture = one smart fine-tuned Qwen (LoRA adapters per persona if voices differ) + a cheap workhorse** for routing/titles/classification (tiny model or stay on Haiku), decided on cost + eval (Gap 6). | Don't pay 7B advisory inference for a one-word classifier; route cheap calls cheaply via the existing `specialist_models` seam. |
+| D17 | **Serving policy = business-hours always-on + overnight scale-to-zero + weight caching; measure cached-cold vs always-on and choose deliberately** (Gap 7). | A slow cold start mid client-meeting is unacceptable; scale-to-zero stays for off-hours cost. The two are reconciled by schedule + caching, with the tradeoff measured, not guessed. |
+| D18 | **Contingency: fine-tuned Qwen2.5-14B in FP8 (~14 GB) fits the 24 GB L4** where bf16 14B (~28 GB) would not (Gap 4). On standby only — invoked if Phase 3 reveals a reasoning ceiling. | The diagnosis (D12) says we likely won't need it, but it's documented now so it isn't a late surprise. |
 
 ### Leading architectural recommendation (to confirm in Phase 1)
 
@@ -188,18 +195,22 @@ before committing; optionally eval RomboTies head-to-head and let the tool-call 
 
 ## 3. Phase map
 
+**Revised 2026-06-15 after the plan review (Gaps 1–7, §8).** The big structural changes:
+a diagnosis *gate* before fine-tuning (Gap 1, done — §4.6); eval hardening moved *ahead* of
+training (Gap 3); quantization split into its own phase *after* quality is locked (Gap 5);
+and serving architecture + cold-start policy made explicit (Gaps 6–7).
+
 | Phase | Name | Goal | Exit criteria |
 |---|---|---|---|
-| **0** | Baseline & evals | Lock a working baseline + a real eval set; smoke-test Baseten with zero backend code. | Eval harness runs; baseline (current models) scored; stale model IDs verified/fixed; one Baseten endpoint answered a request through the existing provider. |
-| **1** | Base-model selection + cost | Pick the smallest open model that clears the eval bar on an L4; price Baseten L4 inference. | A chosen base model + quantization, justified against the eval scores and a written GPU cost model. |
-| **2** | Fine-tuning data prep | Turn OneDrive void analyses / investment memos into clean SFT training pairs. | A versioned, inspected train/val dataset + a data card. |
-| **3** | Fine-tune | Produce a LoRA (or full) fine-tune for void/memo; pick the cheapest adequate training venue. | Trained adapter that beats the base model on the void/memo eval slice; training-cost comparison written. |
-| **4** | Deploy on Baseten (Truss) | Package + deploy base (and adapter) on L4 with scale-to-zero + always-on toggle. | Live endpoint; cold-start + warm latency measured; toggle works. |
-| **5** | Cutover behind flags | Route real call sites to Baseten incrementally: utilities → specialists → void/memo. Each behind a flag, reversible. | Each call site swappable per-env; rollback verified; BYOK + accounting invariants intact. |
-| **6** | Benchmark vs baseline | Compare cost / latency / quality against the Anthropic baseline from Phase 0. | A decision-grade report: where the small model wins, ties, loses. |
-
-The owner's original draft phasing is preserved; the only additions are **Phase 0's
-zero-code Baseten smoke test** and **the stale-model-ID baseline fix**.
+| **0** | Baseline & evals | ✅ done | harness + baseline scored; Baseten smoke test |
+| **1** | Model selection + L4 validation | ✅ done | Qwen2.5-7B picked, deployed, benchmarked (§4.5) |
+| **1.5** | **Diagnosis gate (Gap 1)** | ✅ done — classify *why* base Qwen fails advisory | §4.6: failures are voice/disposition + calibration, no hard reasoning ceiling → **LoRA is the right tool** |
+| **2** | **Eval hardening + data construction** (Gaps 2, 3) | Build an un-gameable eval *and* a training set whose input distribution matches production. | Held-out test set the fine-tune never sees; eval grown with real dogfood prompts + human spot-check rubric; versioned SFT dataset (human-memo gold, inputs templated to the live advisory format) + data card. |
+| **3** | **LoRA fine-tune in bf16** (Gap 5a) | Train the adapter on the gold set; measure on held-out. | Adapter moves advisory toward parity on the held-out set **with no tool-calling regression**, confirmed by human spot-check. If a reasoning ceiling appears, branch to the 14B-FP8 contingency (Gap 4 / D18). |
+| **4** | **Quantize to FP8 + re-eval** (Gap 5b) | Quantize the *finished* fine-tune; confirm quality survives. | Both eval dimensions re-run bf16 vs FP8; quality delta within tolerance, VRAM/throughput gain measured. |
+| **5** | **Serving architecture** (Gap 6) | One smart fine-tuned Qwen (LoRA adapters per persona if voices differ) + a cheap workhorse for routing/titles/classification (tiny model or stay on Haiku). | Architecture chosen on measured cost + eval; per-persona routing wired behind the existing `specialist_models` seam. |
+| **6** | **Serving policy + flagged cutover** (Gap 7) | Business-hours always-on / overnight scale-to-zero / weight caching; route real call sites over incrementally. | Cached-cold vs always-on latency measured + a deliberate schedule chosen; cutover utilities → specialists → advisory, each behind a reversible flag; BYOK + accounting invariants intact. |
+| **7** | Final benchmark vs baseline | Decision-grade cost / latency / quality vs the Anthropic baseline. | Report on the **held-out** set: where the fine-tuned model wins, ties, loses. |
 
 ---
 
@@ -387,6 +398,62 @@ needed; flip `min_replica` to 1 for a demo).
 L4) ✅. Next: **Phase 2 — fine-tuning data prep** from the OneDrive void analyses / memos, to
 close the advisory gap.
 
+### 4.6 Advisory failure diagnosis — the pre-fine-tune gate (Gap 1, 2026-06-15)
+
+Read all four of base Qwen's advisory transcripts (saved in the scorecard) and labelled each
+failure: **(a) voice/format/disposition** (LoRA fixes), **(b) domain knowledge/calibration**
+(LoRA fixes *iff* it's in the memos), **(c) reasoning ceiling** (fine-tuning will NOT fix).
+
+| Case | Directional call | Dominant failure | Evidence from the transcript |
+|---|---|---|---|
+| adv-fit-coffee | ✅ correct (pursue) | **(a)** + minor (b) | Right analysis, but "Hey [Broker's Name]… Good luck! Cheers!", "Absolutely. Yes, absolutely." — eager-assistant voice, over-bullish; *did* list missing data. |
+| adv-pass-bigbox | ✅ correct (pass) | **(a)** + (b) slip | Correct pass, but a grounding slip ("8,000 SF… fits the property size" — it's a 40,000 SF box) and a hedged, garbled close ("a go-to-no-go situation"). |
+| adv-uncertain | ✅ correct (investigate) | **(a)** + (b) | Flags missing data correctly, but "reads like a templated AI checklist," indecisive, surface-level client tie-in. |
+| adv-memo-invest | ⚠️ wrong emphasis | **(b)** + (a) | **Saw** "30% rolls over in 24 months" **and** the client's "limited rollover risk" criterion, then called it "manageable" — positivity bias + a domain-threshold miss, not an inability to reason the steps. |
+
+**Breakdown: predominantly (a) voice/disposition, with meaningful (b) calibration; no clear (c).**
+The single most common pattern is **RLHF positivity bias / sycophancy** — base instruct models
+are tuned to be agreeable, but a broker memo demands calibrated skepticism (willing to say "that
+30% rollover kills it for your risk-averse client"). In every case the directional reasoning was
+*correct*; what's missing is the disciplined voice, the critical disposition, and a few domain
+thresholds — exactly what human memos carry.
+
+**Verdict: proceed with LoRA (D12).** The gap is the kind fine-tuning fixes. The memo case is the
+one to watch in Phase 3 (closest to a calibration/reasoning concern); if a true ceiling shows up
+there post-fine-tune, branch to the 14B-FP8 contingency (D18). Teaching note: this gate is *why*
+we diagnose before training — a fine-tune can't add reasoning capacity, so spending one on a (c)
+failure would burn time and money for no gain.
+
+### 4.7 Fine-tuning data construction (Gap 2, 2026-06-15)
+
+A training pair is *input → ideal output*. We have the ideal outputs (the human memos); we're
+missing inputs that match what the **live app** actually sends the advisory step (a property
+context + tool-result blocks + the user's question). Three strategies, compared:
+
+| Strategy | Input fidelity vs production | Voice/judgment source | Volume | Cost/effort | Risk |
+|---|---|---|---|---|---|
+| 1. Reverse-construct inputs from each memo (strong model) | Medium — *but we control the format, so we can template it to match* | **Human memo (gold)** | = #memos | Low | Synthetic input drift (mitigated by templating) |
+| 2. Reconstruct the *real* app input from source data | **Highest** | **Human memo (gold)** | Limited to memos with recoverable source data | High | Many memos may be standalone |
+| 3. Teacher-assisted (Claude writes outputs on real inputs) | **Highest** | **Claude's voice, not the broker's** | High | Medium | **Wrong voice** (defeats the purpose); distillation ceiling; Anthropic commercial-terms consideration |
+
+**Recommendation — a hybrid that protects the human memos as the irreplaceable asset:**
+- **Anchor on Strategy 1**: pair every human memo with a reverse-constructed input, **rendered
+  through the same formatter the live app uses** for the advisory step. Because we own that
+  format, the usual "synthetic-input drift" risk is engineered away — the input *is* in the
+  production shape; only its contents are reconstructed.
+- **Upgrade to Strategy 2 wherever a memo has recoverable source data** — run the real CSV/property
+  data through the app formatter for highest-fidelity pairs, and use those to *validate* that the
+  Strategy-1 reconstructed inputs look realistic.
+- **Use Strategy 3 sparingly, for input-distribution *augmentation* only — never as the voice
+  source.** The whole point is the broker's voice + critical judgment; teacher data would teach
+  Claude's instead, and Gap 1 says the broker voice is precisely what's missing. (Also flag the
+  Anthropic commercial-terms angle before training a competing model on Claude outputs.)
+
+Coherence with Gap 1: the diagnosis (gap = human voice + calibration) *demands* human-memo-sourced
+outputs, which rules Strategy 3 out as the foundation. The deciding dependency: **how many memos
+arrive with their source data** (Strategy 2 share) vs. standalone (Strategy 1) — see the open
+clarifying question.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -427,6 +494,14 @@ close the advisory gap.
 
 ## 7. Changelog
 
+- **2026-06-15 — Plan review (Gaps 1–7) integrated; roadmap revised.** Gap-1 diagnosis done
+  (§4.6): base Qwen's advisory failures are voice/disposition + calibration (positivity bias),
+  **no hard reasoning ceiling → LoRA is the right tool** (D12). Gap-2 data strategy chosen
+  (§4.7, D13): human-memo gold set + inputs templated to the live format, real-source
+  reconstruction where it exists, teacher data for input augmentation only. New decisions
+  D12–D18 (held-out eval D14, bf16-then-quantize D15, smart+workhorse arch D16, business-hours
+  serving policy D17, 14B-FP8 contingency D18). Phase map rewritten: diagnosis gate (1.5),
+  eval hardening ahead of training (2), quantization as its own phase (4). No training code yet.
 - **2026-06-15 — Controlled benchmark complete (§4.5). Phase 0 + Phase 1 done.** Qwen2.5-7B
   on the Baseten L4: tool-calling **92.9%** (beats Haiku's 85.7%, clears the bar; serving
   control eliminated the router flakiness), warm TTFT **~0.9 s**, but advisory quality
