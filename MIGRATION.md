@@ -149,6 +149,7 @@ very portable.
 | D16 | **Serving architecture = one smart fine-tuned Qwen (LoRA adapters per persona if voices differ) + a cheap workhorse** for routing/titles/classification (tiny model or stay on Haiku), decided on cost + eval (Gap 6). | Don't pay 7B advisory inference for a one-word classifier; route cheap calls cheaply via the existing `specialist_models` seam. |
 | D17 | **Serving policy = business-hours always-on + overnight scale-to-zero + weight caching; measure cached-cold vs always-on and choose deliberately** (Gap 7). | A slow cold start mid client-meeting is unacceptable; scale-to-zero stays for off-hours cost. The two are reconciled by schedule + caching, with the tradeoff measured, not guessed. |
 | D18 | **Contingency: fine-tuned Qwen2.5-14B in FP8 (~14 GB) fits the 24 GB L4** where bf16 14B (~28 GB) would not (Gap 4). On standby only — invoked if Phase 3 reveals a reasoning ceiling. | The diagnosis (D12) says we likely won't need it, but it's documented now so it isn't a late surprise. |
+| D19 | **Phase-2 data prep = an LLM-assisted curation pipeline (`backend/finetune/curate.py`), not hand-labelling.** Claude classifies + quality-gates each doc, reconstructs the input in the advisory format, preserves the human output verbatim, and **redacts all PII / client identity (owner-confirmed)**. | Owner has many mixed docs and can't hand-label; a fine-tune amplifies its data, so the model must triage + gate, not blindly convert. Validated end-to-end 2026-06-15 (§4.8). |
 
 ### Leading architectural recommendation (to confirm in Phase 1)
 
@@ -454,6 +455,24 @@ outputs, which rules Strategy 3 out as the foundation. The deciding dependency: 
 arrive with their source data** (Strategy 2 share) vs. standalone (Strategy 1) — see the open
 clarifying question.
 
+### 4.8 Curation pipeline built + validated (Gap 2 execution, 2026-06-15)
+
+`backend/finetune/curate.py` implements the Gap-2 strategy as a runnable pipeline: extract text
+(PDF / Word / CSV) → Claude curation (classify, quality-gate, reconstruct the input in the advisory
+format, **preserve the human output verbatim**, **redact all PII** — owner decision) → stratified
+train/held-out JSONL + a `report.md`. **No hand-labelling** — the owner skims the report + samples.
+
+Validated end-to-end on synthetic docs: a junk template was dropped; a memo with *planted* fake PII
+(client name, family office, street address, property name) was kept and turned into a clean SFT
+pair — a production-style reconstructed input, the human verdict preserved (incl. the
+rollover-vs-mandate judgment), and **every planted PII string redacted (0 leaks in `train.jsonl`)**.
+
+The report's per-doc `had_source_data` field answers the Strategy-1-vs-2 split automatically, so the
+earlier clarifying question is resolved by the pipeline rather than by hand. Corpus is being ported
+to Google Drive; plan: validate on ~10 real docs, then run the whole drive. Curation model defaults
+to Sonnet 4.6 (classify/extract/redact doesn't need the priciest model since the human output is
+preserved, not generated); one-time cost is a few cents per doc.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -494,6 +513,11 @@ clarifying question.
 
 ## 7. Changelog
 
+- **2026-06-15 — Phase 2 curation pipeline built + validated (§4.8, D19).**
+  `backend/finetune/curate.py` — LLM-assisted curation (classify, quality-gate, reconstruct the
+  advisory input, preserve the human output, **redact all PII**). Owner confirmed redact-all; corpus
+  being ported to Google Drive. Validated end-to-end on synthetic docs (junk dropped, memo kept,
+  planted PII fully redacted). No hand-labelling. Awaiting the real corpus → validate ~10 → run drive.
 - **2026-06-15 — Plan review (Gaps 1–7) integrated; roadmap revised.** Gap-1 diagnosis done
   (§4.6): base Qwen's advisory failures are voice/disposition + calibration (positivity bias),
   **no hard reasoning ceiling → LoRA is the right tool** (D12). Gap-2 data strategy chosen
