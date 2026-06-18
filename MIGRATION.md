@@ -508,6 +508,20 @@ and exact street addresses all gone. What remained: city names (Chandler/Tempe �
 geography, useful to keep) and a *public* tenant brand (Caffenio/FEMSA). Low sensitivity; final
 aggressiveness on tenant brands is an owner call.
 
+**Count + approach (owner-confirmed 2026-06-15):** walking the "Investment Memo(s)" folders adds
+one deal (337 W Mariposa Rd) → **~6 distinct investment-memo deals total**. Owner confirms: **no
+prose void conclusions exist** (the Sites USA export is always the deliverable), and **redact
+client/sponsor identity** (cities + public tenant brands may stay). So the human advisory gold is
+~6 rich memos — too few to train directly. **Approach = human-gold-first (measure before importing
+teacher output):**
+- **Phase 3a:** dedup to the ~6 deals (latest/cleanest version each) + **section-slice** each memo
+  into ~5–8 pairs (full memo + per-section: recommendation, trade-area, comps, pro forma) → ~40
+  human-voice pairs. Train LoRA, measure on the held-out advisory eval.
+- **Phase 3b (only if 3a underfits):** add **voice-steered teacher** pairs — Claude few-shot-prompted
+  with the real memos, writing recommendations over the abundant void DATA → ~100+ pairs matching
+  production inputs + the house voice. The human memos stay the voice anchor.
+This protects the moat (the broker voice) and only spends teacher tokens if the eval says we must.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
