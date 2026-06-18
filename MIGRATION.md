@@ -473,6 +473,41 @@ to Google Drive; plan: validate on ~10 real docs, then run the whole drive. Cura
 to Sonnet 4.6 (classify/extract/redact doesn't need the priciest model since the human output is
 preserved, not generated); one-time cost is a few cents per doc.
 
+### 4.9 Validation on REAL ASI docs — two plan-changing findings (2026-06-15)
+
+Ran the pipeline on 9 real docs from the "ASI Documents" Drive (4 void analyses, 2 investment
+memos, the xlsx void, + a flyer & an LOI as drop-tests). Results: gate works (flyer + LOI
+correctly dropped); **both investment memos kept as "high" quality with excellent pairs** — the
+reconstructed outputs lead with a calibrated go/no-go ("GO — with eyes open on second-pad leasing
+execution risk") — i.e. already the skeptical broker disposition base Qwen lacked.
+
+**Finding 1 — void analyses are raw Sites USA DATA exports, not advisory prose.** All 5 sampled
+voids were dropped: "raw Sites USA data export… no prose advisory narrative, no recommendation"
+(and they're large: 55–111 KB of tables). So the void docs are the *input a broker reads*, not a
+written recommendation — they can't directly teach the advisory voice. Reframes their role from
+"output gold" to "input data."
+
+**Finding 2 — the investment-memo gold is rich but THIN in unique examples.** A title search shows
+the memos cluster into ~5 distinct *deals* (Chandler/Warner-McQueen, 8300 Firestone Downey,
+Craig-Rancho LV, Tempe Caffenio, Vallarta Avondale), each **heavily versioned** (a dozen+ Chandler
+copies across Sept-2023 → Jul-2025). Unique advisory examples are single digits, not hundreds.
+
+**Refined data plan (D20):**
+- **Dedup memo versions** by deal (don't train on 12 Chandler copies → overfit) and pick the
+  latest/cleanest per deal. (curate.py needs a dedup pass.)
+- **Section-slice** each rich memo into multiple human-gold pairs (full memo + per-section:
+  objective, comps, recommendation) → multiplies ~8 deals into ~40–80 pairs, all human voice.
+- **Augment only if needed:** use the human memos as voice exemplars to *steer a teacher* (Claude)
+  to generate advisory recommendations on the abundant void DATA → many pairs matching production
+  inputs + the broker voice. Measure-first: try the human-gold LoRA, augment if the held-out
+  advisory score doesn't move. (A nuanced revision of D13: for voids we have no human output, so
+  some voice-steered generation is the pragmatic path.)
+
+**Redaction:** scrubbed the real PII — client/sponsor identity (ASÍ), the investor name (Cedric),
+and exact street addresses all gone. What remained: city names (Chandler/Tempe — general market
+geography, useful to keep) and a *public* tenant brand (Caffenio/FEMSA). Low sensitivity; final
+aggressiveness on tenant brands is an owner call.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -513,6 +548,13 @@ preserved, not generated); one-time cost is a few cents per doc.
 
 ## 7. Changelog
 
+- **2026-06-15 — Real-doc validation: two plan-changing findings (§4.9, D20).** Ran the pipeline
+  on 9 real ASI docs. Investment memos → excellent advisory pairs (calibrated voice). But (1) void
+  analyses are raw Sites USA data exports, not advisory prose (all dropped) → input data, not output
+  gold; and (2) the memo gold is ~5 distinct deals, heavily versioned → unique examples are single
+  digits. Plan: dedup + section-slice memos (~40–80 human pairs), augment with voice-steered teacher
+  pairs on void data only if needed. Redaction scrubbed real PII (client/investor/address); cities +
+  public tenant brands remained. Open Qs to owner: more distinct memos? prose void conclusions?
 - **2026-06-15 — Phase 2 curation pipeline built + validated (§4.8, D19).**
   `backend/finetune/curate.py` — LLM-assisted curation (classify, quality-gate, reconstruct the
   advisory input, preserve the human output, **redact all PII**). Owner confirmed redact-all; corpus
