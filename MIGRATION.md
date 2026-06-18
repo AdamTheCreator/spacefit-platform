@@ -562,6 +562,13 @@ This protects the moat (the broker voice) and only spends teacher tokens if the 
 
 ## 7. Changelog
 
+- **2026-06-15 — Phase 3a human-gold dataset built (`finetune/build_memo_dataset.py`).**
+  Section-slicer produced **34 human-gold training pairs from 5 deals** (Chandler, Craig-Rancho,
+  Downey, Nogales/Mariposa, Vallarta-Avondale), 27 train / 7 held-out — the whole **Chandler deal
+  held out** for leakage-free eval. **Redaction clean** (0 client-identity leaks in train.jsonl).
+  Tempe Caffenio transient-failed (BYOKError) → recoverable, would make 6 deals/~41 pairs. Pairs
+  read like real broker memos (calibrated "GO", preserved underwriting, grounded comps). Dataset is
+  git-ignored (derived + client-derived). Next: recover Tempe → training-venue cost (D7) → LoRA (bf16).
 - **2026-06-15 — Real-doc validation: two plan-changing findings (§4.9, D20).** Ran the pipeline
   on 9 real ASI docs. Investment memos → excellent advisory pairs (calibrated voice). But (1) void
   analyses are raw Sites USA data exports, not advisory prose (all dropped) → input data, not output
