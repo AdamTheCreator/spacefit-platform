@@ -1,0 +1,3 @@
+# Client-derived training data + adapter outputs — not committed.
+data/
+lora-out/

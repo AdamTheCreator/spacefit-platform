@@ -563,6 +563,15 @@ This protects the moat (the broker voice) and only spends teacher tokens if the 
 
 ## 7. Changelog
 
+- **2026-06-15 — Phase 3 launch BLOCKED: Baseten Training not authorized (403).** Wrote +
+  validated the training config (`finetune/training/`: `config.py` truss_train job, Axolotl
+  `qwen_lora.yaml`, `run.sh`), placed the dataset (29 train / 7 held-out), redaction clean.
+  But `truss train push` → **403 "not authorized for Baseten training"** (team `wp7ndew`).
+  Inference works on this account; **Training is a separate entitlement it lacks.** The
+  Axolotl YAML is venue-agnostic, so the fork is: (a) request Baseten Training access → push
+  the ready config, or (b) fallback — train via Together AI API (~pennies) or rented A100 +
+  Unsloth using the same `qwen_lora.yaml`, then deploy the adapter on the existing L4 (D21
+  fallbacks). Adapter deploys to Baseten regardless of where it's trained. Awaiting owner choice.
 - **2026-06-15 — Phase 3a human-gold dataset built (`finetune/build_memo_dataset.py`).**
   Section-slicer produced **34 human-gold training pairs from 5 deals** (Chandler, Craig-Rancho,
   Downey, Nogales/Mariposa, Vallarta-Avondale), 27 train / 7 held-out — the whole **Chandler deal
