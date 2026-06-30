@@ -20,6 +20,15 @@ docker_server:
   #     tool calls are emitted and parsed consistently every time.
   #   --max-model-len 16384  ← caps context so KV cache fits beside the ~15 GB
   #     bf16 weights on a 24 GB L4 (our eval prompts are a few k tokens).
+  #   --enable-lora + --lora-modules  ← serve the advisory fine-tune alongside
+  #     base Qwen on the SAME L4. vLLM loads the 7B base once; the LoRA is a small
+  #     low-rank delta applied per-request by name, so one server answers as
+  #     `Qwen/Qwen2.5-7B-Instruct` (base) OR `spacegoose-advisor` (fine-tune)
+  #     depending on the request's `model` field — exactly what we need to A/B
+  #     them in the advisory eval. The adapter ships in the Truss bundle at
+  #     /app/data/advisor_adapter (Together LoRA, PEFT format).
+  #   --max-lora-rank 64  ← MUST be >= the adapter's rank. Together's `lora=True`
+  #     trained this at r=64/alpha=128 (its default, not our Axolotl r=16 yaml).
   start_command: >-
     vllm serve Qwen/Qwen2.5-7B-Instruct
     --host 0.0.0.0
@@ -30,6 +39,9 @@ docker_server:
     --enable-prefix-caching
     --enable-auto-tool-choice
     --tool-call-parser hermes
+    --enable-lora
+    --max-lora-rank 64
+    --lora-modules spacegoose-advisor=/app/data/advisor_adapter
   server_port: 8000
   predict_endpoint: /v1/chat/completions
   readiness_endpoint: /health
