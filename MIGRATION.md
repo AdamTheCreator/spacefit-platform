@@ -396,9 +396,11 @@ real regression. That gap is the project's reason for existing.
 Deployment is scale-to-zero — the L4 sleeps automatically after ~15 min idle (no action
 needed; flip `min_replica` to 1 for a demo).
 
-**Phase status:** Phase 0 (baseline + evals) ✅ and Phase 1 (model selected + validated on an
-L4) ✅. Next: **Phase 2 — fine-tuning data prep** from the OneDrive void analyses / memos, to
-close the advisory gap.
+**Phase status:** Phase 0 (baseline + evals) ✅, Phase 1 (model selected + validated on an
+L4) ✅, Phase 2 (data curation + human-gold dataset) ✅, and **Phase 3 (advisory LoRA) ✅ —
+trained on Together AI** (job `ft-0a9cfffd-ba02` → adapter
+`adamthecreator/Qwen2.5-7B-Instruct-spacegoose-advisor-a9cac113`). Next: serve the adapter on
+the L4 (vLLM `--enable-lora`) and score the held-out advisory eval vs base Qwen 2.80 / Haiku 4.35.
 
 ### 4.6 Advisory failure diagnosis — the pre-fine-tune gate (Gap 1, 2026-06-15)
 
@@ -563,6 +565,15 @@ This protects the moat (the broker voice) and only spends teacher tokens if the 
 
 ## 7. Changelog
 
+- **2026-06-30 — ✅ Advisory LoRA TRAINED on Together (job `ft-0a9cfffd-ba02`).** A clean resubmit
+  completed end-to-end: adapter `adamthecreator/Qwen2.5-7B-Instruct-spacegoose-advisor-a9cac113`
+  (Qwen2.5-7B base, 4 epochs, lr 1e-4, batch 16, ~20.4k training tokens, `JOB_COMPLETE` 21:32:57Z).
+  This took three attempts: `ft-c0060f33-bf9f` and one earlier job both **trained all 4 epochs and
+  then errored at Together's adapter compress/upload (finalization) step with an auto-refund** —
+  a Together-side infra flake on a job this tiny, NOT our dataset/config (identical inputs succeeded
+  on retry). Lesson: on a sub-$5 LoRA, a finalization error means *resubmit*, don't re-diagnose.
+  **Next:** download the adapter → deploy on the Baseten L4 (vLLM `--enable-lora`) → run the
+  held-out advisory eval vs base Qwen 2.80 / Haiku 4.35 to confirm the gap closed.
 - **2026-06-15 — 🚀 First LoRA fine-tune LAUNCHED on Together (job `ft-c0060f33-bf9f`).** Qwen2.5-7B
   + the 29-pair human-gold advisory dataset, 4 epochs, LoRA (`train_on_inputs=auto`). The earlier
   402s were credit-purchase *propagation lag* to Together's training-billing service, not a real
