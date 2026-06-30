@@ -563,6 +563,11 @@ This protects the moat (the broker voice) and only spends teacher tokens if the 
 
 ## 7. Changelog
 
+- **2026-06-15 — 🚀 First LoRA fine-tune LAUNCHED on Together (job `ft-c0060f33-bf9f`).** Qwen2.5-7B
+  + the 29-pair human-gold advisory dataset, 4 epochs, LoRA (`train_on_inputs=auto`). The earlier
+  402s were credit-purchase *propagation lag* to Together's training-billing service, not a real
+  shortfall ($20 purchased credits). Training now; next: download adapter → deploy on the Baseten L4
+  (vLLM `--enable-lora`) → held-out advisory eval vs base Qwen 2.80 / Haiku 4.35.
 - **2026-06-15 — Pivot: train on Together AI (Baseten Training inaccessible to the account).**
   Owner couldn't get Baseten Training enabled (403), so D21 pivots: **train the LoRA on Together
   AI, still serve the adapter on the existing Baseten L4** (train-venue ≠ serve-venue, by design).
