@@ -56,6 +56,9 @@ def submit(args) -> None:
         print("  file status:", st)
         time.sleep(5)
     print("creating LoRA job …")
+    # v1 lesson: omitting lora_r/lora_alpha gets Together's defaults (r=64,
+    # alpha=128) — 4x our intended capacity, which overfit 29 examples badly
+    # (off-format repetition loops). Always pin the rank explicitly.
     job = c.fine_tuning.create(
         training_file=f.id,
         model=args.model,
@@ -65,6 +68,8 @@ def submit(args) -> None:
         warmup_ratio=0.0,
         train_on_inputs="auto",   # learn only the advisory outputs, mask inputs
         lora=True,
+        lora_r=args.lora_r,
+        lora_alpha=args.lora_alpha,
         suffix=args.suffix,
     )
     print("JOB ID:", job.id)
@@ -79,10 +84,16 @@ def status(args) -> None:
 
 
 def download(args) -> None:
+    # SDK >= 2.x: fine_tuning.content() (the old .download() is gone). Returns
+    # a zstd-compressed tar of the PEFT adapter dir; extract with zstandard+tarfile.
     c = _client()
-    out = args.out or f"{args.job_id}_adapter"
-    c.fine_tuning.download(id=args.job_id, output=out)
-    print("downloaded adapter ->", out)
+    out = args.out or f"{args.job_id}_adapter.tar.zst"
+    resp = c.fine_tuning.content(ft_id=args.job_id, checkpoint="adapter")
+    resp.write_to_file(out)
+    print("downloaded adapter archive ->", out)
+    print("extract: python -c \"import zstandard,tarfile,io; "
+          "tarfile.open(fileobj=io.BytesIO(zstandard.ZstdDecompressor()"
+          f".stream_reader(open('{out}','rb')).read())).extractall('adapter')\"")
 
 
 def main() -> int:
@@ -96,6 +107,8 @@ def main() -> int:
     s.add_argument("--model", default=DEFAULT_MODEL)
     s.add_argument("--epochs", type=int, default=4)
     s.add_argument("--lr", type=float, default=1e-4)
+    s.add_argument("--lora-r", type=int, default=16, help="LoRA rank (matches qwen_lora.yaml)")
+    s.add_argument("--lora-alpha", type=int, default=32)
     s.add_argument("--suffix", default="spacegoose-advisor")
     s.set_defaults(func=submit)
 
