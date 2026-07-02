@@ -397,10 +397,12 @@ Deployment is scale-to-zero — the L4 sleeps automatically after ~15 min idle (
 needed; flip `min_replica` to 1 for a demo).
 
 **Phase status:** Phase 0 (baseline + evals) ✅, Phase 1 (model selected + validated on an
-L4) ✅, Phase 2 (data curation + human-gold dataset) ✅, and **Phase 3 (advisory LoRA) ✅ —
-trained on Together AI** (job `ft-0a9cfffd-ba02` → adapter
-`adamthecreator/Qwen2.5-7B-Instruct-spacegoose-advisor-a9cac113`). Next: serve the adapter on
-the L4 (vLLM `--enable-lora`) and score the held-out advisory eval vs base Qwen 2.80 / Haiku 4.35.
+L4) ✅, Phase 2 (data curation + human-gold dataset) ✅, Phase 3 **v1** trained on Together AI ✅,
+served on the L4 alongside base Qwen ✅, and judged ✅ (§4.10): **v1 = 2.50/5 off-format vs base
+2.80 / Haiku 4.35 — voice transferred (tone 2.25→3.00, strong in-format held-out memo) but the
+input surface overfit** (Together's unpinned r=64/α=128 defaults + single training format).
+Next: **v2** — r=16/α=32 pinned + sectioned-format augmentation (`diversify_formats.py`), retrain,
+re-judge.
 
 ### 4.6 Advisory failure diagnosis — the pre-fine-tune gate (Gap 1, 2026-06-15)
 
@@ -525,6 +527,45 @@ teacher output):**
   production inputs + the house voice. The human memos stay the voice anchor.
 This protects the moat (the broker voice) and only spends teacher tokens if the eval says we must.
 
+### 4.10 v1 adapter served + judged — voice transferred, format overfit (2026-07-02)
+
+The trained adapter (`ft-0a9cfffd-ba02` → `…-spacegoose-advisor-a9cac113`) is live on the SAME
+L4 as base Qwen: `--enable-lora --max-lora-rank 64 --lora-modules
+spacegoose-advisor=/app/data/advisor_adapter` (adapter ships in the Truss bundle at
+`/app/data`, git-ignored). vLLM loads the base once; the adapter is a per-request delta selected
+by the `model` field — one box A/Bs both. KV cache 3.84 GiB beside base+LoRA; warm ping ~0.8 s.
+
+**What Together actually trained:** we never passed `lora_r`/`lora_alpha`, so `lora=True` used
+Together's defaults **r=64 / α=128** — 4× the intended r=16 capacity on 29 examples (617 MB
+fp32 adapter). Loss 2.26 → ~1.65 over just 8 optimizer steps.
+
+**Two-sided behavior, measured:**
+
+- **In training format (held-out Chandler deal): strong.** Clean `finish_reason=stop`, proper
+  "GO — …" broker-memo disposition, grounded in the real underwriting (6.5% YoC / 5.5% exit /
+  12% levered IRR). The voice + go/no-go disposition genuinely transferred.
+- **Off-format (the sectioned `## Property/## Data` advisory eval = the product shape): regressed.**
+  Judged scorecard (same judge as the baselines; base Qwen **re-scored 2.80 — identical to the
+  June baseline**, so the comparison is valid):
+
+  | config | mean/5 | prop. underst. | client fit | rec. clarity | grounded | tone |
+  |---|---|---|---|---|---|---|
+  | base Qwen (re-anchor) | **2.80** | 3.00 | 2.50 | 3.25 | 3.00 | 2.25 |
+  | v1 raw                | **2.50** | 2.25 | 2.25 | 2.75 | 2.25 | **3.00** |
+  | v1 + freq_penalty 0.7 | **2.15** | 2.00 | 2.00 | 3.00 | **1.25** | 2.50 |
+
+  Read: **tone rose (2.25→3.00) while understanding/fit/grounding fell** — v1 learned the voice
+  but overfit the input surface; off-distribution it loses reasoning and (at low temperature)
+  degenerates into repetition loops that `finish_reason` exposes (`length` instead of `stop`).
+  And `frequency_penalty` is NOT a viable rescue: it penalizes re-emitting the prompt's own
+  numbers — which is lexically what grounding *is* — so grounded collapsed to 1.25 ("fabricates
+  data"). Serving knobs can't fix a training-distribution problem.
+
+**v2 recipe (both fixes cheap, pipeline proven):** (a) pin **r=16/α=32** — now the
+`together_submit.py` defaults; (b) **format diversity** — `finetune/diversify_formats.py` adds
+content-preserving sectioned renderings of half the train pairs (dry-run verified: zero invented
+facts), so the eval/product shape is in-distribution. Same data, same venue, ~$5.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -565,6 +606,18 @@ This protects the moat (the broker voice) and only spends teacher tokens if the 
 
 ## 7. Changelog
 
+- **2026-07-02 — v1 served + judged (§4.10): voice ✅, format overfit ❌ → v2 queued.** Deployed
+  the adapter next to base Qwen on the one L4 (vLLM `--enable-lora`, `--max-lora-rank 64`,
+  adapter in the Truss bundle). Judge re-anchored perfectly (base re-scored **2.80**, identical
+  to June). **v1 raw = 2.50/5** off-format (tone up, grounding/understanding down; low-temp
+  repetition loops), **v1 + frequency_penalty 0.7 = 2.15/5** (penalty fights grounding — it
+  suppresses re-emitting the prompt's numbers). In-format held-out Chandler output was a clean,
+  grounded GO memo — so the failure is distribution, not capability. Root cause: Together's
+  unpinned LoRA defaults (r=64/α=128) + one input surface. Fixes landed: `together_submit.py`
+  pins r=16/α=32 (+ SDK 2.x download fix), `diversify_formats.py` adds sectioned input variants.
+  Eval plumbing: standalone `evals/_run_advisory_v1.py` (fresh container lacked app deps); judge
+  max_tokens 700→1400 (Sonnet 4.6's notes truncated mid-JSON — `max_tokens` is a stop condition,
+  not a sampling param, so raising it is comparability-safe).
 - **2026-06-30 — ✅ Advisory LoRA TRAINED on Together (job `ft-0a9cfffd-ba02`).** A clean resubmit
   completed end-to-end: adapter `adamthecreator/Qwen2.5-7B-Instruct-spacegoose-advisor-a9cac113`
   (Qwen2.5-7B base, 4 epochs, lr 1e-4, batch 16, ~20.4k training tokens, `JOB_COMPLETE` 21:32:57Z).
