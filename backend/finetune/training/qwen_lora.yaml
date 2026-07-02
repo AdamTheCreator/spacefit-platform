@@ -1,0 +1,53 @@
+# Axolotl LoRA fine-tune — Qwen2.5-7B-Instruct on the human-gold advisory memos.
+# bf16 (D15: quality first, quantize later). Chat-format dataset (our SFT records
+# are {"messages":[{role,content}]}), using the model's own chat template.
+
+base_model: Qwen/Qwen2.5-7B-Instruct
+bf16: true
+tf32: true
+load_in_8bit: false
+load_in_4bit: false
+
+datasets:
+  - path: data/train.jsonl
+    type: chat_template
+    chat_template: tokenizer_default   # use Qwen2.5's built-in template
+    field_messages: messages
+
+# We hold out a whole deal externally (heldout.jsonl) and eval with our own
+# advisory harness, so no internal val split here.
+val_set_size: 0.0
+
+sequence_len: 4096
+pad_to_sequence_len: true
+sample_packing: false
+
+adapter: lora
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Small dataset (~29 train pairs): a few epochs to imprint voice/disposition,
+# low LR to avoid overfitting a handful of deals.
+num_epochs: 4
+micro_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 0.0002
+optimizer: adamw_torch
+lr_scheduler: cosine
+warmup_ratio: 0.05
+weight_decay: 0.0
+
+flash_attention: true
+gradient_checkpointing: true
+logging_steps: 1
+save_strategy: epoch
+output_dir: ./lora-out

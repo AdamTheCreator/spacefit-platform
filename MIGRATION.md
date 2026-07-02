@@ -150,6 +150,7 @@ very portable.
 | D17 | **Serving policy = business-hours always-on + overnight scale-to-zero + weight caching; measure cached-cold vs always-on and choose deliberately** (Gap 7). | A slow cold start mid client-meeting is unacceptable; scale-to-zero stays for off-hours cost. The two are reconciled by schedule + caching, with the tradeoff measured, not guessed. |
 | D18 | **Contingency: fine-tuned Qwen2.5-14B in FP8 (~14 GB) fits the 24 GB L4** where bf16 14B (~28 GB) would not (Gap 4). On standby only — invoked if Phase 3 reveals a reasoning ceiling. | The diagnosis (D12) says we likely won't need it, but it's documented now so it isn't a late surprise. |
 | D19 | **Phase-2 data prep = an LLM-assisted curation pipeline (`backend/finetune/curate.py`), not hand-labelling.** Claude classifies + quality-gates each doc, reconstructs the input in the advisory format, preserves the human output verbatim, and **redacts all PII / client identity (owner-confirmed)**. | Owner has many mixed docs and can't hand-label; a fine-tune amplifies its data, so the model must triage + gate, not blindly convert. Validated end-to-end 2026-06-15 (§4.8). |
+| D21 | **Train on Baseten Training (managed LoRA SFT) — resolves D7.** At our scale (~40 pairs, 7B LoRA) every venue is **<~$10/run**, so cost doesn't separate them. Baseten wins on alignment: you own the weights, train→deploy is integrated onto the L4 we already built, and it's the platform we're learning. Fallbacks if Baseten Training doesn't fit Qwen2.5-7B LoRA: a rented A100 + Unsloth (~$1–2/run, most control) or Together AI ($0.48/1M tokens, training-only — skip their $6.49/hr hosting, download the adapter to our L4). | Cost analysis 2026-06-15 (web-sourced). The real risk at ~40 examples is *data size, not cost*, so pick for fit + learning, not pennies. (D20 = the §4.9 validation findings.) |
 
 ### Leading architectural recommendation (to confirm in Phase 1)
 
@@ -395,9 +396,14 @@ real regression. That gap is the project's reason for existing.
 Deployment is scale-to-zero — the L4 sleeps automatically after ~15 min idle (no action
 needed; flip `min_replica` to 1 for a demo).
 
-**Phase status:** Phase 0 (baseline + evals) ✅ and Phase 1 (model selected + validated on an
-L4) ✅. Next: **Phase 2 — fine-tuning data prep** from the OneDrive void analyses / memos, to
-close the advisory gap.
+**Phase status:** Phase 0 (baseline + evals) ✅, Phase 1 (model selected + L4-validated) ✅,
+Phase 2 (data curation + human-gold dataset) ✅, Phase 3a (v1/v2 human-gold LoRAs — voice
+transferred, grounding regressed; §4.10–§4.11) ✅, **Phase 3b (teacher augmentation) ✅ —
+v3 = 3.05/5 (§4.12): first fine-tune above base (2.80), first 2/4 send-to-client passes,
+grounding slide reversed (1.75→2.50)** vs Haiku 4.35 on the same re-anchored judge. Remaining
+gap is careful-reading + don't-invent-specifics. Next: scale teacher data with
+misread-targeting scenarios + tighten the teacher's no-unsupplied-comps rule; D18 (14B) stays
+the fallback if understanding plateaus.
 
 ### 4.6 Advisory failure diagnosis — the pre-fine-tune gate (Gap 1, 2026-06-15)
 
@@ -473,6 +479,163 @@ to Google Drive; plan: validate on ~10 real docs, then run the whole drive. Cura
 to Sonnet 4.6 (classify/extract/redact doesn't need the priciest model since the human output is
 preserved, not generated); one-time cost is a few cents per doc.
 
+### 4.9 Validation on REAL ASI docs — two plan-changing findings (2026-06-15)
+
+Ran the pipeline on 9 real docs from the "ASI Documents" Drive (4 void analyses, 2 investment
+memos, the xlsx void, + a flyer & an LOI as drop-tests). Results: gate works (flyer + LOI
+correctly dropped); **both investment memos kept as "high" quality with excellent pairs** — the
+reconstructed outputs lead with a calibrated go/no-go ("GO — with eyes open on second-pad leasing
+execution risk") — i.e. already the skeptical broker disposition base Qwen lacked.
+
+**Finding 1 — void analyses are raw Sites USA DATA exports, not advisory prose.** All 5 sampled
+voids were dropped: "raw Sites USA data export… no prose advisory narrative, no recommendation"
+(and they're large: 55–111 KB of tables). So the void docs are the *input a broker reads*, not a
+written recommendation — they can't directly teach the advisory voice. Reframes their role from
+"output gold" to "input data."
+
+**Finding 2 — the investment-memo gold is rich but THIN in unique examples.** A title search shows
+the memos cluster into ~5 distinct *deals* (Chandler/Warner-McQueen, 8300 Firestone Downey,
+Craig-Rancho LV, Tempe Caffenio, Vallarta Avondale), each **heavily versioned** (a dozen+ Chandler
+copies across Sept-2023 → Jul-2025). Unique advisory examples are single digits, not hundreds.
+
+**Refined data plan (D20):**
+- **Dedup memo versions** by deal (don't train on 12 Chandler copies → overfit) and pick the
+  latest/cleanest per deal. (curate.py needs a dedup pass.)
+- **Section-slice** each rich memo into multiple human-gold pairs (full memo + per-section:
+  objective, comps, recommendation) → multiplies ~8 deals into ~40–80 pairs, all human voice.
+- **Augment only if needed:** use the human memos as voice exemplars to *steer a teacher* (Claude)
+  to generate advisory recommendations on the abundant void DATA → many pairs matching production
+  inputs + the broker voice. Measure-first: try the human-gold LoRA, augment if the held-out
+  advisory score doesn't move. (A nuanced revision of D13: for voids we have no human output, so
+  some voice-steered generation is the pragmatic path.)
+
+**Redaction:** scrubbed the real PII — client/sponsor identity (ASÍ), the investor name (Cedric),
+and exact street addresses all gone. What remained: city names (Chandler/Tempe — general market
+geography, useful to keep) and a *public* tenant brand (Caffenio/FEMSA). Low sensitivity; final
+aggressiveness on tenant brands is an owner call.
+
+**Count + approach (owner-confirmed 2026-06-15):** walking the "Investment Memo(s)" folders adds
+one deal (337 W Mariposa Rd) → **~6 distinct investment-memo deals total**. Owner confirms: **no
+prose void conclusions exist** (the Sites USA export is always the deliverable), and **redact
+client/sponsor identity** (cities + public tenant brands may stay). So the human advisory gold is
+~6 rich memos — too few to train directly. **Approach = human-gold-first (measure before importing
+teacher output):**
+- **Phase 3a:** dedup to the ~6 deals (latest/cleanest version each) + **section-slice** each memo
+  into ~5–8 pairs (full memo + per-section: recommendation, trade-area, comps, pro forma) → ~40
+  human-voice pairs. Train LoRA, measure on the held-out advisory eval.
+- **Phase 3b (only if 3a underfits):** add **voice-steered teacher** pairs — Claude few-shot-prompted
+  with the real memos, writing recommendations over the abundant void DATA → ~100+ pairs matching
+  production inputs + the house voice. The human memos stay the voice anchor.
+This protects the moat (the broker voice) and only spends teacher tokens if the eval says we must.
+
+### 4.10 v1 adapter served + judged — voice transferred, format overfit (2026-07-02)
+
+The trained adapter (`ft-0a9cfffd-ba02` → `…-spacegoose-advisor-a9cac113`) is live on the SAME
+L4 as base Qwen: `--enable-lora --max-lora-rank 64 --lora-modules
+spacegoose-advisor=/app/data/advisor_adapter` (adapter ships in the Truss bundle at
+`/app/data`, git-ignored). vLLM loads the base once; the adapter is a per-request delta selected
+by the `model` field — one box A/Bs both. KV cache 3.84 GiB beside base+LoRA; warm ping ~0.8 s.
+
+**What Together actually trained:** we never passed `lora_r`/`lora_alpha`, so `lora=True` used
+Together's defaults **r=64 / α=128** — 4× the intended r=16 capacity on 29 examples (617 MB
+fp32 adapter). Loss 2.26 → ~1.65 over just 8 optimizer steps.
+
+**Two-sided behavior, measured:**
+
+- **In training format (held-out Chandler deal): strong.** Clean `finish_reason=stop`, proper
+  "GO — …" broker-memo disposition, grounded in the real underwriting (6.5% YoC / 5.5% exit /
+  12% levered IRR). The voice + go/no-go disposition genuinely transferred.
+- **Off-format (the sectioned `## Property/## Data` advisory eval = the product shape): regressed.**
+  Judged scorecard (same judge as the baselines; base Qwen **re-scored 2.80 — identical to the
+  June baseline**, so the comparison is valid):
+
+  | config | mean/5 | prop. underst. | client fit | rec. clarity | grounded | tone |
+  |---|---|---|---|---|---|---|
+  | base Qwen (re-anchor) | **2.80** | 3.00 | 2.50 | 3.25 | 3.00 | 2.25 |
+  | v1 raw                | **2.50** | 2.25 | 2.25 | 2.75 | 2.25 | **3.00** |
+  | v1 + freq_penalty 0.7 | **2.15** | 2.00 | 2.00 | 3.00 | **1.25** | 2.50 |
+
+  Read: **tone rose (2.25→3.00) while understanding/fit/grounding fell** — v1 learned the voice
+  but overfit the input surface; off-distribution it loses reasoning and (at low temperature)
+  degenerates into repetition loops that `finish_reason` exposes (`length` instead of `stop`).
+  And `frequency_penalty` is NOT a viable rescue: it penalizes re-emitting the prompt's own
+  numbers — which is lexically what grounding *is* — so grounded collapsed to 1.25 ("fabricates
+  data"). Serving knobs can't fix a training-distribution problem.
+
+**v2 recipe (both fixes cheap, pipeline proven):** (a) pin **r=16/α=32** — now the
+`together_submit.py` defaults; (b) **format diversity** — `finetune/diversify_formats.py` adds
+content-preserving sectioned renderings of half the train pairs (dry-run verified: zero invented
+facts), so the eval/product shape is in-distribution. Same data, same venue, ~$5.
+
+### 4.11 v2 judged — the human-gold-only corpus teaches voice, not grounding (2026-07-02)
+
+v2 (`ft-adc8d651-dc39` → `…-advisor-v2-dbd46790`, r=16/α=32 pinned ✅, 44 format-diverse pairs,
+162 MB adapter, loss 2.29→1.65 over 12 steps) deployed as `spacegoose-advisor-v2` beside v1 +
+base on the same L4 (deployment `wp52yme`). Judged on the identical yardstick: **2.35/5 — below
+v1 (2.50) and base (2.80).** The r=16 + format-diversity fixes did NOT close the gap; they
+sharpened the diagnosis. The three-run trend is monotone and damning:
+
+| criterion | base | v1 | v2 |
+|---|---|---|---|
+| tone                   | 2.25 | 3.00 | **3.25** ↑ |
+| recommendation_clarity | 3.25 | 2.75 | 3.00 |
+| property_understanding | 3.00 | 2.25 | **1.75** ↓ |
+| grounded               | 3.00 | 2.25 | **1.75** ↓ |
+| **mean**               | **2.80** | **2.50** | **2.35** |
+
+**Every round of SFT on this corpus moves voice UP and grounding DOWN.** The kill shot: on
+`adv-fit-coffee` (a checks-every-box GO), v2 issued a confident **pass** in the sectioned eval
+format — but answered **"This is a go"** on the *same facts* rephrased in terse training style.
+The disposition tracks the input's surface form, not its content. Under elaboration pressure it
+also fabricates specifics (invented "85% leased" where the case's own numbers imply 65%).
+
+**Amended Gap-1 diagnosis (supersedes the "LoRA-fixable" optimism of §4.6):** 29–44 gold pairs
+teach the memo *register* and GO/PASS *language*, but cannot teach the input→disposition
+*mapping* — there are simply too few (input, grounded-verdict) examples for the mapping to
+generalize; the adapter memorizes surface→output associations instead. (v2's duplicated gold
+outputs — each sectioned variant repeats its original's output — likely intensified output
+memorization; a lesson for any future augmentation: vary the output side too, or dedupe.)
+
+**Evidence-indicated next lever = Phase 3b, exactly as pre-planned in §4.9:** voice-steered
+**teacher augmentation** — Claude few-shot-prompted with the real memos writes grounded
+recommendations over *many diverse inputs* (the abundant void/Sites-USA data + varied synthetic
+properties, both GO and PASS cases), giving ~100–200 pairs where the disposition is derivable
+from the input. The human memos stay the voice anchor; scale teaches the mapping. Alternatives
+if 3b underdelivers: mix general instruct data to arrest the grounding regression, and/or the
+D18 14B fallback.
+
+### 4.12 v3 (teacher-augmented) judged 3.05 — first fine-tune to beat base; trend reversed (2026-07-02)
+
+Phase 3b executed same-day: `finetune/teacher_augment.py` generated 160 scenario→teacher pairs
+(label-blind teacher, few-shot memo voice anchors; regex opener-verdict + temp-0 fabrication
+gate), 110 survived (69%), merged with the 29 human-gold → **train_v3.jsonl, 139 pairs**
+(44 GO / 63 PASS / 32 uncertain; 4 input formats near-uniform). Trained `ft-c6abca90-03cf`
+(r=16/α=32, **3** epochs, 27 steps, loss 2.34→**1.90** — higher terminal loss than v1/v2's
+~1.65 on 4× more-diverse data = less memorization, by design). Served as
+`spacegoose-advisor-v3`, judged on the same yardstick:
+
+| | base | v1 | v2 | **v3** | Haiku |
+|---|---|---|---|---|---|
+| **mean** | 2.80 | 2.50 | 2.35 | **3.05** | 4.35 |
+| send-to-client pass | 0/4 | 0/4 | 0/4 | **2/4** | — |
+| tone | 2.25 | 3.00 | 3.25 | **3.75** | |
+| recommendation_clarity | 3.25 | 2.75 | 3.00 | **3.50** | |
+| client_fit_reasoning | 2.50 | 2.25 | 2.00 | **2.75** | |
+| property_understanding | 3.00 | 2.25 | 1.75 | **2.75** | |
+| grounded | 3.00 | 2.25 | 1.75 | **2.50** | |
+
+**Reads:** (1) the grounding slide REVERSED (1.75→2.50) while voice kept climbing — teacher-scale
+mapping data does what §4.11 predicted; (2) first fine-tune ABOVE base, and the first two
+"a broker could send this" passes; (3) in-format held-out: no more repetition loops, organized
+GO-with-caveat — but it **fabricated a land-comps claim** ("$1.1M/acre, 20% premium per recent
+comps" — none of it in the input), and the two judged failures are detail *misreads*. Remaining
+gap to Haiku (~1.3) is concentrated in grounded/understanding: careful-reading and
+don't-invent-specifics, not voice or structure. **Caveat:** teacher = judge (Sonnet 4.6) —
+same-model-taste bias; the valid read is the delta on a judge that scored base 2.80 twice,
+two weeks apart. **Candidate next levers:** scale teacher data 2-3× with misread-targeting
+scenarios (decisive detail buried mid-input) + an explicit no-comps-unless-supplied rule in the
+teacher prompt; then D18 (14B) only if understanding stays flat at scale.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -513,6 +676,82 @@ preserved, not generated); one-time cost is a few cents per doc.
 
 ## 7. Changelog
 
+- **2026-07-02 — 🎯 v3 judged 3.05/5 (§4.12): teacher augmentation reversed the trend.** Full
+  Phase 3b cycle in one day: 160 label-blind teacher pairs generated (110 gated in, 69%),
+  merged with human gold → 139-pair train_v3, trained on Together (r=16/α=32, 3 epochs, loss
+  →1.90), served as `spacegoose-advisor-v3` beside base/v1/v2 on the one L4, judged on the
+  same yardstick. First fine-tune to beat base; first send-to-client passes (2/4); grounded
+  1.75→2.50 while tone hit 3.75. Residual gap to Haiku = detail misreads + fabricated
+  specifics under elaboration (held-out probe invented a land-comps premium). Pipeline
+  hardening en route: opener-contract verdict extraction (Haiku extraction was noise),
+  fabrication-audit schema that stops listing passed checks, withhold-data wrinkle for
+  UNCERTAIN scenarios.
+- **2026-07-02 — v2 judged 2.35/5 (§4.11): human-gold-only SFT teaches voice, not grounding →
+  Phase 3b.** Same-day v2 cycle (diversified 44-pair set → Together r=16/α=32 → served beside
+  v1 + base → judged) landed BELOW v1. Monotone trend across base→v1→v2: tone up, grounding
+  down. Disposition probe: v2 answers GO vs PASS on identical facts depending on input phrasing
+  — surface-driven, not content-driven. Amends §4.6: the corpus is too small to teach the
+  input→disposition mapping; LoRA transferred the register only. Next lever is the §4.9
+  pre-planned Phase 3b teacher augmentation (~100–200 voice-anchored pairs over diverse inputs,
+  GO and PASS both). Ops notes: v2 adapter 162 MB (¼ of v1, rank scaling as expected); Together
+  finalization passed first-try this run; both adapters now co-served on one L4 via two
+  `--lora-modules` entries.
+- **2026-07-02 — v1 served + judged (§4.10): voice ✅, format overfit ❌ → v2 queued.** Deployed
+  the adapter next to base Qwen on the one L4 (vLLM `--enable-lora`, `--max-lora-rank 64`,
+  adapter in the Truss bundle). Judge re-anchored perfectly (base re-scored **2.80**, identical
+  to June). **v1 raw = 2.50/5** off-format (tone up, grounding/understanding down; low-temp
+  repetition loops), **v1 + frequency_penalty 0.7 = 2.15/5** (penalty fights grounding — it
+  suppresses re-emitting the prompt's numbers). In-format held-out Chandler output was a clean,
+  grounded GO memo — so the failure is distribution, not capability. Root cause: Together's
+  unpinned LoRA defaults (r=64/α=128) + one input surface. Fixes landed: `together_submit.py`
+  pins r=16/α=32 (+ SDK 2.x download fix), `diversify_formats.py` adds sectioned input variants.
+  Eval plumbing: standalone `evals/_run_advisory_v1.py` (fresh container lacked app deps); judge
+  max_tokens 700→1400 (Sonnet 4.6's notes truncated mid-JSON — `max_tokens` is a stop condition,
+  not a sampling param, so raising it is comparability-safe).
+- **2026-06-30 — ✅ Advisory LoRA TRAINED on Together (job `ft-0a9cfffd-ba02`).** A clean resubmit
+  completed end-to-end: adapter `adamthecreator/Qwen2.5-7B-Instruct-spacegoose-advisor-a9cac113`
+  (Qwen2.5-7B base, 4 epochs, lr 1e-4, batch 16, ~20.4k training tokens, `JOB_COMPLETE` 21:32:57Z).
+  This took three attempts: `ft-c0060f33-bf9f` and one earlier job both **trained all 4 epochs and
+  then errored at Together's adapter compress/upload (finalization) step with an auto-refund** —
+  a Together-side infra flake on a job this tiny, NOT our dataset/config (identical inputs succeeded
+  on retry). Lesson: on a sub-$5 LoRA, a finalization error means *resubmit*, don't re-diagnose.
+  **Next:** download the adapter → deploy on the Baseten L4 (vLLM `--enable-lora`) → run the
+  held-out advisory eval vs base Qwen 2.80 / Haiku 4.35 to confirm the gap closed.
+- **2026-06-15 — 🚀 First LoRA fine-tune LAUNCHED on Together (job `ft-c0060f33-bf9f`).** Qwen2.5-7B
+  + the 29-pair human-gold advisory dataset, 4 epochs, LoRA (`train_on_inputs=auto`). The earlier
+  402s were credit-purchase *propagation lag* to Together's training-billing service, not a real
+  shortfall ($20 purchased credits). Training now; next: download adapter → deploy on the Baseten L4
+  (vLLM `--enable-lora`) → held-out advisory eval vs base Qwen 2.80 / Haiku 4.35.
+- **2026-06-15 — Pivot: train on Together AI (Baseten Training inaccessible to the account).**
+  Owner couldn't get Baseten Training enabled (403), so D21 pivots: **train the LoRA on Together
+  AI, still serve the adapter on the existing Baseten L4** (train-venue ≠ serve-venue, by design).
+  Wrote `finetune/together_submit.py` (upload → LoRA create → status → download). Our dataset is
+  already Together's chat-JSONL format, so nothing about the data changes; `train_on_inputs="auto"`
+  trains only on the advisory outputs. Same hyperparameters as the Axolotl config. Blocked on the
+  owner's Together API key to run; after training we download the adapter and deploy it on the L4.
+- **2026-06-15 — Phase 3 launch BLOCKED: Baseten Training not authorized (403).** Wrote +
+  validated the training config (`finetune/training/`: `config.py` truss_train job, Axolotl
+  `qwen_lora.yaml`, `run.sh`), placed the dataset (29 train / 7 held-out), redaction clean.
+  But `truss train push` → **403 "not authorized for Baseten training"** (team `wp7ndew`).
+  Inference works on this account; **Training is a separate entitlement it lacks.** The
+  Axolotl YAML is venue-agnostic, so the fork is: (a) request Baseten Training access → push
+  the ready config, or (b) fallback — train via Together AI API (~pennies) or rented A100 +
+  Unsloth using the same `qwen_lora.yaml`, then deploy the adapter on the existing L4 (D21
+  fallbacks). Adapter deploys to Baseten regardless of where it's trained. Awaiting owner choice.
+- **2026-06-15 — Phase 3a human-gold dataset built (`finetune/build_memo_dataset.py`).**
+  Section-slicer produced **34 human-gold training pairs from 5 deals** (Chandler, Craig-Rancho,
+  Downey, Nogales/Mariposa, Vallarta-Avondale), 27 train / 7 held-out — the whole **Chandler deal
+  held out** for leakage-free eval. **Redaction clean** (0 client-identity leaks in train.jsonl).
+  Tempe Caffenio transient-failed (BYOKError) → recoverable, would make 6 deals/~41 pairs. Pairs
+  read like real broker memos (calibrated "GO", preserved underwriting, grounded comps). Dataset is
+  git-ignored (derived + client-derived). Next: recover Tempe → training-venue cost (D7) → LoRA (bf16).
+- **2026-06-15 — Real-doc validation: two plan-changing findings (§4.9, D20).** Ran the pipeline
+  on 9 real ASI docs. Investment memos → excellent advisory pairs (calibrated voice). But (1) void
+  analyses are raw Sites USA data exports, not advisory prose (all dropped) → input data, not output
+  gold; and (2) the memo gold is ~5 distinct deals, heavily versioned → unique examples are single
+  digits. Plan: dedup + section-slice memos (~40–80 human pairs), augment with voice-steered teacher
+  pairs on void data only if needed. Redaction scrubbed real PII (client/investor/address); cities +
+  public tenant brands remained. Open Qs to owner: more distinct memos? prose void conclusions?
 - **2026-06-15 — Phase 2 curation pipeline built + validated (§4.8, D19).**
   `backend/finetune/curate.py` — LLM-assisted curation (classify, quality-gate, reconstruct the
   advisory input, preserve the human output, **redact all PII**). Owner confirmed redact-all; corpus
