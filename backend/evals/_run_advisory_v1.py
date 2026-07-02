@@ -41,6 +41,7 @@ CONFIGS = [
     ("base-reanchor", "Qwen/Qwen2.5-7B-Instruct", {}),
     ("v1-raw", "spacegoose-advisor", {}),
     ("v1-fp07", "spacegoose-advisor", {"frequency_penalty": 0.7}),
+    ("v2-raw", "spacegoose-advisor-v2", {}),
 ]
 
 
@@ -93,6 +94,16 @@ def judge(case, answer: str, ant_key: str) -> str:
 
 
 def main() -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", default="", help="comma-separated config labels to run (default: all)")
+    args = ap.parse_args()
+    configs = CONFIGS
+    if args.only:
+        wanted = {s.strip() for s in args.only.split(",")}
+        configs = [c for c in CONFIGS if c[0] in wanted]
+
     bt_key = os.environ.get("BASETEN_API_KEY", "")
     ant_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not bt_key or not ant_key:
@@ -105,7 +116,7 @@ def main() -> int:
     (here / "results").mkdir(exist_ok=True)
 
     summary_rows = []
-    for label, model, extra in CONFIGS:
+    for label, model, extra in configs:
         print(f"\n===== {label} ({model}{' ' + str(extra) if extra else ''}) =====")
         results = []
         for case in cases:
