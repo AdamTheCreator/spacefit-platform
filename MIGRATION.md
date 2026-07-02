@@ -397,12 +397,14 @@ Deployment is scale-to-zero — the L4 sleeps automatically after ~15 min idle (
 needed; flip `min_replica` to 1 for a demo).
 
 **Phase status:** Phase 0 (baseline + evals) ✅, Phase 1 (model selected + validated on an
-L4) ✅, Phase 2 (data curation + human-gold dataset) ✅, Phase 3 **v1** trained on Together AI ✅,
-served on the L4 alongside base Qwen ✅, and judged ✅ (§4.10): **v1 = 2.50/5 off-format vs base
-2.80 / Haiku 4.35 — voice transferred (tone 2.25→3.00, strong in-format held-out memo) but the
-input surface overfit** (Together's unpinned r=64/α=128 defaults + single training format).
-Next: **v2** — r=16/α=32 pinned + sectioned-format augmentation (`diversify_formats.py`), retrain,
-re-judge.
+L4) ✅, Phase 2 (data curation + human-gold dataset) ✅, Phase 3a **v1 + v2 trained, served, and
+judged** ✅ (§4.10–§4.11): v1 = 2.50/5, v2 (r=16 + format diversity) = **2.35/5** vs base 2.80 /
+Haiku 4.35. Three-run trend: **tone rises monotonically (2.25→3.00→3.25), grounding falls
+(3.00→2.25→1.75)** — the 29–44 human-gold pairs teach the memo voice but cannot teach the
+input→disposition mapping (v2 flips GO↔PASS with input phrasing on identical facts). **Next:
+Phase 3b (as pre-planned): voice-steered teacher augmentation** — ~100–200 Claude-written,
+memo-anchored pairs over diverse void/synthetic inputs so the disposition becomes derivable
+from the input.
 
 ### 4.6 Advisory failure diagnosis — the pre-fine-tune gate (Gap 1, 2026-06-15)
 
@@ -566,6 +568,43 @@ fp32 adapter). Loss 2.26 → ~1.65 over just 8 optimizer steps.
 content-preserving sectioned renderings of half the train pairs (dry-run verified: zero invented
 facts), so the eval/product shape is in-distribution. Same data, same venue, ~$5.
 
+### 4.11 v2 judged — the human-gold-only corpus teaches voice, not grounding (2026-07-02)
+
+v2 (`ft-adc8d651-dc39` → `…-advisor-v2-dbd46790`, r=16/α=32 pinned ✅, 44 format-diverse pairs,
+162 MB adapter, loss 2.29→1.65 over 12 steps) deployed as `spacegoose-advisor-v2` beside v1 +
+base on the same L4 (deployment `wp52yme`). Judged on the identical yardstick: **2.35/5 — below
+v1 (2.50) and base (2.80).** The r=16 + format-diversity fixes did NOT close the gap; they
+sharpened the diagnosis. The three-run trend is monotone and damning:
+
+| criterion | base | v1 | v2 |
+|---|---|---|---|
+| tone                   | 2.25 | 3.00 | **3.25** ↑ |
+| recommendation_clarity | 3.25 | 2.75 | 3.00 |
+| property_understanding | 3.00 | 2.25 | **1.75** ↓ |
+| grounded               | 3.00 | 2.25 | **1.75** ↓ |
+| **mean**               | **2.80** | **2.50** | **2.35** |
+
+**Every round of SFT on this corpus moves voice UP and grounding DOWN.** The kill shot: on
+`adv-fit-coffee` (a checks-every-box GO), v2 issued a confident **pass** in the sectioned eval
+format — but answered **"This is a go"** on the *same facts* rephrased in terse training style.
+The disposition tracks the input's surface form, not its content. Under elaboration pressure it
+also fabricates specifics (invented "85% leased" where the case's own numbers imply 65%).
+
+**Amended Gap-1 diagnosis (supersedes the "LoRA-fixable" optimism of §4.6):** 29–44 gold pairs
+teach the memo *register* and GO/PASS *language*, but cannot teach the input→disposition
+*mapping* — there are simply too few (input, grounded-verdict) examples for the mapping to
+generalize; the adapter memorizes surface→output associations instead. (v2's duplicated gold
+outputs — each sectioned variant repeats its original's output — likely intensified output
+memorization; a lesson for any future augmentation: vary the output side too, or dedupe.)
+
+**Evidence-indicated next lever = Phase 3b, exactly as pre-planned in §4.9:** voice-steered
+**teacher augmentation** — Claude few-shot-prompted with the real memos writes grounded
+recommendations over *many diverse inputs* (the abundant void/Sites-USA data + varied synthetic
+properties, both GO and PASS cases), giving ~100–200 pairs where the disposition is derivable
+from the input. The human memos stay the voice anchor; scale teaches the mapping. Alternatives
+if 3b underdelivers: mix general instruct data to arrest the grounding regression, and/or the
+D18 14B fallback.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -606,6 +645,16 @@ facts), so the eval/product shape is in-distribution. Same data, same venue, ~$5
 
 ## 7. Changelog
 
+- **2026-07-02 — v2 judged 2.35/5 (§4.11): human-gold-only SFT teaches voice, not grounding →
+  Phase 3b.** Same-day v2 cycle (diversified 44-pair set → Together r=16/α=32 → served beside
+  v1 + base → judged) landed BELOW v1. Monotone trend across base→v1→v2: tone up, grounding
+  down. Disposition probe: v2 answers GO vs PASS on identical facts depending on input phrasing
+  — surface-driven, not content-driven. Amends §4.6: the corpus is too small to teach the
+  input→disposition mapping; LoRA transferred the register only. Next lever is the §4.9
+  pre-planned Phase 3b teacher augmentation (~100–200 voice-anchored pairs over diverse inputs,
+  GO and PASS both). Ops notes: v2 adapter 162 MB (¼ of v1, rank scaling as expected); Together
+  finalization passed first-try this run; both adapters now co-served on one L4 via two
+  `--lora-modules` entries.
 - **2026-07-02 — v1 served + judged (§4.10): voice ✅, format overfit ❌ → v2 queued.** Deployed
   the adapter next to base Qwen on the one L4 (vLLM `--enable-lora`, `--max-lora-rank 64`,
   adapter in the Truss bundle). Judge re-anchored perfectly (base re-scored **2.80**, identical
