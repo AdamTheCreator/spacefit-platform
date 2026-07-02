@@ -396,15 +396,14 @@ real regression. That gap is the project's reason for existing.
 Deployment is scale-to-zero — the L4 sleeps automatically after ~15 min idle (no action
 needed; flip `min_replica` to 1 for a demo).
 
-**Phase status:** Phase 0 (baseline + evals) ✅, Phase 1 (model selected + validated on an
-L4) ✅, Phase 2 (data curation + human-gold dataset) ✅, Phase 3a **v1 + v2 trained, served, and
-judged** ✅ (§4.10–§4.11): v1 = 2.50/5, v2 (r=16 + format diversity) = **2.35/5** vs base 2.80 /
-Haiku 4.35. Three-run trend: **tone rises monotonically (2.25→3.00→3.25), grounding falls
-(3.00→2.25→1.75)** — the 29–44 human-gold pairs teach the memo voice but cannot teach the
-input→disposition mapping (v2 flips GO↔PASS with input phrasing on identical facts). **Next:
-Phase 3b (as pre-planned): voice-steered teacher augmentation** — ~100–200 Claude-written,
-memo-anchored pairs over diverse void/synthetic inputs so the disposition becomes derivable
-from the input.
+**Phase status:** Phase 0 (baseline + evals) ✅, Phase 1 (model selected + L4-validated) ✅,
+Phase 2 (data curation + human-gold dataset) ✅, Phase 3a (v1/v2 human-gold LoRAs — voice
+transferred, grounding regressed; §4.10–§4.11) ✅, **Phase 3b (teacher augmentation) ✅ —
+v3 = 3.05/5 (§4.12): first fine-tune above base (2.80), first 2/4 send-to-client passes,
+grounding slide reversed (1.75→2.50)** vs Haiku 4.35 on the same re-anchored judge. Remaining
+gap is careful-reading + don't-invent-specifics. Next: scale teacher data with
+misread-targeting scenarios + tighten the teacher's no-unsupplied-comps rule; D18 (14B) stays
+the fallback if understanding plateaus.
 
 ### 4.6 Advisory failure diagnosis — the pre-fine-tune gate (Gap 1, 2026-06-15)
 
@@ -605,6 +604,38 @@ from the input. The human memos stay the voice anchor; scale teaches the mapping
 if 3b underdelivers: mix general instruct data to arrest the grounding regression, and/or the
 D18 14B fallback.
 
+### 4.12 v3 (teacher-augmented) judged 3.05 — first fine-tune to beat base; trend reversed (2026-07-02)
+
+Phase 3b executed same-day: `finetune/teacher_augment.py` generated 160 scenario→teacher pairs
+(label-blind teacher, few-shot memo voice anchors; regex opener-verdict + temp-0 fabrication
+gate), 110 survived (69%), merged with the 29 human-gold → **train_v3.jsonl, 139 pairs**
+(44 GO / 63 PASS / 32 uncertain; 4 input formats near-uniform). Trained `ft-c6abca90-03cf`
+(r=16/α=32, **3** epochs, 27 steps, loss 2.34→**1.90** — higher terminal loss than v1/v2's
+~1.65 on 4× more-diverse data = less memorization, by design). Served as
+`spacegoose-advisor-v3`, judged on the same yardstick:
+
+| | base | v1 | v2 | **v3** | Haiku |
+|---|---|---|---|---|---|
+| **mean** | 2.80 | 2.50 | 2.35 | **3.05** | 4.35 |
+| send-to-client pass | 0/4 | 0/4 | 0/4 | **2/4** | — |
+| tone | 2.25 | 3.00 | 3.25 | **3.75** | |
+| recommendation_clarity | 3.25 | 2.75 | 3.00 | **3.50** | |
+| client_fit_reasoning | 2.50 | 2.25 | 2.00 | **2.75** | |
+| property_understanding | 3.00 | 2.25 | 1.75 | **2.75** | |
+| grounded | 3.00 | 2.25 | 1.75 | **2.50** | |
+
+**Reads:** (1) the grounding slide REVERSED (1.75→2.50) while voice kept climbing — teacher-scale
+mapping data does what §4.11 predicted; (2) first fine-tune ABOVE base, and the first two
+"a broker could send this" passes; (3) in-format held-out: no more repetition loops, organized
+GO-with-caveat — but it **fabricated a land-comps claim** ("$1.1M/acre, 20% premium per recent
+comps" — none of it in the input), and the two judged failures are detail *misreads*. Remaining
+gap to Haiku (~1.3) is concentrated in grounded/understanding: careful-reading and
+don't-invent-specifics, not voice or structure. **Caveat:** teacher = judge (Sonnet 4.6) —
+same-model-taste bias; the valid read is the delta on a judge that scored base 2.80 twice,
+two weeks apart. **Candidate next levers:** scale teacher data 2-3× with misread-targeting
+scenarios (decisive detail buried mid-input) + an explicit no-comps-unless-supplied rule in the
+teacher prompt; then D18 (14B) only if understanding stays flat at scale.
+
 ---
 
 ## 5. Open decisions / analyses still owed (❓)
@@ -645,6 +676,16 @@ D18 14B fallback.
 
 ## 7. Changelog
 
+- **2026-07-02 — 🎯 v3 judged 3.05/5 (§4.12): teacher augmentation reversed the trend.** Full
+  Phase 3b cycle in one day: 160 label-blind teacher pairs generated (110 gated in, 69%),
+  merged with human gold → 139-pair train_v3, trained on Together (r=16/α=32, 3 epochs, loss
+  →1.90), served as `spacegoose-advisor-v3` beside base/v1/v2 on the one L4, judged on the
+  same yardstick. First fine-tune to beat base; first send-to-client passes (2/4); grounded
+  1.75→2.50 while tone hit 3.75. Residual gap to Haiku = detail misreads + fabricated
+  specifics under elaboration (held-out probe invented a land-comps premium). Pipeline
+  hardening en route: opener-contract verdict extraction (Haiku extraction was noise),
+  fabrication-audit schema that stops listing passed checks, withhold-data wrinkle for
+  UNCERTAIN scenarios.
 - **2026-07-02 — v2 judged 2.35/5 (§4.11): human-gold-only SFT teaches voice, not grounding →
   Phase 3b.** Same-day v2 cycle (diversified 44-pair set → Together r=16/α=32 → served beside
   v1 + base → judged) landed BELOW v1. Monotone trend across base→v1→v2: tone up, grounding
