@@ -42,6 +42,7 @@ CONFIGS = [
     ("v1-raw", "spacegoose-advisor", {}),
     ("v1-fp07", "spacegoose-advisor", {"frequency_penalty": 0.7}),
     ("v2-raw", "spacegoose-advisor-v2", {}),
+    ("v3-raw", "spacegoose-advisor-v3", {}),
 ]
 
 
