@@ -1812,79 +1812,106 @@ async def _run_specialist_routing_turn(
     spec_outputs: list[dict] = []
     spec_total_in = 0
     spec_total_out = 0
-    for spec_name in specialist_plan:
-        step_id = f"specialist-{spec_name}"
-        await send_ws_message(
-            websocket,
-            "workflow_update",
-            {
-                "step_id": step_id,
-                "status": "running",
-                "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
-                    spec_name, AgentType.ORCHESTRATOR
-                ).value,
-            },
-        )
+    completed_step_ids: set[str] = set()
+    try:
+        for spec_name in specialist_plan:
+            step_id = f"specialist-{spec_name}"
+            await send_ws_message(
+                websocket,
+                "workflow_update",
+                {
+                    "step_id": step_id,
+                    "status": "running",
+                    "agent_type": _SPECIALIST_TO_AGENT_TYPE.get(
+                        spec_name, AgentType.ORCHESTRATOR
+                    ).value,
+                },
+            )
 
-        spec_messages = list(conversation_history)
-        for prev in spec_outputs:
-            if prev.get("content"):
-                spec_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": f"[{prev['specialist'].title()} findings]:\n{prev['content']}",
-                    }
-                )
-                spec_messages.append(
-                    {
-                        "role": "user",
-                        "content": "Continue the analysis using the above findings.",
-                    }
-                )
+            spec_messages = list(conversation_history)
+            for prev in spec_outputs:
+                if prev.get("content"):
+                    findings = (
+                        f"[{prev['specialist'].title()} findings]:"
+                        f"\n{prev['content']}"
+                    )
+                    spec_messages.append(
+                        {"role": "assistant", "content": findings}
+                    )
+                    spec_messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Continue the analysis using the above findings."
+                            ),
+                        }
+                    )
 
-        spec_result = await _stream_specialist_to_ws(
-            websocket,
-            name=spec_name,
-            session_id=session_id,
-            user_id=user_id,
-            conversation_history=spec_messages,
-            project_context=proj_context,
-            document_context=doc_context,
-            resolved_llm=user_resolved_llm,
-        )
-        spec_total_in += spec_result.get("input_tokens", 0)
-        spec_total_out += spec_result.get("output_tokens", 0)
-
-        if spec_result.get("tool_calls"):
-            await handle_tool_calls(
-                websocket=websocket,
-                tool_calls=spec_result["tool_calls"],
+            spec_result = await _stream_specialist_to_ws(
+                websocket,
+                name=spec_name,
                 session_id=session_id,
                 user_id=user_id,
                 conversation_history=spec_messages,
-                user_context=user_context,
-                has_imported_data=has_imported_data,
-                document_context=doc_context,
                 project_context=proj_context,
-                system_prompt_id=s_prompt_id,
-                analysis_type=s_analysis_type,
+                document_context=doc_context,
                 resolved_llm=user_resolved_llm,
             )
+            spec_total_in += spec_result.get("input_tokens", 0)
+            spec_total_out += spec_result.get("output_tokens", 0)
 
-        spec_outputs.append(spec_result)
-        await send_ws_message(
-            websocket,
-            "workflow_update",
-            {"step_id": step_id, "status": "completed"},
-        )
+            if spec_result.get("tool_calls"):
+                await handle_tool_calls(
+                    websocket=websocket,
+                    tool_calls=spec_result["tool_calls"],
+                    session_id=session_id,
+                    user_id=user_id,
+                    conversation_history=spec_messages,
+                    user_context=user_context,
+                    has_imported_data=has_imported_data,
+                    document_context=doc_context,
+                    project_context=proj_context,
+                    system_prompt_id=s_prompt_id,
+                    analysis_type=s_analysis_type,
+                    resolved_llm=user_resolved_llm,
+                )
 
-        if spec_result.get("content"):
-            await save_message_to_db(
-                session_id,
-                "agent",
-                spec_result["content"],
-                spec_name,
+            spec_outputs.append(spec_result)
+            await send_ws_message(
+                websocket,
+                "workflow_update",
+                {"step_id": step_id, "status": "completed"},
             )
+            completed_step_ids.add(step_id)
+
+            if spec_result.get("content"):
+                await save_message_to_db(
+                    session_id,
+                    "agent",
+                    spec_result["content"],
+                    spec_name,
+                )
+    except Exception:
+        # A specialist leg died mid-turn. Without this sweep every step that
+        # never reached a terminal status stays "running" in the UI forever —
+        # the caller's handler sends an error bubble but knows nothing about
+        # step ids (the stuck-chip bug). Mark the stragglers failed, then
+        # re-raise so that handler still runs.
+        for step in workflow_steps_payload:
+            if step["id"] in completed_step_ids:
+                continue
+            try:
+                await send_ws_message(
+                    websocket,
+                    "workflow_update",
+                    {
+                        "step_id": step["id"],
+                        "status": WorkflowStepStatus.ERROR.value,
+                    },
+                )
+            except Exception:  # socket itself is gone; frontend settles on close
+                break
+        raise
 
     synthesized = False
     final_content = ""

@@ -166,6 +166,16 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         return;
       }
 
+      // A dropped socket orphans the in-flight turn server-side: its remaining
+      // workflow_update events can never arrive on the reconnected socket, so
+      // any step still pending/running would spin forever. Settle them.
+      for (const step of useChatStore.getState().workflowSteps) {
+        if (step.status === 'pending' || step.status === 'running') {
+          updateWorkflowStep(step.id, { status: 'error' });
+        }
+      }
+      setActiveAgentType(null);
+
       if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
         reconnectAttemptsRef.current += 1;
         setConnectionStatus('connecting');
@@ -295,12 +305,16 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           setActiveAgentType(update.agent_type as WorkflowStep['agentType']);
         }
 
-        if (update.status === 'completed') {
+        // Terminal statuses include the failure ones — a swept step ('error',
+        // 'timed_out', 'circuit_open') must also release the activity spinner,
+        // or an aborted turn leaves the strip idle but the header pulsing.
+        const TERMINAL = ['completed', 'error', 'timed_out', 'circuit_open'];
+        if (TERMINAL.includes(update.status)) {
           const steps = useChatStore.getState().workflowSteps;
-          const allComplete = steps.every(
-            (s) => s.id === update.step_id || s.status === 'completed'
+          const allSettled = steps.every(
+            (s) => s.id === update.step_id || TERMINAL.includes(s.status)
           );
-          if (allComplete) {
+          if (allSettled) {
             setActiveAgentType(null);
             setIsProcessing(false);
           }

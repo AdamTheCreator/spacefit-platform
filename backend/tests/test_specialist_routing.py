@@ -415,6 +415,80 @@ async def test_byok_resolved_llm_passes_is_byok_true_to_token_usage():
 
 
 # ---------------------------------------------------------------------------
+# Mid-turn specialist failure: unfinished steps must be swept to "error"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_specialist_failure_sweeps_unfinished_steps_to_error():
+    """The stuck-chip bug: a specialist leg dying mid-turn used to leave its
+    workflow step 'running' forever (the caller's handler sends an error
+    bubble but never finalizes steps). The helper must sweep every step that
+    hasn't reached a terminal status to 'error' before re-raising."""
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+
+    plan_mock = AsyncMock(return_value=["scout", "analyst"])
+    stream_mock = AsyncMock(
+        side_effect=[
+            {
+                "specialist": "scout",
+                "content": "Scout findings.",
+                "tool_calls": [],
+                "stop_reason": "end_turn",
+                "input_tokens": 10,
+                "output_tokens": 5,
+            },
+            RuntimeError("provider exploded mid-analyst"),
+        ]
+    )
+    save_mock = AsyncMock()
+    record_mock = AsyncMock()
+    schedule_mock = MagicMock()
+
+    with (
+        patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "save_message_to_db", save_mock),
+        patch.object(chat_mod, "record_token_usage", record_mock),
+        patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
+        patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
+        patch(
+            "app.services.orchestrator.plan_workflow",
+            plan_mock,
+            create=True,
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="provider exploded"):
+            await chat_mod._run_specialist_routing_turn(
+                ws,  # type: ignore[arg-type]
+                user_id="u-1",
+                session_id="s-1",
+                user_content="Should we open here?",
+                conversation_history=[],
+                proj_context=None,
+                doc_context=None,
+                user_context=None,
+                memory_context=None,
+                has_imported_data={"costar": False, "placer": False},
+                s_prompt_id=None,
+                s_analysis_type=None,
+                user_resolved_llm=None,
+            )
+
+    updates = [d for t, d in ws.events if t == "workflow_update"]
+    by_step: dict[str, list[str]] = {}
+    for u in updates:
+        by_step.setdefault(u["step_id"], []).append(u["status"])
+
+    # Scout finished normally and must NOT be swept.
+    assert by_step["specialist-scout"] == ["running", "completed"]
+    # Analyst was running when the leg died -> swept to error, not stranded.
+    assert by_step["specialist-analyst"] == ["running", "error"]
+
+
+# ---------------------------------------------------------------------------
 # Empty plan: helper should still record zero tokens and emit nothing weird
 # ---------------------------------------------------------------------------
 
