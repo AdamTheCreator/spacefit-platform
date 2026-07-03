@@ -43,6 +43,30 @@ logger = logging.getLogger(__name__)
 active_connections: dict[str, WebSocket] = {}
 
 
+def _pre_orchestrator_guardrails(user_id: str, content: str) -> tuple[bool, str | None]:
+    """Cheap, dependency-free pre-LLM guardrails shared by both chat WS endpoints.
+
+    Runs (1) message-size validation and (2) the shared per-user sliding-window
+    rate limit. Returns ``(ok, error_message)``; on ``ok=False`` the caller
+    should send ``err`` as a system WS frame and skip the orchestrator (no
+    session row, no tokens spent).
+
+    Synchronous and side-effect-light on purpose so it can be unit-tested
+    without a DB, LLM, or WebSocket. The BYOK-aware guards (topic classifier,
+    subscription limit, token budget) stay inline in each endpoint because they
+    carry per-call dependencies (``resolved_llm``, ``is_byok``). Using the
+    module-level ``rate_limiter`` singleton here means both endpoints share one
+    per-user quota: a user cannot bypass the session-scoped limit via ``/ws``.
+    """
+    ok, err = validate_message_size(content)
+    if not ok:
+        return False, err
+    ok, err = rate_limiter.check(user_id)
+    if not ok:
+        return False, err
+    return True, None
+
+
 # Pydantic models for REST endpoints
 from pydantic import BaseModel
 from datetime import datetime
@@ -894,14 +918,9 @@ async def websocket_endpoint(
             user_content = message_data.get("content", "")
 
             # --- Guardrail checks (pre-LLM) ---
-            # 1. Message size
-            ok, err = validate_message_size(user_content)
-            if not ok:
-                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
-                continue
-
-            # 2. Rate limit
-            ok, err = rate_limiter.check(user_id)
+            # 1-2. Message size + per-user rate limit (shared with /ws so a
+            # user cannot bypass either endpoint's limit by switching endpoints).
+            ok, err = _pre_orchestrator_guardrails(user_id, user_content)
             if not ok:
                 await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
@@ -2069,6 +2088,16 @@ async def websocket_chat_endpoint(
             user_content = message_data.get("content", "")
 
             if not user_content.strip():
+                continue
+
+            # --- Guardrail checks (pre-LLM) ---
+            # Size + per-user rate limit, shared with /ws/{session_id} via the
+            # module-level singleton so a user cannot bypass the session-scoped
+            # limit by using /ws. On reject, surface a system message and skip
+            # the orchestrator (no session row created, no tokens spent).
+            ok, err = _pre_orchestrator_guardrails(user_id, user_content)
+            if not ok:
+                await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
 
             # Create new session if needed
