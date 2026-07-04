@@ -125,7 +125,16 @@ class GmailService:
             client_config,
             scopes=GMAIL_SCOPES,
             redirect_uri=redirect_uri or settings.gmail_redirect_uri,
+            autogenerate_code_verifier=False,
         )
+
+        # We're a confidential client (client secret in hand), so PKCE is
+        # optional. Authorize and callback build separate Flow instances, so an
+        # auto-generated code_verifier from the authorize step would be lost,
+        # and Google would reject the exchange with "Missing code verifier".
+        # Force PKCE off on both instances so the flow stays consistent.
+        flow.autogenerate_code_verifier = False
+        flow.code_verifier = None
 
         return flow
 
