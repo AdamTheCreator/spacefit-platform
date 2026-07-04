@@ -330,10 +330,17 @@ async def gmail_callback(
     try:
         try:
             tokens = await asyncio.to_thread(GmailService.exchange_code, code)
-        except Exception:
+        except Exception as exc:
+            from urllib.parse import quote
+
             logger.exception("Gmail OAuth token exchange failed")
+            # Surface Google's own error text (e.g. invalid_client /
+            # redirect_uri_mismatch / invalid_grant) so the failure is
+            # diagnosable without server logs. oauthlib error strings do not
+            # contain the client secret.
+            detail = quote(str(exc)[:200], safe="")
             return RedirectResponse(
-                url=f"{connections_url}?gmail=error&reason=token_exchange"
+                url=f"{connections_url}?gmail=error&reason=token_exchange&detail={detail}"
             )
 
         email = await asyncio.to_thread(GmailService(tokens).get_user_email)
