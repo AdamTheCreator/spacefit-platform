@@ -22,10 +22,14 @@ import {
 import api from '../../lib/axios';
 import { useAuthStore } from '../../stores/authStore';
 import { useOutreachVoices, useGenerateDraft } from '../../hooks/useOutreachVoices';
+import { AddressAutocomplete } from '../ui/AddressAutocomplete';
 import type { CreateCampaignRequest, CreateRecipientRequest } from '../../types/outreach';
 
 const FIELD_CLASS =
   'w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]';
+// FIELD_CLASS with room for the AddressAutocomplete pin icon on the left.
+const AI_NOTES_FIELD_CLASS =
+  'w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]';
 const FIELD_LABEL_CLASS =
   'block text-xs font-semibold text-industrial-muted uppercase tracking-wide mb-1';
 
@@ -359,12 +363,12 @@ export function EmailComposer({
                 <label className={FIELD_LABEL_CLASS}>
                   What's this about? <span className="font-normal lowercase">(optional)</span>
                 </label>
-                <input
-                  type="text"
+                <AddressAutocomplete
                   value={aiNotes}
-                  onChange={(e) => setAiNotes(e.target.value)}
+                  onChange={setAiNotes}
                   placeholder="e.g. 2,400 SF end-cap, ideal for a coffee concept; mention the new transit stop"
-                  className={FIELD_CLASS}
+                  inputClassName={AI_NOTES_FIELD_CLASS}
+                  onlyWhenAddressLike
                 />
               </div>
               <div className="flex items-center justify-between gap-3">

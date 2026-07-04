@@ -1,128 +1,159 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { MapPin } from 'lucide-react';
+import { api } from '../../lib/axios';
 
 interface AddressAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
-  onSelect?: (place: { address: string; lat: number; lng: number; placeId: string }) => void;
   placeholder?: string;
   className?: string;
+  inputClassName?: string;
   disabled?: boolean;
+  /**
+   * Only fetch suggestions when the text looks like a street address
+   * (leading street number, or a street-suffix word). Use this when the
+   * field also accepts free-form notes, so prose doesn't trigger popups.
+   */
+  onlyWhenAddressLike?: boolean;
 }
 
-interface Prediction {
-  place_id: string;
+interface Suggestion {
   description: string;
-  structured_formatting: {
-    main_text: string;
-    secondary_text: string;
-  };
+  place_id: string;
+  main_text: string;
+  secondary_text: string;
 }
 
-const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY || '';
+const DEFAULT_INPUT_CLASS =
+  'w-full pl-9 pr-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-xl text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors';
 
+const STREET_SUFFIX =
+  /\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|pkwy|parkway|hwy|highway|plaza|ct|court)\b/i;
+
+function looksAddressLike(text: string): boolean {
+  const t = text.trim();
+  return /^\d+\s+\S/.test(t) || STREET_SUFFIX.test(t);
+}
+
+/**
+ * Address input with typeahead suggestions.
+ *
+ * Suggestions come from our backend proxy (`GET /places/autocomplete`) —
+ * never from Google directly: the legacy Places JSON API has no CORS
+ * headers, and calling it client-side would mean shipping the API key in
+ * the bundle. When the backend reports the key isn't configured, this
+ * degrades silently into a plain text input. Free text is always allowed;
+ * suggestions assist, they never restrict.
+ */
 export function AddressAutocomplete({
   value,
   onChange,
-  onSelect,
   placeholder = 'Enter an address...',
   className = '',
+  inputClassName = DEFAULT_INPUT_CLASS,
   disabled = false,
+  onlyWhenAddressLike = false,
 }: AddressAutocompleteProps) {
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const debounceRef = useRef<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const backendEnabledRef = useRef(true);
+  const suppressNextFetchRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch autocomplete predictions from Google Places
-  const fetchPredictions = useCallback(async (input: string) => {
-    if (!input || input.length < 3 || !GOOGLE_API_KEY) {
-      setPredictions([]);
-      setIsOpen(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&components=country:us&key=${GOOGLE_API_KEY}`
-      );
-      const data = await response.json();
-
-      if (data.status === 'OK' && data.predictions) {
-        setPredictions(data.predictions.slice(0, 5));
-        setIsOpen(true);
-      } else {
-        setPredictions([]);
-        setIsOpen(false);
-      }
-    } catch {
-      setPredictions([]);
-      setIsOpen(false);
-    }
+  const closeList = useCallback(() => {
+    setSuggestions([]);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
   }, []);
 
-  // Debounced input handler
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    onChange(newValue);
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      fetchPredictions(newValue);
-    }, 300);
-  }, [onChange, fetchPredictions]);
-
-  // Handle selection
-  const handleSelect = useCallback(async (prediction: Prediction) => {
-    onChange(prediction.description);
-    setPredictions([]);
-    setIsOpen(false);
-
-    if (onSelect && GOOGLE_API_KEY) {
-      try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&fields=geometry,formatted_address&key=${GOOGLE_API_KEY}`
-        );
-        const data = await response.json();
-        if (data.status === 'OK' && data.result) {
-          onSelect({
-            address: data.result.formatted_address || prediction.description,
-            lat: data.result.geometry.location.lat,
-            lng: data.result.geometry.location.lng,
-            placeId: prediction.place_id,
-          });
-        }
-      } catch {
-        onSelect({
-          address: prediction.description,
-          lat: 0,
-          lng: 0,
-          placeId: prediction.place_id,
-        });
+  const fetchSuggestions = useCallback(
+    async (input: string) => {
+      const q = input.trim();
+      if (
+        !backendEnabledRef.current ||
+        q.length < 3 ||
+        (onlyWhenAddressLike && !looksAddressLike(q))
+      ) {
+        closeList();
+        return;
       }
-    }
-  }, [onChange, onSelect]);
 
-  // Keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!isOpen || predictions.length === 0) return;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      try {
+        const { data } = await api.get<{ enabled: boolean; suggestions: Suggestion[] }>(
+          '/places/autocomplete',
+          { params: { q }, signal: controller.signal },
+        );
+        if (data.enabled === false) {
+          // Backend has no Places key — stop asking for this session.
+          backendEnabledRef.current = false;
+          closeList();
+          return;
+        }
+        const items = (data.suggestions ?? []).slice(0, 6);
+        setSuggestions(items);
+        setIsOpen(items.length > 0);
+        setHighlightedIndex(-1);
+      } catch {
+        // Aborted or transient failure — an assist should never surface errors.
+        closeList();
+      }
+    },
+    [closeList, onlyWhenAddressLike],
+  );
 
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightedIndex((prev) => Math.min(prev + 1, predictions.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
-      e.preventDefault();
-      handleSelect(predictions[highlightedIndex]);
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-    }
-  }, [isOpen, predictions, highlightedIndex, handleSelect]);
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value;
+      onChange(newValue);
 
-  // Close on click outside
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (suppressNextFetchRef.current) {
+        suppressNextFetchRef.current = false;
+        return;
+      }
+      debounceRef.current = window.setTimeout(() => {
+        fetchSuggestions(newValue);
+      }, 300);
+    },
+    [onChange, fetchSuggestions],
+  );
+
+  const handleSelect = useCallback(
+    (suggestion: Suggestion) => {
+      suppressNextFetchRef.current = true;
+      onChange(suggestion.description);
+      closeList();
+    },
+    [onChange, closeList],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!isOpen || suggestions.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+        e.preventDefault();
+        handleSelect(suggestions[highlightedIndex]);
+      } else if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    },
+    [isOpen, suggestions, highlightedIndex, handleSelect],
+  );
+
+  // Close on click outside; abort any in-flight fetch on unmount.
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -130,7 +161,11 @@ export function AddressAutocomplete({
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      abortRef.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   return (
@@ -145,19 +180,29 @@ export function AddressAutocomplete({
           value={value}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => predictions.length > 0 && setIsOpen(true)}
+          onFocus={() => suggestions.length > 0 && setIsOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full pl-9 pr-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-xl text-sm text-industrial placeholder:text-industrial-muted focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
+          className={inputClassName}
         />
       </div>
 
-      {isOpen && predictions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-lg overflow-hidden">
-          {predictions.map((prediction, index) => (
+      {isOpen && suggestions.length > 0 && (
+        <div
+          role="listbox"
+          className="absolute z-50 w-full mt-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-lg overflow-hidden"
+        >
+          {suggestions.map((suggestion, index) => (
             <button
-              key={prediction.place_id}
-              onClick={() => handleSelect(prediction)}
+              key={suggestion.place_id || suggestion.description}
+              type="button"
+              role="option"
+              aria-selected={index === highlightedIndex}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(suggestion)}
               onMouseEnter={() => setHighlightedIndex(index)}
               className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-start gap-2 ${
                 index === highlightedIndex
@@ -167,8 +212,10 @@ export function AddressAutocomplete({
             >
               <MapPin size={14} className="mt-0.5 flex-shrink-0 text-industrial-muted" />
               <div>
-                <div className="font-medium">{prediction.structured_formatting.main_text}</div>
-                <div className="text-xs text-industrial-muted">{prediction.structured_formatting.secondary_text}</div>
+                <div className="font-medium">{suggestion.main_text}</div>
+                {suggestion.secondary_text && (
+                  <div className="text-xs text-industrial-muted">{suggestion.secondary_text}</div>
+                )}
               </div>
             </button>
           ))}

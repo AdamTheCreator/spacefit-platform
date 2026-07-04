@@ -27,6 +27,7 @@ from app.api.connectors import router as connectors_router
 from app.api.memory import router as memory_router
 from app.api.reports import router as reports_router
 from app.api.feedback import router as feedback_router
+from app.api.places import router as places_router
 from app.api.projects import router as projects_router
 from app.api.ai_config import router as ai_config_router
 from app.api.admin import router as admin_router
@@ -134,6 +135,7 @@ fastapi_app.include_router(memory_router, prefix=settings.api_prefix)
 fastapi_app.include_router(approvals_router, prefix=settings.api_prefix)
 fastapi_app.include_router(reports_router, prefix=settings.api_prefix)
 fastapi_app.include_router(feedback_router, prefix=settings.api_prefix)
+fastapi_app.include_router(places_router, prefix=settings.api_prefix)
 fastapi_app.include_router(projects_router, prefix=settings.api_prefix)
 fastapi_app.include_router(ai_config_router, prefix=settings.api_prefix)
 fastapi_app.include_router(admin_router, prefix=settings.api_prefix)
