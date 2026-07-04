@@ -121,4 +121,5 @@ export interface SendCampaignResponse {
   message: string;
   total_sent: number;
   total_failed: number;
+  deal_id: string | null;
 }

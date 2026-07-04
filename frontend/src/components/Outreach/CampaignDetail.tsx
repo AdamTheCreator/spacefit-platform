@@ -7,13 +7,16 @@ import {
   MessageCircle,
   AlertCircle,
   Users,
+  Loader2,
 } from 'lucide-react';
 import type { OutreachCampaign, OutreachRecipient, CampaignStatus } from '../../types/outreach';
 
 interface CampaignDetailProps {
   campaign: OutreachCampaign;
   onClose: () => void;
-  onSend?: () => void;
+  /** Send the campaign. Resolves once the send attempt completes (success or
+   *  handled failure) so the confirmation step can reset. */
+  onSend?: () => Promise<void>;
 }
 
 const STATUS_COLORS: Record<CampaignStatus, { bg: string; text: string; border: string }> = {
@@ -38,6 +41,23 @@ function formatDateTime(dateStr: string | null): string {
 
 export function CampaignDetail({ campaign, onClose, onSend }: CampaignDetailProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'recipients' | 'preview'>('overview');
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const canSend = campaign.status === 'draft' || campaign.status === 'scheduled';
+  const hasRecipients = campaign.total_recipients > 0;
+
+  const handleConfirmSend = async () => {
+    if (!onSend) return;
+    setSending(true);
+    try {
+      // Parent owns the toast + campaign refresh; it resolves either way.
+      await onSend();
+    } finally {
+      setSending(false);
+      setConfirming(false);
+    }
+  };
 
   const openRate = campaign.sent_count > 0
     ? Math.round((campaign.opened_count / campaign.sent_count) * 100)
@@ -73,16 +93,43 @@ export function CampaignDetail({ campaign, onClose, onSend }: CampaignDetailProp
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {campaign.status === 'draft' && onSend && (
-              <button
-                onClick={onSend}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                           text-white rounded-lg transition-colors"
-              >
-                <Send className="w-4 h-4" />
-                Send Campaign
-              </button>
+          <div className="flex items-center gap-3">
+            {canSend && onSend && (
+              confirming ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-300">
+                    Send to {campaign.total_recipients} recipient{campaign.total_recipients !== 1 ? 's' : ''} — this cannot be undone
+                  </span>
+                  <button
+                    onClick={handleConfirmSend}
+                    disabled={sending}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                               text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    {sending ? 'Sending…' : 'Confirm send'}
+                  </button>
+                  <button
+                    onClick={() => setConfirming(false)}
+                    disabled={sending}
+                    className="px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-700
+                               rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirming(true)}
+                  disabled={!hasRecipients}
+                  title={hasRecipients ? undefined : 'Add recipients before sending'}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                             text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-4 h-4" />
+                  Send Campaign
+                </button>
+              )
             )}
             <button
               onClick={onClose}

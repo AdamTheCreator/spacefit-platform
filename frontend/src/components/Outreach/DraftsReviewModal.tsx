@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Edit3, Send, X, Loader2 } from 'lucide-react';
 import api from '../../lib/axios';
+import { useSendCampaign, sendCampaignErrorMessage } from '../../hooks/useOutreachCampaigns';
 
 export interface OutreachDraft {
   tenant_name: string;
@@ -25,9 +26,10 @@ export function DraftsReviewModal({
 }: DraftsReviewModalProps) {
   const [drafts, setDrafts] = useState(initialDrafts);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sendCampaign = useSendCampaign();
+  const sending = sendCampaign.isPending;
 
   const updateDraft = (index: number, field: keyof OutreachDraft, value: string) => {
     setDrafts((prev) =>
@@ -41,7 +43,6 @@ export function DraftsReviewModal({
 
   const handleApproveAndSend = async () => {
     if (drafts.length === 0) return;
-    setSending(true);
     setError(null);
 
     try {
@@ -60,17 +61,12 @@ export function DraftsReviewModal({
         })),
       });
 
-      const campaignId = res.data.id;
-
-      // Send the campaign
-      await api.post(`/outreach/campaigns/${campaignId}/send`);
+      // Send the campaign via the shared mutation (owns deal-cache invalidation)
+      await sendCampaign.mutateAsync(res.data.id);
       setSent(true);
       onSent?.();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send campaign';
-      setError(msg);
-    } finally {
-      setSending(false);
+      setError(sendCampaignErrorMessage(err));
     }
   };
 

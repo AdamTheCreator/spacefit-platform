@@ -334,8 +334,10 @@ async def get_user_gmail_tokens(
     Load a user's connected Gmail OAuth tokens, if usable.
 
     Returns a ``GmailTokens`` built from the stored ``OAuthAccount``
-    (provider == "google") combined with the platform Google client
-    credentials. Returns ``None`` when the user has no connected Google
+    (provider == "gmail" — the dedicated Connect-Gmail integration, which
+    carries the ``gmail.send`` scope, as opposed to the "google" sign-in row
+    which only has ``openid email profile``) combined with the platform Google
+    client credentials. Returns ``None`` when the user has no connected Gmail
     account, the stored access token is missing, or the platform Google
     client id/secret are not configured (in which case no refresh or send
     could succeed anyway).
@@ -346,7 +348,7 @@ async def get_user_gmail_tokens(
     result = await db.execute(
         select(OAuthAccount).where(
             OAuthAccount.user_id == user_id,
-            OAuthAccount.provider == "google",
+            OAuthAccount.provider == "gmail",
             OAuthAccount.access_token.is_not(None),
         )
     )

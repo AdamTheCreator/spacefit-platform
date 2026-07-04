@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   Mail,
   MapPin,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '../components/Layout';
 import { EmailComposer, CampaignDetail } from '../components/Outreach';
+import { useSendCampaign, sendCampaignErrorMessage } from '../hooks/useOutreachCampaigns';
 import api from '../lib/axios';
 import type {
   OutreachCampaignListItem,
@@ -207,6 +209,7 @@ export function OutreachPage() {
   const [composeRecipients, setComposeRecipients] = useState<CreateRecipientRequest[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
+  const sendCampaign = useSendCampaign();
 
   const fetchCampaigns = async () => {
     try {
@@ -223,6 +226,37 @@ export function OutreachPage() {
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  const handleSendSelectedCampaign = async () => {
+    if (!selectedCampaign) return;
+    try {
+      const result = await sendCampaign.mutateAsync(selectedCampaign.id);
+
+      // Refresh the open modal so it reflects sent status/stats instead of
+      // silently closing.
+      try {
+        const refreshed = await api.get<OutreachCampaign>(
+          `/outreach/campaigns/${selectedCampaign.id}`,
+        );
+        setSelectedCampaign(refreshed.data);
+      } catch {
+        // Keep the existing view if the refetch fails.
+      }
+      fetchCampaigns();
+
+      if (!result.success) {
+        toast.error(result.message || 'Campaign could not be sent');
+      } else if (result.deal_id) {
+        toast.success('Campaign sent — deal card created', {
+          action: { label: 'View board', onClick: () => navigate('/workflow') },
+        });
+      } else {
+        toast.success(result.message || 'Campaign sent');
+      }
+    } catch (err) {
+      toast.error(sendCampaignErrorMessage(err));
+    }
+  };
 
   useEffect(() => {
     const state = location.state as { composeRecipients?: CreateRecipientRequest[] } | null;
@@ -499,6 +533,7 @@ export function OutreachPage() {
           <div className="relative w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
             <CampaignDetail
               campaign={selectedCampaign}
+              onSend={handleSendSelectedCampaign}
               onClose={() => {
                 setSelectedCampaign(null);
                 fetchCampaigns();
