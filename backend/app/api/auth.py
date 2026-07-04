@@ -421,6 +421,32 @@ async def gmail_disconnect(
     await db.commit()
 
 
+@router.get("/gmail/debug")
+async def gmail_debug(current_user: CurrentUser) -> dict:
+    """TEMPORARY diagnostic: report what OAuth credentials the server loaded.
+
+    Returns only a one-way hash + length of the secret (never the secret
+    itself) so a wrong/stale GOOGLE_CLIENT_SECRET can be identified without
+    leaking it. Authenticated-only. Remove once the Gmail connect flow works.
+    """
+    import hashlib
+
+    cid = settings.google_client_id or ""
+    csec = settings.google_client_secret or ""
+    return {
+        "client_id": cid,  # public value (appears in the OAuth authorize URL)
+        "client_id_len": len(cid),
+        "secret_len": len(csec),
+        "secret_sha256_12": (
+            hashlib.sha256(csec.encode()).hexdigest()[:12] if csec else ""
+        ),
+        "secret_last4": csec[-4:] if csec else "",
+        "gmail_redirect_uri": settings.gmail_redirect_uri,
+        "frontend_url": settings.frontend_url,
+        "gmail_configured": bool(cid and csec),
+    }
+
+
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
 async def forgot_password(
     request: ForgotPasswordRequest,
