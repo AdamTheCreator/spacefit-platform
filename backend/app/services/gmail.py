@@ -13,6 +13,7 @@ Benefits over SMTP:
 
 import base64
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
@@ -159,6 +160,11 @@ class GmailService:
         Returns:
             GmailTokens object
         """
+        # Google returns the *union* of newly-requested and previously-granted
+        # scopes (we authorize with include_granted_scopes=true, and the user
+        # already granted the sign-in scopes openid/email/profile). Without this
+        # relaxation oauthlib's strict check raises "Scope has changed" here.
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
         flow = cls.create_oauth_flow()
         flow.fetch_token(code=code)
 

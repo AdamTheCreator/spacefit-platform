@@ -328,10 +328,24 @@ async def gmail_callback(
         return RedirectResponse(url=f"{connections_url}?gmail=error")
 
     try:
-        tokens = await asyncio.to_thread(GmailService.exchange_code, code)
+        try:
+            tokens = await asyncio.to_thread(GmailService.exchange_code, code)
+        except Exception:
+            logger.exception("Gmail OAuth token exchange failed")
+            return RedirectResponse(
+                url=f"{connections_url}?gmail=error&reason=token_exchange"
+            )
+
         email = await asyncio.to_thread(GmailService(tokens).get_user_email)
         if not email:
-            raise ValueError("Could not read the connected Gmail address")
+            # getProfile came back empty/403 — almost always the Gmail API not
+            # being enabled for the project, or the read scope not granted.
+            logger.error(
+                "Gmail OAuth: could not read connected address (Gmail API enabled?)"
+            )
+            return RedirectResponse(
+                url=f"{connections_url}?gmail=error&reason=profile"
+            )
 
         result = await db.execute(
             select(OAuthAccount).where(

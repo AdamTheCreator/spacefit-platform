@@ -88,10 +88,18 @@ export function ConnectionsPage() {
     if (gmail === 'connected') {
       toast.success('Gmail connected. You can now send outreach campaigns.');
     } else if (gmail === 'error') {
-      toast.error('Gmail connection failed. Please try again.');
+      const reason = searchParams.get('reason');
+      const message =
+        reason === 'profile'
+          ? 'Gmail connected, but we could not read your address. Make sure the Gmail API is enabled for the project, then try again.'
+          : reason === 'token_exchange'
+            ? 'Gmail authorization could not be completed (token exchange failed). Please try again.'
+            : 'Gmail connection failed. Please try again.';
+      toast.error(message);
     }
     const next = new URLSearchParams(searchParams);
     next.delete('gmail');
+    next.delete('reason');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
