@@ -119,8 +119,19 @@ def get_llm_client() -> LLMClient:
 
 @lru_cache(maxsize=1)
 def get_vision_llm_client() -> LLMClient:
-    """Platform vision client (always Anthropic)."""
-    provider = settings.llm_vision_provider or settings.llm_provider
+    """Platform vision client.
+
+    Only the Anthropic provider implements ``vision_document`` today; every
+    OpenAI-compatible provider (including baseten) raises. When the primary
+    provider cannot serve vision, fall back to Anthropic using
+    ``settings.anthropic_api_key`` so document parsing keeps working even when
+    ``LLM_PROVIDER=baseten`` is set globally.
+    """
+    provider = (
+        settings.llm_vision_provider or settings.llm_provider or "anthropic"
+    ).lower().strip()
+    if provider != "anthropic":
+        provider = "anthropic"
     return _build_client(provider=provider)
 
 
