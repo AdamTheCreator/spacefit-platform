@@ -30,6 +30,7 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     "google": "gemini-2.0-flash",
     "deepseek": "deepseek-chat",
     "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
+    "baseten": settings.baseten_model or "Qwen/Qwen2.5-7B-Instruct",
     "openai_compatible": "",
 }
 
@@ -51,6 +52,9 @@ VALIDATION_MODELS: dict[str, str] = {
     "google": "gemini-2.0-flash-lite",
     "deepseek": "deepseek-chat",
     "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
+    # Baseten: validate against base Qwen — it is always loaded on the L4
+    # alongside the advisor LoRA adapters, so it is the safest probe.
+    "baseten": settings.baseten_model or "Qwen/Qwen2.5-7B-Instruct",
 }
 
 # Previously-shipped model ids that can return provider-side 404s on some keys.
@@ -109,6 +113,31 @@ class ResolvedLLM:
     provider: str
     is_byok: bool
     specialist_models: dict[str, str] | None = None
+
+
+def resolved_or_platform_model(resolved_llm: "ResolvedLLM | None") -> str:
+    """Pick a model id that matches the client that will receive the request.
+
+    Priority:
+      1. ``resolved_llm.model`` when a ResolvedLLM is supplied (covers both BYOK
+         and non-BYOK platform-default resolutions the caller has already done).
+      2. Provider-appropriate platform default keyed off ``settings.llm_provider``:
+         ``settings.baseten_model`` for baseten, ``settings.google_gemini_model``
+         for google, ``settings.anthropic_model`` otherwise.
+
+    Kept centralized so utility LLM call sites (fact_extractor, listing_match,
+    outreach_ai, void_analysis) never send a hardcoded Anthropic model id to a
+    Baseten-served client.
+    """
+    if resolved_llm is not None and resolved_llm.model:
+        return resolved_llm.model
+
+    provider = (settings.llm_provider or "").lower()
+    if provider == "baseten":
+        return settings.baseten_model
+    if provider == "google":
+        return settings.google_gemini_model
+    return settings.anthropic_model
 
 
 def _resolve_platform_default(tier: str) -> ResolvedLLM:

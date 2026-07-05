@@ -11,9 +11,8 @@ Identifies missing tenant categories based on:
 
 import json
 
-from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
-from app.services.user_llm import ResolvedLLM
+from app.services.user_llm import ResolvedLLM, resolved_or_platform_model
 
 # Define retail categories and typical co-tenancy patterns
 RETAIL_CATEGORIES = {
@@ -315,7 +314,7 @@ async def analyze_voids_for_property(
     )
 
     llm = resolved_llm.client if resolved_llm else get_llm_client()
-    model = resolved_llm.model if resolved_llm else (settings.llm_model or settings.anthropic_model)
+    model = resolved_or_platform_model(resolved_llm)
     response = await llm.chat(
         LLMChatRequest(
             model=model,
