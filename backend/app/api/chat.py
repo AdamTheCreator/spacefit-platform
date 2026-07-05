@@ -1633,12 +1633,20 @@ async def _stream_specialist_to_ws(
     project_context: dict | None,
     document_context: dict | None,
     resolved_llm: ResolvedLLM | None,
+    stream_to_client: bool = True,
 ) -> dict:
     """Stream a single specialist turn to the WebSocket.
 
     Mirrors ``_stream_orchestrator_to_ws`` but uses ``call_specialist_stream``
-    and tags every emitted event with the specialist's ``AgentType`` so the
-    frontend renders a colored, distinct bubble per specialist.
+    and tags every emitted event with the specialist's ``AgentType``.
+
+    When ``stream_to_client`` is False, the specialist runs silently: no
+    ``message_start`` / ``text_delta`` / ``message_end`` / ``tool_use_start``
+    frames are emitted to the client (the progress strip's
+    ``workflow_update`` events still surface activity). The full content +
+    tool_calls are still buffered and returned so the synthesis pass can
+    use them. This keeps the user-facing surface to a single
+    "Space Goose Assistant" bubble per turn.
 
     Returns the buffered-style ``{specialist, content, tool_calls,
     stop_reason, input_tokens, output_tokens}`` dict the existing
@@ -1662,11 +1670,12 @@ async def _stream_specialist_to_ws(
         )
 
     msg_id = uuid.uuid4().hex
-    await send_ws_message(
-        websocket,
-        "message_start",
-        {"msg_id": msg_id, "role": "agent", "agent_type": agent_type.value},
-    )
+    if stream_to_client:
+        await send_ws_message(
+            websocket,
+            "message_start",
+            {"msg_id": msg_id, "role": "agent", "agent_type": agent_type.value},
+        )
 
     text_buffer: list[str] = []
     tool_calls_out: list[dict] = []
@@ -1684,21 +1693,23 @@ async def _stream_specialist_to_ws(
         ):
             if chunk.kind == "text_delta":
                 text_buffer.append(chunk.text)
-                await send_ws_message(
-                    websocket,
-                    "text_delta",
-                    {"msg_id": msg_id, "delta": chunk.text},
-                )
+                if stream_to_client:
+                    await send_ws_message(
+                        websocket,
+                        "text_delta",
+                        {"msg_id": msg_id, "delta": chunk.text},
+                    )
             elif chunk.kind == "tool_use_start":
-                await send_ws_message(
-                    websocket,
-                    "tool_use_start",
-                    {
-                        "msg_id": msg_id,
-                        "tool_id": chunk.tool_id,
-                        "tool_name": chunk.tool_name,
-                    },
-                )
+                if stream_to_client:
+                    await send_ws_message(
+                        websocket,
+                        "tool_use_start",
+                        {
+                            "msg_id": msg_id,
+                            "tool_id": chunk.tool_id,
+                            "tool_name": chunk.tool_name,
+                        },
+                    )
             elif chunk.kind == "tool_use_end" and chunk.tool_call is not None:
                 tool_calls_out.append(
                     {
@@ -1717,17 +1728,18 @@ async def _stream_specialist_to_ws(
             name,
             session_id,
         )
-        await send_ws_message(
-            websocket,
-            "message_end",
-            {
-                "msg_id": msg_id,
-                "content": "".join(text_buffer),
-                "stop_reason": "stream_error",
-                "tool_calls": [],
-                "error": str(e),
-            },
-        )
+        if stream_to_client:
+            await send_ws_message(
+                websocket,
+                "message_end",
+                {
+                    "msg_id": msg_id,
+                    "content": "".join(text_buffer),
+                    "stop_reason": "stream_error",
+                    "tool_calls": [],
+                    "error": str(e),
+                },
+            )
         return await call_specialist(
             name=name,
             messages=conversation_history,
@@ -1737,17 +1749,18 @@ async def _stream_specialist_to_ws(
         )
 
     content = "".join(text_buffer)
-    await send_ws_message(
-        websocket,
-        "message_end",
-        {
-            "msg_id": msg_id,
-            "content": content,
-            "stop_reason": stop_reason,
-            "tool_calls": tool_calls_out,
-            "agent_type": agent_type.value,
-        },
-    )
+    if stream_to_client:
+        await send_ws_message(
+            websocket,
+            "message_end",
+            {
+                "msg_id": msg_id,
+                "content": content,
+                "stop_reason": stop_reason,
+                "tool_calls": tool_calls_out,
+                "agent_type": agent_type.value,
+            },
+        )
 
     return {
         "specialist": name,
@@ -1779,16 +1792,23 @@ async def _run_specialist_routing_turn(
 
     Extracted from the ``/ws`` loop so the orchestration can be unit-
     tested independently of FastAPI's WebSocket lifecycle. Side-effects:
-        * Emits ``workflow_init`` / ``workflow_update`` / per-specialist
-          streaming frames to ``websocket``.
+        * Emits ``workflow_init`` / ``workflow_update`` per specialist
+          (a subtle progress strip). Specialist content is NOT streamed
+          to the client — only the final synthesized "Space Goose
+          Assistant" bubble is user-facing.
         * Calls ``handle_tool_calls`` for any tool requests a specialist
-          returns.
-        * Persists each specialist bubble to the transcript and, when a
-          synthesis runs, persists the synth message too.
+          returns (tool execution stays internal).
+        * Persists only the final synthesized orchestrator message to
+          the transcript (per-specialist output is treated as
+          intermediate work product).
         * Mutates ``conversation_history`` in place with the final
           assistant message (so the caller can keep using it).
         * Schedules best-effort fact extraction on the final content.
         * Records token usage with BYOK awareness.
+
+    When the clarification gate trips (vague input), specialist routing
+    is skipped entirely and a single orchestrator clarifying turn is
+    streamed instead (no ``workflow_init``).
 
     Returns a summary dict::
 
@@ -1801,13 +1821,91 @@ async def _run_specialist_routing_turn(
             "synthesized": bool,
         }
     """
-    from app.services.orchestrator import plan_workflow
+    from app.services.orchestrator import needs_clarification, plan_workflow
 
+    # ----------------------------------------------------------
+    # Clarification gate: if the user's message is too vague to
+    # delegate (e.g. a bare "Analyze property" with no address),
+    # skip specialist routing and stream a single orchestrator
+    # clarifying question so the user only ever sees one
+    # "Space Goose Assistant" response with no progress strip.
+    # ----------------------------------------------------------
     planning_context: dict = {}
     if proj_context:
         planning_context.update(proj_context)
     if doc_context:
         planning_context["document_context"] = doc_context
+
+    if await needs_clarification(
+        user_content,
+        context=planning_context or None,
+        resolved_llm=user_resolved_llm,
+    ):
+        logger.info("[chat-ws] clarification gate tripped for session=%s", session_id)
+        clar_history = list(conversation_history)
+        clar_history.append(
+            {
+                "role": "user",
+                "content": (
+                    user_content
+                    + "\n\n(Note: the user's message lacks enough concrete "
+                    "detail to begin specialist work. Ask ONE concise "
+                    "clarifying question for what you need to proceed — "
+                    "e.g. the property address or the specific deal "
+                    "question. Do not call tools.)"
+                ),
+            }
+        )
+        clar_result = await _stream_orchestrator_to_ws(
+            websocket,
+            session_id=session_id,
+            user_id=user_id,
+            conversation_history=clar_history,
+            user_context=user_context,
+            has_imported_data=has_imported_data,
+            document_context=doc_context,
+            project_context=proj_context,
+            system_prompt_id=s_prompt_id,
+            analysis_type=s_analysis_type,
+            memory_context=memory_context,
+            resolved_llm=user_resolved_llm,
+        )
+        clar_content = clar_result.get("content", "")
+        if clar_content:
+            await save_message_to_db(
+                session_id, "agent", clar_content, "orchestrator"
+            )
+            conversation_history.append(
+                {"role": "assistant", "content": clar_content}
+            )
+            _schedule_fact_extraction(
+                websocket,
+                user_id=user_id,
+                session_id=session_id,
+                user_message=user_content,
+                assistant_response=clar_content,
+                resolved_llm=user_resolved_llm,
+            )
+        await record_token_usage(
+            user_id,
+            clar_result.get("input_tokens", 0),
+            clar_result.get("output_tokens", 0),
+            is_byok=bool(user_resolved_llm and user_resolved_llm.is_byok),
+        )
+        return {
+            "specialist_plan": [],
+            "specialist_outputs": [],
+            "final_content": clar_content,
+            "input_tokens": clar_result.get("input_tokens", 0),
+            "output_tokens": clar_result.get("output_tokens", 0),
+            "synthesized": False,
+        }
+
+    # ----------------------------------------------------------
+    # Specialist routing: plan, run each specialist silently
+    # (no user-facing bubble), then always synthesize a single
+    # "Space Goose Assistant" response.
+    # ----------------------------------------------------------
     specialist_plan = await plan_workflow(
         user_content,
         context=planning_context or None,
@@ -1873,6 +1971,7 @@ async def _run_specialist_routing_turn(
             project_context=proj_context,
             document_context=doc_context,
             resolved_llm=user_resolved_llm,
+            stream_to_client=False,
         )
         spec_total_in += spec_result.get("input_tokens", 0)
         spec_total_out += spec_result.get("output_tokens", 0)
@@ -1900,17 +1999,9 @@ async def _run_specialist_routing_turn(
             {"step_id": step_id, "status": "completed"},
         )
 
-        if spec_result.get("content"):
-            await save_message_to_db(
-                session_id,
-                "agent",
-                spec_result["content"],
-                spec_name,
-            )
-
     synthesized = False
     final_content = ""
-    if len(spec_outputs) > 1:
+    if spec_outputs:
         synthesized = True
         synthesis_input = "\n\n---\n\n".join(
             f"### {o['specialist'].title()} findings\n{o['content']}"
@@ -1962,20 +2053,9 @@ async def _run_specialist_routing_turn(
                 resolved_llm=user_resolved_llm,
             )
     else:
-        only = spec_outputs[0] if spec_outputs else {}
-        if only.get("content"):
-            final_content = only["content"]
-            conversation_history.append(
-                {"role": "assistant", "content": final_content}
-            )
-            _schedule_fact_extraction(
-                websocket,
-                user_id=user_id,
-                session_id=session_id,
-                user_message=user_content,
-                assistant_response=final_content,
-                resolved_llm=user_resolved_llm,
-            )
+        # Empty plan: nothing to synthesize. Tokens already zero.
+        synthesized = False
+        final_content = ""
 
     await record_token_usage(
         user_id,

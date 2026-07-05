@@ -1,33 +1,27 @@
 """Coverage for the ``/ws`` specialist routing branch.
 
-This was the biggest coverage gap of the multi-initiative push:
-``plan_workflow``, ``call_specialist_stream`` and the synthesis path are
-each unit tested in isolation, but the orchestration that wires them
-together inside the WebSocket handler had no direct tests. To make that
-testable without spinning up FastAPI + a real DB + JWT + an LLM, the
-branch was extracted into ``_run_specialist_routing_turn`` (in
+The branch was extracted into ``_run_specialist_routing_turn`` (in
 ``app.api.chat``); this file drives that helper with a fake
 ``WebSocket`` and patched dependencies.
 
-What we assert:
+Behavior under test (current contract):
 
-* Single-specialist plan: emits ``workflow_init`` + per-step
-  ``workflow_update`` running/completed, calls
-  ``_stream_specialist_to_ws`` exactly once with the carried history,
-  appends the only specialist's content to ``conversation_history``,
-  persists its transcript line via ``save_message_to_db``,
-  short-circuits past the synthesis pass, schedules fact extraction,
-  and records token usage (BYOK-aware).
+* The user only ever sees a single "Space Goose Assistant" bubble per
+  turn. Specialists run silently (``stream_to_client=False``); only the
+  final synthesized orchestrator message is persisted to the transcript.
+* The clarification gate trips on vague input: ``needs_clarification``
+  returns True -> no ``workflow_init``, no specialist streaming, one
+  orchestrator clarifying turn, one persisted ``orchestrator`` row.
 * Multi-specialist plan: emits a workflow_init with N pending steps,
   runs each specialist in order, threads earlier specialists' outputs
-  into the next specialist's message history, runs the synthesis
-  pass, persists both per-specialist transcripts AND the synthesis
-  transcript, and exposes ``synthesized=True``.
+  into the next specialist's message history, runs the synthesis pass,
+  persists only the synthesis transcript, and exposes
+  ``synthesized=True``.
 * Tool-call delegation: when a specialist returns ``tool_calls`` the
-  helper hands them off to ``handle_tool_calls`` with the same
-  session/user/context.
-* BYOK skip: ``record_token_usage`` is invoked with
-  ``is_byok=True`` when the resolved LLM is a BYOK provider.
+  helper hands them off to ``handle_tool_calls``; synthesis still runs.
+* BYOK skip: ``record_token_usage`` is invoked with ``is_byok=True``
+  when the resolved LLM is a BYOK provider.
+* Empty plan: records zero tokens and skips streaming/synthesis.
 """
 
 from __future__ import annotations
@@ -60,18 +54,19 @@ def _event_types(ws: _FakeWebSocket) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Single-specialist plan
+# Single-specialist plan -> now always synthesizes
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_single_specialist_plan_streams_and_skips_synthesis():
+async def test_single_specialist_plan_always_synthesizes():
     from app.api import chat as chat_mod
 
     ws = _FakeWebSocket()
     history: list[dict[str, str]] = [{"role": "user", "content": "hi"}]
 
     plan_mock = AsyncMock(return_value=["scout"])
+    clarify_mock = AsyncMock(return_value=False)
     stream_mock = AsyncMock(
         return_value={
             "specialist": "scout",
@@ -82,25 +77,29 @@ async def test_single_specialist_plan_streams_and_skips_synthesis():
             "output_tokens": 64,
         }
     )
-    synth_mock = AsyncMock()  # MUST NOT be called for a single-specialist plan
+    synth_mock = AsyncMock(
+        return_value={
+            "content": "Synthesized: 12 nearby grocery stores within 2 miles.",
+            "input_tokens": 40,
+            "output_tokens": 30,
+        }
+    )
     save_mock = AsyncMock()
     record_mock = AsyncMock()
-    schedule_mock = MagicMock()  # sync fire-and-forget in production
+    schedule_mock = MagicMock()
     tools_mock = AsyncMock()
 
     with (
         patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
         patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
         patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
         patch.object(chat_mod, "save_message_to_db", save_mock),
         patch.object(chat_mod, "record_token_usage", record_mock),
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
-        patch(
-            "app.services.orchestrator.plan_workflow",
-            plan_mock,
-            create=True,
-        ),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -118,48 +117,46 @@ async def test_single_specialist_plan_streams_and_skips_synthesis():
             user_resolved_llm=None,
         )
 
-    # --- shape of the return value
     assert summary["specialist_plan"] == ["scout"]
-    assert summary["synthesized"] is False
-    assert summary["final_content"].startswith("Found 12")
-    assert summary["input_tokens"] == 220
-    assert summary["output_tokens"] == 64
+    assert summary["synthesized"] is True
+    assert summary["final_content"].startswith("Synthesized")
+    # Tokens = specialist + synthesis
+    assert summary["input_tokens"] == 220 + 40
+    assert summary["output_tokens"] == 64 + 30
 
-    # --- mutations on caller-owned history
-    assert history[-1] == {
-        "role": "assistant",
-        "content": "Found 12 nearby grocery stores within 2 miles.",
-    }
+    # History gets the synthesis content (single assistant voice)
+    assert history[-1] == {"role": "assistant", "content": summary["final_content"]}
 
-    # --- emitted WS frames in order
-    types = _event_types(ws)
-    assert "workflow_init" in types
-    assert types.count("workflow_update") == 2  # running + completed
-    # The single-specialist path should NOT fire the synthesis stream.
-    synth_mock.assert_not_called()
-    # plan_workflow called once.
-    plan_mock.assert_awaited_once()
-    # The single specialist was streamed.
+    # Specialist ran silently
     stream_mock.assert_awaited_once()
-    # Transcript persisted once for the specialist.
+    assert stream_mock.await_args.kwargs["stream_to_client"] is False
+
+    # Synthesis always runs now
+    synth_mock.assert_awaited_once()
+
+    # Only the synthesis transcript is persisted (one row, orchestrator)
     save_mock.assert_awaited_once()
     persisted_args = save_mock.await_args
     assert persisted_args.args[0] == "s-1"
     assert persisted_args.args[1] == "agent"
-    assert persisted_args.args[2].startswith("Found 12")
-    assert persisted_args.args[3] == "scout"
-    # Fact extraction scheduled with the final content.
+    assert persisted_args.args[2].startswith("Synthesized")
+    assert persisted_args.args[3] == "orchestrator"
+
+    # Fact extraction scheduled with the synthesis content
     schedule_mock.assert_called_once()
-    assert (
-        schedule_mock.call_args.kwargs["assistant_response"]
-        == "Found 12 nearby grocery stores within 2 miles."
-    )
-    # No tool calls => handle_tool_calls untouched.
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+
     tools_mock.assert_not_called()
-    # Token usage recorded; not BYOK.
+    plan_mock.assert_awaited_once()
+    clarify_mock.assert_awaited_once()
     record_mock.assert_awaited_once()
-    assert record_mock.await_args.args == ("u-1", 220, 64)
+    assert record_mock.await_args.args == ("u-1", 260, 94)
     assert record_mock.await_args.kwargs["is_byok"] is False
+
+    # workflow_init + running/completed events still emitted
+    types = _event_types(ws)
+    assert "workflow_init" in types
+    assert types.count("workflow_update") == 2
 
 
 # ---------------------------------------------------------------------------
@@ -168,15 +165,15 @@ async def test_single_specialist_plan_streams_and_skips_synthesis():
 
 
 @pytest.mark.asyncio
-async def test_multi_specialist_plan_runs_synthesis_and_persists_both():
+async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis():
     from app.api import chat as chat_mod
 
     ws = _FakeWebSocket()
     history: list[dict[str, str]] = []
 
     plan_mock = AsyncMock(return_value=["scout", "analyst"])
+    clarify_mock = AsyncMock(return_value=False)
 
-    # Per-call specialist responses (in plan order).
     spec_returns = [
         {
             "specialist": "scout",
@@ -199,10 +196,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_both():
 
     synth_mock = AsyncMock(
         return_value={
-            "content": (
-                "Combined view: solid grocery competition; demographics "
-                "support a mid-tier QSR."
-            ),
+            "content": "Combined view: solid grocery competition; demographics support a mid-tier QSR.",
             "input_tokens": 200,
             "output_tokens": 80,
         }
@@ -214,17 +208,15 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_both():
 
     with (
         patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
         patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
         patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
         patch.object(chat_mod, "save_message_to_db", save_mock),
         patch.object(chat_mod, "record_token_usage", record_mock),
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
-        patch(
-            "app.services.orchestrator.plan_workflow",
-            plan_mock,
-            create=True,
-        ),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -242,55 +234,37 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_both():
             user_resolved_llm=None,
         )
 
-    # Plan + summary shape
     assert summary["specialist_plan"] == ["scout", "analyst"]
     assert summary["synthesized"] is True
     assert summary["final_content"].startswith("Combined view")
-
-    # Token totals = sum of 2 specialists + synthesis
     assert summary["input_tokens"] == 100 + 120 + 200
     assert summary["output_tokens"] == 30 + 40 + 80
 
-    # Both specialists were called in order.
     assert stream_mock.await_count == 2
-    first_call_kwargs = stream_mock.await_args_list[0].kwargs
-    second_call_kwargs = stream_mock.await_args_list[1].kwargs
-    assert first_call_kwargs["name"] == "scout"
-    assert second_call_kwargs["name"] == "analyst"
+    for call in stream_mock.await_args_list:
+        assert call.kwargs["stream_to_client"] is False
 
     # The 2nd specialist must receive the 1st's findings as carried context.
-    carried = second_call_kwargs["conversation_history"]
-    assert any(
-        "Scout findings" in (m.get("content") or "")
-        for m in carried
-    ), "analyst should see scout's findings injected as an assistant message"
+    carried = stream_mock.await_args_list[1].kwargs["conversation_history"]
+    assert any("Scout findings" in (m.get("content") or "") for m in carried)
 
-    # Synthesis ran exactly once after both specialists.
     synth_mock.assert_awaited_once()
     synth_history = synth_mock.await_args.kwargs["conversation_history"]
     assert "Synthesize the specialist findings" in synth_history[-1]["content"]
     assert "Scout findings" in synth_history[-1]["content"]
     assert "Analyst findings" in synth_history[-1]["content"]
 
-    # Transcript persisted for each specialist AND the synthesis (3 rows).
-    assert save_mock.await_count == 3
-    persisted = [c.args for c in save_mock.await_args_list]
-    assert persisted[0][3] == "scout"
-    assert persisted[1][3] == "analyst"
-    assert persisted[2][3] == "orchestrator"
+    # Only the synthesis transcript is persisted (1 row, not 3)
+    save_mock.assert_awaited_once()
+    assert save_mock.await_args.args[3] == "orchestrator"
 
-    # Conversation history gets the synthesis content, not the per-specialist.
     assert history[-1] == {"role": "assistant", "content": summary["final_content"]}
-    # Fact extraction scheduled once, on the synthesis output.
     schedule_mock.assert_called_once()
-    assert (
-        schedule_mock.call_args.kwargs["assistant_response"]
-        == summary["final_content"]
-    )
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
 
 
 # ---------------------------------------------------------------------------
-# Tool-call delegation
+# Tool-call delegation (synthesis still runs after)
 # ---------------------------------------------------------------------------
 
 
@@ -301,6 +275,7 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
     ws = _FakeWebSocket()
 
     plan_mock = AsyncMock(return_value=["scout"])
+    clarify_mock = AsyncMock(return_value=False)
     tool_calls_blob = [
         {"id": "tu-1", "name": "business_search", "input": {"query": "grocery"}}
     ]
@@ -314,6 +289,9 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
             "output_tokens": 12,
         }
     )
+    synth_mock = AsyncMock(
+        return_value={"content": "Here is what I found.", "input_tokens": 30, "output_tokens": 20}
+    )
     save_mock = AsyncMock()
     record_mock = AsyncMock()
     schedule_mock = MagicMock()
@@ -321,16 +299,15 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
 
     with (
         patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
         patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
         patch.object(chat_mod, "save_message_to_db", save_mock),
         patch.object(chat_mod, "record_token_usage", record_mock),
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
-        patch(
-            "app.services.orchestrator.plan_workflow",
-            plan_mock,
-            create=True,
-        ),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
     ):
         await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -352,6 +329,10 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
     assert tools_mock.await_args.kwargs["tool_calls"] == tool_calls_blob
     assert tools_mock.await_args.kwargs["session_id"] == "s-1"
     assert tools_mock.await_args.kwargs["user_id"] == "u-1"
+    # Synthesis still runs after tool execution; one orchestrator row persisted.
+    synth_mock.assert_awaited_once()
+    save_mock.assert_awaited_once()
+    assert save_mock.await_args.args[3] == "orchestrator"
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +348,7 @@ async def test_byok_resolved_llm_passes_is_byok_true_to_token_usage():
     byok_llm = SimpleNamespace(is_byok=True)
 
     plan_mock = AsyncMock(return_value=["scout"])
+    clarify_mock = AsyncMock(return_value=False)
     stream_mock = AsyncMock(
         return_value={
             "specialist": "scout",
@@ -377,22 +359,24 @@ async def test_byok_resolved_llm_passes_is_byok_true_to_token_usage():
             "output_tokens": 5,
         }
     )
+    synth_mock = AsyncMock(
+        return_value={"content": "ok synth", "input_tokens": 4, "output_tokens": 3}
+    )
     save_mock = AsyncMock()
     record_mock = AsyncMock()
     schedule_mock = MagicMock()
 
     with (
         patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
         patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
         patch.object(chat_mod, "save_message_to_db", save_mock),
         patch.object(chat_mod, "record_token_usage", record_mock),
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
-        patch(
-            "app.services.orchestrator.plan_workflow",
-            plan_mock,
-            create=True,
-        ),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
     ):
         await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -412,10 +396,12 @@ async def test_byok_resolved_llm_passes_is_byok_true_to_token_usage():
 
     record_mock.assert_awaited_once()
     assert record_mock.await_args.kwargs["is_byok"] is True
+    # Token total includes synthesis
+    assert record_mock.await_args.args == ("u-1", 14, 8)
 
 
 # ---------------------------------------------------------------------------
-# Empty plan: helper should still record zero tokens and emit nothing weird
+# Empty plan: helper should still record zero tokens and skip streaming
 # ---------------------------------------------------------------------------
 
 
@@ -426,23 +412,24 @@ async def test_empty_plan_records_zero_tokens_and_skips_streaming():
     ws = _FakeWebSocket()
 
     plan_mock = AsyncMock(return_value=[])
+    clarify_mock = AsyncMock(return_value=False)
     stream_mock = AsyncMock()
+    synth_mock = AsyncMock()
     record_mock = AsyncMock()
     save_mock = AsyncMock()
     schedule_mock = MagicMock()
 
     with (
         patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
         patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
         patch.object(chat_mod, "save_message_to_db", save_mock),
         patch.object(chat_mod, "record_token_usage", record_mock),
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
-        patch(
-            "app.services.orchestrator.plan_workflow",
-            plan_mock,
-            create=True,
-        ),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -464,7 +451,131 @@ async def test_empty_plan_records_zero_tokens_and_skips_streaming():
     assert summary["synthesized"] is False
     assert summary["final_content"] == ""
     stream_mock.assert_not_called()
+    synth_mock.assert_not_called()
     save_mock.assert_not_called()
     schedule_mock.assert_not_called()
     record_mock.assert_awaited_once()
     assert record_mock.await_args.args == ("u-1", 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Clarification gate: vague input skips specialists entirely
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_clarification_gate_skips_specialists():
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+
+    plan_mock = AsyncMock(return_value=["scout"])  # should NOT be called
+    clarify_mock = AsyncMock(return_value=True)
+    stream_mock = AsyncMock()  # should NOT be called
+    synth_mock = AsyncMock(
+        return_value={
+            "content": "Sure - what property address would you like me to analyze?",
+            "input_tokens": 60,
+            "output_tokens": 18,
+        }
+    )
+    save_mock = AsyncMock()
+    record_mock = AsyncMock()
+    schedule_mock = MagicMock()
+    tools_mock = AsyncMock()
+
+    with (
+        patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
+        patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
+        patch.object(chat_mod, "save_message_to_db", save_mock),
+        patch.object(chat_mod, "record_token_usage", record_mock),
+        patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
+        patch.object(chat_mod, "handle_tool_calls", tools_mock),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+    ):
+        summary = await chat_mod._run_specialist_routing_turn(
+            ws,  # type: ignore[arg-type]
+            user_id="u-1",
+            session_id="s-1",
+            user_content="Analyze property",
+            conversation_history=[],
+            proj_context=None,
+            doc_context=None,
+            user_context=None,
+            memory_context=None,
+            has_imported_data={"costar": False, "placer": False},
+            s_prompt_id=None,
+            s_analysis_type=None,
+            user_resolved_llm=None,
+        )
+
+    clarify_mock.assert_awaited_once()
+    plan_mock.assert_not_called()
+    stream_mock.assert_not_called()
+    tools_mock.assert_not_called()
+
+    # No workflow_init/progress strip on the clarification path
+    types = _event_types(ws)
+    assert "workflow_init" not in types
+    assert "workflow_update" not in types
+
+    # One orchestrator clarifying turn, persisted once
+    synth_mock.assert_awaited_once()
+    save_mock.assert_awaited_once()
+    assert save_mock.await_args.args[1] == "agent"
+    assert save_mock.await_args.args[3] == "orchestrator"
+
+    assert summary["specialist_plan"] == []
+    assert summary["synthesized"] is False
+    assert summary["final_content"].startswith("Sure")
+    assert summary["input_tokens"] == 60
+    assert summary["output_tokens"] == 18
+
+    schedule_mock.assert_called_once()
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    record_mock.assert_awaited_once()
+    assert record_mock.await_args.args == ("u-1", 60, 18)
+    assert record_mock.await_args.kwargs["is_byok"] is False
+
+
+# ---------------------------------------------------------------------------
+# needs_clarification helper: READY default on error, BYOK client threading
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_needs_clarification_helper_ready_default_on_error():
+    from app.services import orchestrator as orch_mod
+
+    fake_client = MagicMock()
+    fake_client.chat = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with patch.object(orch_mod, "get_llm_client", return_value=fake_client):
+        result = await orch_mod.needs_clarification("Analyze 123 Main St")
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_needs_clarification_helper_threads_byok_client():
+    from app.services import orchestrator as orch_mod
+
+    fake_client = MagicMock()
+    fake_client.chat = AsyncMock(
+        return_value=SimpleNamespace(content="CLARIFY\n")
+    )
+    byok_llm = SimpleNamespace(
+        client=fake_client, model="custom-model", is_byok=True, specialist_models={}
+    )
+
+    with patch.object(orch_mod, "get_llm_client") as get_mock:
+        result = await orch_mod.needs_clarification("hi", resolved_llm=byok_llm)
+
+    assert result is True
+    # BYOK path must NOT touch the platform client
+    get_mock.assert_not_called()
+    sent = fake_client.chat.await_args.args[0]
+    assert sent.model == "custom-model"
