@@ -79,6 +79,21 @@ services:
         value: Space Goose
       - key: SMTP_USE_TLS
         value: "true"
+      # Baseten (self-hosted Qwen2.5-7B + advisor LoRAs on an L4, vLLM,
+      # OpenAI-compatible /v1). Platform default: LLM_PROVIDER=baseten with
+      # LLM_MODEL=spacegoose-advisor-v3 routes all non-BYOK chat through the L4.
+      # Vision falls back to Anthropic in code (get_vision_llm_client), so no
+      # separate LLM_VISION_PROVIDER env var is needed.
+      - key: LLM_PROVIDER
+        value: baseten
+      - key: LLM_MODEL
+        value: spacegoose-advisor-v3
+      - key: BASETEN_API_KEY
+        sync: false
+      - key: BASETEN_BASE_URL
+        sync: false
+      - key: BASETEN_MODEL
+        sync: false
 
   # Frontend Static Site
   - type: web
