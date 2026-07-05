@@ -579,3 +579,131 @@ async def test_needs_clarification_helper_threads_byok_client():
     get_mock.assert_not_called()
     sent = fake_client.chat.await_args.args[0]
     assert sent.model == "custom-model"
+
+
+# ---------------------------------------------------------------------------
+# Platform-default resolution: LLM_PROVIDER=baseten cascades to both tiers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("tier", ["free", "pro"])
+def test_resolve_platform_default_baseten_routes_both_tiers(monkeypatch, tier):
+    from app.core.config import settings
+    from app.services import user_llm as user_llm_mod
+
+    monkeypatch.setattr(settings, "llm_provider", "baseten")
+    monkeypatch.setattr(settings, "llm_model", "spacegoose-advisor-v3")
+    monkeypatch.setattr(settings, "baseten_api_key", "test-baseten-key")
+    monkeypatch.setattr(
+        settings,
+        "baseten_base_url",
+        "https://model-3m50kp6w.api.baseten.co/environments/production/sync/v1",
+    )
+    monkeypatch.setattr(settings, "baseten_model", "Qwen/Qwen2.5-7B-Instruct")
+
+    sentinel_client = MagicMock(name="baseten_client")
+    factory_mock = MagicMock(return_value=sentinel_client)
+    monkeypatch.setattr(user_llm_mod, "get_or_create_client", factory_mock)
+
+    resolved = user_llm_mod._resolve_platform_default(tier)
+
+    assert resolved.provider == "baseten"
+    assert resolved.model == "spacegoose-advisor-v3"
+    assert resolved.is_byok is False
+    assert resolved.client is sentinel_client
+    factory_mock.assert_called_once_with(
+        provider="baseten",
+        api_key="test-baseten-key",
+        base_url=(
+            "https://model-3m50kp6w.api.baseten.co/environments/production/sync/v1"
+        ),
+    )
+
+
+def test_resolve_platform_default_baseten_falls_back_to_baseten_model(monkeypatch):
+    """When LLM_MODEL is unset, `model` falls back to settings.baseten_model."""
+    from app.core.config import settings
+    from app.services import user_llm as user_llm_mod
+
+    monkeypatch.setattr(settings, "llm_provider", "baseten")
+    monkeypatch.setattr(settings, "llm_model", "")
+    monkeypatch.setattr(settings, "baseten_api_key", "cfg-key")
+    monkeypatch.setattr(settings, "baseten_base_url", "https://from-settings/v1")
+    monkeypatch.setattr(settings, "baseten_model", "Qwen/Qwen2.5-7B-Instruct")
+
+    monkeypatch.setattr(
+        user_llm_mod, "get_or_create_client", MagicMock(return_value=MagicMock())
+    )
+    resolved = user_llm_mod._resolve_platform_default("free")
+    assert resolved.provider == "baseten"
+    assert resolved.model == "Qwen/Qwen2.5-7B-Instruct"
+
+
+# ---------------------------------------------------------------------------
+# Specialist cascade: platform default v3 propagates to all four specialists
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "specialist_name", ["scout", "analyst", "matchmaker", "outreach"]
+)
+def test_build_specialist_request_cascades_platform_default_v3(specialist_name):
+    from app.services.orchestrator import _build_specialist_request
+    from app.services.user_llm import ResolvedLLM
+
+    fake_client = MagicMock(name="baseten_client")
+    resolved = ResolvedLLM(
+        client=fake_client,
+        provider="baseten",
+        model="spacegoose-advisor-v3",
+        is_byok=False,
+        specialist_models=None,
+    )
+
+    request, llm, effective_model = _build_specialist_request(
+        name=specialist_name,
+        messages=[{"role": "user", "content": "analyze 337 W Mariposa Rd"}],
+        resolved_llm=resolved,
+        project_context=None,
+        document_context=None,
+        request_id=f"req-{specialist_name}",
+    )
+
+    assert effective_model == "spacegoose-advisor-v3"
+    assert request.model == "spacegoose-advisor-v3"
+    assert llm is fake_client
+
+
+def test_build_specialist_request_byok_override_wins_over_platform_default():
+    """Per-specialist BYOK model override still beats the resolved default."""
+    from app.services.orchestrator import _build_specialist_request
+    from app.services.user_llm import ResolvedLLM
+
+    fake_client = MagicMock(name="byok_client")
+    resolved = ResolvedLLM(
+        client=fake_client,
+        provider="anthropic",
+        model="claude-opus-4-6",
+        is_byok=True,
+        specialist_models={"analyst": "claude-sonnet-4-6"},
+    )
+
+    _, _, analyst_model = _build_specialist_request(
+        name="analyst",
+        messages=[{"role": "user", "content": "run the numbers"}],
+        resolved_llm=resolved,
+        project_context=None,
+        document_context=None,
+        request_id="req-analyst",
+    )
+    _, _, scout_model = _build_specialist_request(
+        name="scout",
+        messages=[{"role": "user", "content": "find sites"}],
+        resolved_llm=resolved,
+        project_context=None,
+        document_context=None,
+        request_id="req-scout",
+    )
+
+    assert analyst_model == "claude-sonnet-4-6"
+    assert scout_model == "claude-opus-4-6"

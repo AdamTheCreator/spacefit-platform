@@ -62,6 +62,7 @@ def _build_client(
         "google",
         "deepseek",
         "huggingface",
+        "baseten",
     ):
         resolved_key = api_key or settings.openai_api_key
         resolved_url = base_url or settings.openai_base_url
@@ -79,6 +80,14 @@ def _build_client(
                 # speaks the OpenAI chat-completions dialect.
                 resolved_key = api_key or settings.huggingface_api_key
                 resolved_url = settings.huggingface_base_url
+            elif provider_norm == "baseten":
+                # Self-hosted Qwen2.5-7B + advisor LoRAs on a Baseten L4 via
+                # vLLM's OpenAI-compatible /v1 endpoint. No default URL — it
+                # is deployment-specific (contains the Baseten model id), so
+                # the operator (LLM_PROVIDER=baseten) or the BYOK user must
+                # supply it.
+                resolved_key = api_key or settings.baseten_api_key
+                resolved_url = settings.baseten_base_url
         return OpenAICompatibleLLMClient(
             api_key=resolved_key,
             base_url=resolved_url,
@@ -89,7 +98,8 @@ def _build_client(
 
     raise LLMConfigurationError(
         f"Unsupported LLM provider={provider!r}. Expected 'anthropic', "
-        "'openai', 'google', 'deepseek', 'huggingface', or 'openai_compatible'."
+        "'openai', 'google', 'deepseek', 'huggingface', 'baseten', or "
+        "'openai_compatible'."
     )
 
 

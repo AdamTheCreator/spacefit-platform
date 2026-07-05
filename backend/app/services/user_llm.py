@@ -142,6 +142,22 @@ def resolved_or_platform_model(resolved_llm: "ResolvedLLM | None") -> str:
 
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
     """Resolve platform-owned LLM based on subscription tier."""
+    # Operator opt-in: when ``LLM_PROVIDER=baseten`` is set globally, route
+    # every non-BYOK user (paid and free) through the self-hosted Baseten
+    # L4. This bypasses the tier split because we own the inference and
+    # want a single fine-tuned advisor model everywhere.
+    if (settings.llm_provider or "").lower() == "baseten":
+        return ResolvedLLM(
+            client=get_or_create_client(
+                provider="baseten",
+                api_key=settings.baseten_api_key,
+                base_url=settings.baseten_base_url,
+            ),
+            model=settings.llm_model or settings.baseten_model,
+            provider="baseten",
+            is_byok=False,
+        )
+
     if is_paid_tier(tier):
         # Paid tiers → Claude Haiku on platform key
         return ResolvedLLM(
