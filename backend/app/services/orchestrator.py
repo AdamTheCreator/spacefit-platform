@@ -229,7 +229,11 @@ def _build_orchestrator_request(
             "answer with what you have):\n\n"
             + "\n\n---\n\n".join(result_blocks)
             + "\n\nNow synthesize the above into a helpful, concise answer. Cite sources like "
-            "\"Source: Google Places\" when referencing tool data."
+            "\"Source: Google Places\" when referencing tool data. If you still need "
+            "more data, request the tools with AT MOST one short status sentence of "
+            "text — do NOT write the full analysis yet. Any text you emit alongside "
+            "tool calls is discarded and replaced by your post-tool answer, so save "
+            "the complete write-up for the turn where you have everything."
         )
         llm_messages.append(LLMChatMessage(role="user", content=results_text))
 

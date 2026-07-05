@@ -90,9 +90,16 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     connectionStatus,
     setConnectionStatus,
     setTenantCandidates,
+    removeMessage,
   } = useChatStore();
 
   const streamingMessageIdsRef = useRef<Set<string>>(new Set());
+  // A streamed bubble that ended in tool_use is intermediate: the backend
+  // never persists it and a follow-up synthesis bubble is coming. We remove
+  // it only when that next bubble actually starts — if the follow-up never
+  // arrives (recursion depth cap, provider error), the interim text stays
+  // so the turn is never left empty.
+  const supersededMsgIdRef = useRef<string | null>(null);
 
   // Fetch conversation history when sessionId changes (REST API - instant!)
   const { data: historyMessages, isLoading: isLoadingHistory } = useQuery({
@@ -322,6 +329,12 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           role: 'agent';
           agent_type?: string;
         };
+        // The follow-up round is here — drop the interim tool_use bubble it
+        // supersedes (its content was never persisted server-side).
+        if (supersededMsgIdRef.current) {
+          removeMessage(supersededMsgIdRef.current);
+          supersededMsgIdRef.current = null;
+        }
         streamingMessageIdsRef.current.add(data.msg_id);
         addMessage({
           id: data.msg_id,
@@ -374,6 +387,13 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         // workflow_update path will clear it when all steps complete.
         const tool_calls_present =
           Array.isArray(data.tool_calls) && data.tool_calls.length > 0;
+        if (tool_calls_present) {
+          // Intermediate answer: more tools are about to run and a fresh
+          // synthesis bubble will replace this one (mirrors the backend,
+          // which only persists tool-free turns). Mark it superseded; the
+          // next message_start removes it.
+          supersededMsgIdRef.current = data.msg_id;
+        }
         if (!tool_calls_present) {
           setTimeout(() => {
             const state = useChatStore.getState();
@@ -412,7 +432,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         break;
       }
     }
-  }, [addMessage, updateMessage, appendToMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, setTenantCandidates, queryClient]);
+  }, [addMessage, updateMessage, appendToMessage, removeMessage, setWorkflowSteps, updateWorkflowStep, setIsProcessing, setActiveAgentType, setCurrentSession, setTenantCandidates, queryClient]);
 
   // Send a message
   const sendMessage = useCallback((content: string) => {
