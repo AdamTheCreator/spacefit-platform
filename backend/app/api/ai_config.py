@@ -103,6 +103,24 @@ SUPPORTED_PROVIDERS = [
         ],
     },
     {
+        "id": "baseten",
+        "name": "Baseten (self-hosted Qwen)",
+        "description": (
+            "Space Goose fine-tuned Qwen2.5-7B advisor on a Baseten L4 "
+            "(OpenAI-compatible vLLM endpoint). Enter your Baseten API key "
+            "and the deployment's /v1 URL."
+        ),
+        "requires_key": True,
+        "requires_base_url": True,
+        "default_model": "Qwen/Qwen2.5-7B-Instruct",
+        "models": [
+            "Qwen/Qwen2.5-7B-Instruct",
+            "spacegoose-advisor-v3",
+            "spacegoose-advisor-v2",
+            "spacegoose-advisor",
+        ],
+    },
+    {
         "id": "openai_compatible",
         "name": "Custom (OpenAI-Compatible)",
         "description": "Any provider with an OpenAI-compatible API",
@@ -131,7 +149,7 @@ class AIConfigResponse(BaseModel):
 
 
 class AIConfigUpdate(BaseModel):
-    provider: str = Field(description="Provider ID (anthropic, openai, google, deepseek, openai_compatible, platform_default)")
+    provider: str = Field(description="Provider ID (anthropic, openai, google, deepseek, huggingface, baseten, openai_compatible, platform_default)")
     model: str | None = Field(default=None, description="Model override")
     api_key: str | None = Field(default=None, description="API key (only sent when updating)")
     base_url: str | None = Field(default=None, description="Custom endpoint URL")
@@ -518,9 +536,9 @@ async def get_usage(
     from app.db.models.tool_call import ToolCallLog
 
     now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
 
-    # Current monthly period
-    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    period_start = now_naive.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     result = await db.execute(
         select(TokenUsage).where(
@@ -535,8 +553,7 @@ async def get_usage(
     period_input = usage.input_tokens if usage else 0
     period_output = usage.output_tokens if usage else 0
 
-    # Last 24h tool calls (from audit log)
-    day_ago = now - timedelta(hours=24)
+    day_ago = now_naive - timedelta(hours=24)
     result = await db.execute(
         select(func.count(ToolCallLog.id)).where(
             and_(
