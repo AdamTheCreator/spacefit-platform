@@ -148,14 +148,42 @@ def _classify_instant(content: str) -> str:
     return "AMBIGUOUS"
 
 
+def _classifier_model(resolved_llm: "ResolvedLLM | None") -> str:
+    """Resolve which model id the tier-3 classifier should hand to the LLM client.
+
+    Priority:
+      1. ``resolved_llm.model`` when a ResolvedLLM is supplied (covers both BYOK and
+         the non-BYOK platform default that the caller has already resolved).
+      2. Provider-appropriate platform default when no ResolvedLLM is given:
+         - ``settings.baseten_model`` for LLM_PROVIDER=baseten
+         - ``settings.google_gemini_model`` for LLM_PROVIDER=google
+         - ``settings.anthropic_model`` otherwise
+      3. ``settings.guardrail_classifier_model`` is preserved as an escape hatch for
+         Anthropic-only callers but is no longer used unconditionally, so a mixed
+         Baseten/Haiku config does not send an Anthropic model id to a Baseten client.
+    """
+    if resolved_llm is not None and resolved_llm.model:
+        return resolved_llm.model
+
+    provider = (settings.llm_provider or "").lower()
+    if provider == "baseten":
+        return settings.baseten_model
+    if provider == "google":
+        return settings.google_gemini_model
+    return settings.anthropic_model
+
+
 async def _classify_with_haiku(
     content: str,
     resolved_llm: "ResolvedLLM | None" = None,
 ) -> str:
-    """Use a cheap Haiku call to classify ambiguous messages. Returns 'CRE' or 'OFF_TOPIC'.
+    """Use a cheap LLM call to classify ambiguous messages. Returns 'CRE' or 'OFF_TOPIC'.
 
     If `resolved_llm` is provided and represents a BYOK config, routes the classifier
     call through the user's own key so that BYOK users incur zero platform-side tokens.
+    The outgoing model id is picked to match the client that will actually receive the
+    request (see ``_classifier_model``) so a Baseten client never gets handed a
+    ``claude-3-5-haiku-*`` model id.
     """
     try:
         from app.llm import get_llm_client, LLMChatRequest, LLMChatMessage
@@ -168,7 +196,7 @@ async def _classify_with_haiku(
             LLMChatRequest(
                 system="Classify if this message is related to commercial real estate (CRE). Reply with exactly one word: CRE or OFF_TOPIC",
                 messages=[LLMChatMessage(role="user", content=content[:500])],
-                model=settings.guardrail_classifier_model,
+                model=_classifier_model(resolved_llm),
                 max_tokens=10,
             )
         )
