@@ -102,7 +102,7 @@ class ParsedDocumentResponse(BaseModel):
 
 
 class ReindexResponse(BaseModel):
-    id: str
+    id: UUID
     indexed_at: datetime
     chunk_count: int
 

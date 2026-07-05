@@ -172,7 +172,7 @@ export function useReindexDocument() {
       documentId,
     }: {
       documentId: string;
-      projectId?: string;
+      projectId: string;
     }) => {
       const response = await api.post<ReindexResponse>(`/documents/${documentId}/reindex`);
       return response.data;
@@ -180,9 +180,7 @@ export function useReindexDocument() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: documentKeys.detail(variables.documentId) });
       queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      if (variables.projectId) {
-        queryClient.invalidateQueries({ queryKey: projectKeys.detail(variables.projectId) });
-      }
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(variables.projectId) });
     },
   });
 }

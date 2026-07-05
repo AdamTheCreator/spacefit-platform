@@ -70,7 +70,8 @@ export function DocumentCard({
     isCompleted &&
     (!document.indexed_at ||
       (document.processed_at
-        ? document.indexed_at < document.processed_at
+        ? new Date(document.indexed_at).getTime() <
+          new Date(document.processed_at).getTime()
         : false));
 
   let freshnessTitle: string;

@@ -538,7 +538,11 @@ async def reindex_document(
     chunk_count = await index_document(db, document_id)
     await db.refresh(document)
 
-    assert document.indexed_at is not None
+    if document.indexed_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="indexed_at not set after re-index",
+        )
     return ReindexResponse(
         id=document.id,
         indexed_at=document.indexed_at,

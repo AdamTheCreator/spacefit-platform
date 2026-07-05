@@ -247,7 +247,7 @@ async def test_reindex_endpoint_200_for_completed_owned_doc(
 ) -> None:
     user_id = f"test-user-ok-{uuid.uuid4().hex[:8]}"
     project_id = f"test-proj-ok-{uuid.uuid4().hex[:8]}"
-    doc_id = f"test-doc-ok-{uuid.uuid4().hex[:8]}"
+    doc_id = str(uuid.uuid4())
     file_path = _write_temp_text_file("ok")
 
     try:
