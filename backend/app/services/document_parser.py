@@ -22,7 +22,7 @@ from app.models.document import (
 )
 
 # Default vision model (can be overridden with LLM_VISION_MODEL)
-VISION_MODEL = "claude-sonnet-4-20250514"
+VISION_MODEL = "claude-sonnet-4-5"
 
 # Lighter model for classification (fast + cheap, doesn't need Sonnet quality)
 CLASSIFICATION_MODEL = "claude-haiku-4-5-20251001"

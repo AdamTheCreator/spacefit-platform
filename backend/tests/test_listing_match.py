@@ -16,12 +16,18 @@ ORM model, so no DB/LLM wiring is needed.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
+from app.core.config import settings
+from app.llm.types import LLMResponse
+from app.services import listing_match as listing_match_module
 from app.services.listing_match import (
     build_buybox_text,
     format_listings_for_prompt,
+    match_listings_for_client,
     parse_score_array,
 )
+from app.services.user_llm import ResolvedLLM
 
 
 def _company(**kwargs) -> SimpleNamespace:
@@ -240,3 +246,84 @@ class TestParseScoreArray:
         raw = '[{"listing_id": "a", "fit_score": 1, "flags": "over budget"}]'
         out = parse_score_array(raw)
         assert out[0]["flags"] == ["over budget"]
+
+
+# --- match_listings_for_client (outgoing model under baseten) -------------
+
+
+class _FakeClient:
+    def __init__(self, content: str = "[]") -> None:
+        self._content = content
+        self.calls: list[Any] = []
+
+    async def chat(self, request):  # type: ignore[no-untyped-def]
+        self.calls.append(request)
+        return LLMResponse(content=self._content, tool_calls=[], stop_reason="end_turn")
+
+    async def aclose(self) -> None:  # pragma: no cover
+        pass
+
+
+def _resolved(client: Any, *, model: str, provider: str, is_byok: bool) -> ResolvedLLM:
+    return ResolvedLLM(
+        client=client, model=model, provider=provider, is_byok=is_byok
+    )
+
+
+def _listing() -> SimpleNamespace:
+    return SimpleNamespace(
+        id="lid-1",
+        address="1 Main St",
+        city="Austin",
+        state="TX",
+        zip_code="78701",
+        asset_type="retail",
+        size_sf=4000,
+        units=None,
+        price=2_000_000,
+        cap_rate=6.0,
+        year_built=2000,
+        description=None,
+    )
+
+
+class TestMatchListingsForClientOutgoingModel:
+    async def test_uses_resolved_baseten_model(self) -> None:
+        fake = _FakeClient(content="[]")
+        resolved = _resolved(
+            fake, model="spacegoose-advisor-v3", provider="baseten", is_byok=False
+        )
+        company = _company(name="Acme", criteria={"asset_types": ["retail"]})
+
+        out = await match_listings_for_client(company, [_listing()], resolved)
+
+        assert out == []
+        assert len(fake.calls) == 1
+        request = fake.calls[0]
+        assert request.model == "spacegoose-advisor-v3"
+        assert "haiku" not in request.model.lower()
+        assert "claude" not in request.model.lower()
+
+    async def test_falls_back_to_baseten_default_when_no_resolved_llm(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(settings, "llm_provider", "baseten")
+        monkeypatch.setattr(settings, "baseten_model", "spacegoose-advisor-v3")
+
+        fake = _FakeClient(content="[]")
+        monkeypatch.setattr(listing_match_module, "get_llm_client", lambda: fake)
+
+        company = _company(name="Acme")
+        await match_listings_for_client(company, [_listing()], None)
+
+        assert len(fake.calls) == 1
+        assert fake.calls[0].model == "spacegoose-advisor-v3"
+
+    async def test_empty_listings_skips_llm_call(self) -> None:
+        fake = _FakeClient()
+        resolved = _resolved(
+            fake, model="spacegoose-advisor-v3", provider="baseten", is_byok=False
+        )
+        out = await match_listings_for_client(_company(name="Empty"), [], resolved)
+        assert out == []
+        assert fake.calls == []

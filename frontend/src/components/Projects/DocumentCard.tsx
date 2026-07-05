@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, MoreHorizontal, Archive, Trash2 } from 'lucide-react';
+import { FileText, MoreHorizontal, Archive, Trash2, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ParsedDocument } from '../../types/document';
 import { documentKeys, fetchDocumentFile } from '../../hooks/useDocuments';
@@ -16,14 +16,44 @@ const TYPE_LABELS: Record<string, string> = {
   other: 'Document',
 };
 
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return 'recently';
+  const diffMs = Date.now() - then;
+  if (diffMs < 0) return 'just now';
+  const seconds = Math.round(diffMs / 1000);
+  if (seconds < 45) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.round(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.round(days / 365);
+  return `${years}y ago`;
+}
+
 interface DocumentCardProps {
   document: ParsedDocument;
   onClick?: () => void;
   onArchive?: (doc: ParsedDocument) => void;
   onDelete?: (doc: ParsedDocument) => void;
+  onReindex?: (doc: ParsedDocument) => void;
+  isReindexing?: boolean;
 }
 
-export function DocumentCard({ document, onClick, onArchive, onDelete }: DocumentCardProps) {
+export function DocumentCard({
+  document,
+  onClick,
+  onArchive,
+  onDelete,
+  onReindex,
+  isReindexing = false,
+}: DocumentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const queryClient = useQueryClient();
   const label = TYPE_LABELS[document.document_type] || 'Document';
@@ -32,8 +62,26 @@ export function DocumentCard({ document, onClick, onArchive, onDelete }: Documen
     : null;
   const isProcessing =
     document.status === 'pending' || document.status === 'processing';
-  const hasActions = onArchive || onDelete;
+  const isCompleted = document.status === 'completed';
+  const hasActions = onArchive || onDelete || onReindex;
   const canPrefetch = onClick && document.status === 'completed';
+
+  const stale =
+    isCompleted &&
+    (!document.indexed_at ||
+      (document.processed_at
+        ? new Date(document.indexed_at).getTime() <
+          new Date(document.processed_at).getTime()
+        : false));
+
+  let freshnessTitle: string;
+  if (!document.indexed_at) {
+    freshnessTitle = 'Not yet indexed — re-index to make it searchable';
+  } else if (stale) {
+    freshnessTitle = 'Indexed before the last reprocess — re-index to refresh';
+  } else {
+    freshnessTitle = `Indexed ${formatRelativeTime(document.indexed_at)}`;
+  }
 
   const handlePrefetch = () => {
     if (!canPrefetch) return;
@@ -67,9 +115,30 @@ export function DocumentCard({ document, onClick, onArchive, onDelete }: Documen
               <div className="text-sm font-medium text-industrial truncate pr-6">
                 {document.filename}
               </div>
-              <div className="mt-1 text-[11px] text-industrial-muted">
-                {label}
-                {confidence ? `  ${confidence}` : ''}
+              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-industrial-muted">
+                <span>
+                  {label}
+                  {confidence ? `  ${confidence}` : ''}
+                </span>
+                {isCompleted && (
+                  <span
+                    title={freshnessTitle}
+                    className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[11px] leading-none"
+                    style={
+                      stale
+                        ? {
+                            color: 'var(--color-warning)',
+                            backgroundColor: 'var(--bg-warning)',
+                          }
+                        : {
+                            color: 'var(--color-success)',
+                            backgroundColor: 'var(--bg-success)',
+                          }
+                    }
+                  >
+                    {stale ? 'Stale' : 'Fresh'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -112,6 +181,22 @@ export function DocumentCard({ document, onClick, onArchive, onDelete }: Documen
                   >
                     <Archive size={12} />
                     Archive
+                  </button>
+                )}
+                {onReindex && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isReindexing) return;
+                      setShowMenu(false);
+                      onReindex(document);
+                    }}
+                    disabled={isReindexing}
+                    aria-disabled={isReindexing}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-industrial-secondary transition-colors hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw size={12} />
+                    {isReindexing ? 'Re-indexing…' : 'Re-index'}
                   </button>
                 )}
                 {onDelete && (

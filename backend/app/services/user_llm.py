@@ -25,11 +25,12 @@ logger = logging.getLogger(__name__)
 
 # Default models per provider (used when user doesn't specify a model)
 PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": settings.anthropic_model or "claude-3-5-haiku-20241022",
+    "anthropic": settings.anthropic_model or "claude-haiku-4-5",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash",
     "deepseek": "deepseek-chat",
     "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
+    "baseten": settings.baseten_model or "Qwen/Qwen2.5-7B-Instruct",
     "openai_compatible": "",
 }
 
@@ -46,18 +47,21 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
 #   - platform_default: nothing to validate; this entry never reaches
 #     the validator.
 VALIDATION_MODELS: dict[str, str] = {
-    "anthropic": settings.anthropic_model or "claude-3-5-haiku-20241022",
+    "anthropic": settings.anthropic_model or "claude-haiku-4-5",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash-lite",
     "deepseek": "deepseek-chat",
     "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
+    # Baseten: validate against base Qwen — it is always loaded on the L4
+    # alongside the advisor LoRA adapters, so it is the safest probe.
+    "baseten": "Qwen/Qwen2.5-7B-Instruct",
 }
 
 # Previously-shipped model ids that can return provider-side 404s on some keys.
 _ANTHROPIC_DEPRECATED_MODEL_ALIASES: dict[str, str] = {
-    "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-3-5-haiku-20241022",
-    "claude-sonnet-4-6-20260320": "claude-3-5-sonnet-latest",
-    "claude-sonnet-4-20250514": "claude-3-5-sonnet-latest",
+    "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-haiku-4-5",
+    "claude-sonnet-4-6-20260320": "claude-sonnet-4-5",
+    "claude-sonnet-4-20250514": "claude-sonnet-4-5",
 }
 
 # Tier values that should route to paid-tier platform LLMs when the user
@@ -111,8 +115,49 @@ class ResolvedLLM:
     specialist_models: dict[str, str] | None = None
 
 
+def resolved_or_platform_model(resolved_llm: "ResolvedLLM | None") -> str:
+    """Pick a model id that matches the client that will receive the request.
+
+    Priority:
+      1. ``resolved_llm.model`` when a ResolvedLLM is supplied (covers both BYOK
+         and non-BYOK platform-default resolutions the caller has already done).
+      2. Provider-appropriate platform default keyed off ``settings.llm_provider``:
+         ``settings.baseten_model`` for baseten, ``settings.google_gemini_model``
+         for google, ``settings.anthropic_model`` otherwise.
+
+    Kept centralized so utility LLM call sites (fact_extractor, listing_match,
+    outreach_ai, void_analysis) never send a hardcoded Anthropic model id to a
+    Baseten-served client.
+    """
+    if resolved_llm is not None and resolved_llm.model:
+        return resolved_llm.model
+
+    provider = (settings.llm_provider or "").lower()
+    if provider == "baseten":
+        return settings.baseten_model
+    if provider == "google":
+        return settings.google_gemini_model
+    return settings.anthropic_model
+
+
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
     """Resolve platform-owned LLM based on subscription tier."""
+    # Operator opt-in: when ``LLM_PROVIDER=baseten`` is set globally, route
+    # every non-BYOK user (paid and free) through the self-hosted Baseten
+    # L4. This bypasses the tier split because we own the inference and
+    # want a single fine-tuned advisor model everywhere.
+    if (settings.llm_provider or "").lower() == "baseten":
+        return ResolvedLLM(
+            client=get_or_create_client(
+                provider="baseten",
+                api_key=settings.baseten_api_key,
+                base_url=settings.baseten_base_url,
+            ),
+            model=settings.llm_model or settings.baseten_model,
+            provider="baseten",
+            is_byok=False,
+        )
+
     if is_paid_tier(tier):
         # Paid tiers → Claude Haiku on platform key
         return ResolvedLLM(

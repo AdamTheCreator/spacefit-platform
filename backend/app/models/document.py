@@ -96,6 +96,15 @@ class ParsedDocumentResponse(BaseModel):
     is_archived: bool = False
     created_at: datetime
     processed_at: datetime | None = None
+    indexed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ReindexResponse(BaseModel):
+    id: UUID
+    indexed_at: datetime
+    chunk_count: int
 
     model_config = {"from_attributes": True}
 

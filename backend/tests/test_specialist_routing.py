@@ -99,7 +99,7 @@ async def test_single_specialist_plan_always_synthesizes():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -144,7 +144,7 @@ async def test_single_specialist_plan_always_synthesizes():
 
     # Fact extraction scheduled with the synthesis content
     schedule_mock.assert_called_once()
-    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]  # noqa: E501
 
     tools_mock.assert_not_called()
     plan_mock.assert_awaited_once()
@@ -196,7 +196,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis(
 
     synth_mock = AsyncMock(
         return_value={
-            "content": "Combined view: solid grocery competition; demographics support a mid-tier QSR.",
+            "content": "Combined view: solid grocery competition; demographics support a mid-tier QSR.",  # noqa: E501
             "input_tokens": 200,
             "output_tokens": 80,
         }
@@ -216,7 +216,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis(
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -260,7 +260,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis(
 
     assert history[-1] == {"role": "assistant", "content": summary["final_content"]}
     schedule_mock.assert_called_once()
-    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]  # noqa: E501
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
         }
     )
     synth_mock = AsyncMock(
-        return_value={"content": "Here is what I found.", "input_tokens": 30, "output_tokens": 20}
+        return_value={"content": "Here is what I found.", "input_tokens": 30, "output_tokens": 20}  # noqa: E501
     )
     save_mock = AsyncMock()
     record_mock = AsyncMock()
@@ -307,7 +307,7 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -376,7 +376,7 @@ async def test_byok_resolved_llm_passes_is_byok_true_to_token_usage():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -429,7 +429,7 @@ async def test_empty_plan_records_zero_tokens_and_skips_streaming():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -494,7 +494,7 @@ async def test_clarification_gate_skips_specialists():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -535,7 +535,7 @@ async def test_clarification_gate_skips_specialists():
     assert summary["output_tokens"] == 18
 
     schedule_mock.assert_called_once()
-    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]  # noqa: E501
     record_mock.assert_awaited_once()
     assert record_mock.await_args.args == ("u-1", 60, 18)
     assert record_mock.await_args.kwargs["is_byok"] is False
@@ -579,3 +579,131 @@ async def test_needs_clarification_helper_threads_byok_client():
     get_mock.assert_not_called()
     sent = fake_client.chat.await_args.args[0]
     assert sent.model == "custom-model"
+
+
+# ---------------------------------------------------------------------------
+# Platform-default resolution: LLM_PROVIDER=baseten cascades to both tiers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("tier", ["free", "pro"])
+def test_resolve_platform_default_baseten_routes_both_tiers(monkeypatch, tier):
+    from app.core.config import settings
+    from app.services import user_llm as user_llm_mod
+
+    monkeypatch.setattr(settings, "llm_provider", "baseten")
+    monkeypatch.setattr(settings, "llm_model", "spacegoose-advisor-v3")
+    monkeypatch.setattr(settings, "baseten_api_key", "test-baseten-key")
+    monkeypatch.setattr(
+        settings,
+        "baseten_base_url",
+        "https://model-3m50kp6w.api.baseten.co/environments/production/sync/v1",
+    )
+    monkeypatch.setattr(settings, "baseten_model", "Qwen/Qwen2.5-7B-Instruct")
+
+    sentinel_client = MagicMock(name="baseten_client")
+    factory_mock = MagicMock(return_value=sentinel_client)
+    monkeypatch.setattr(user_llm_mod, "get_or_create_client", factory_mock)
+
+    resolved = user_llm_mod._resolve_platform_default(tier)
+
+    assert resolved.provider == "baseten"
+    assert resolved.model == "spacegoose-advisor-v3"
+    assert resolved.is_byok is False
+    assert resolved.client is sentinel_client
+    factory_mock.assert_called_once_with(
+        provider="baseten",
+        api_key="test-baseten-key",
+        base_url=(
+            "https://model-3m50kp6w.api.baseten.co/environments/production/sync/v1"
+        ),
+    )
+
+
+def test_resolve_platform_default_baseten_falls_back_to_baseten_model(monkeypatch):
+    """When LLM_MODEL is unset, `model` falls back to settings.baseten_model."""
+    from app.core.config import settings
+    from app.services import user_llm as user_llm_mod
+
+    monkeypatch.setattr(settings, "llm_provider", "baseten")
+    monkeypatch.setattr(settings, "llm_model", "")
+    monkeypatch.setattr(settings, "baseten_api_key", "cfg-key")
+    monkeypatch.setattr(settings, "baseten_base_url", "https://from-settings/v1")
+    monkeypatch.setattr(settings, "baseten_model", "Qwen/Qwen2.5-7B-Instruct")
+
+    monkeypatch.setattr(
+        user_llm_mod, "get_or_create_client", MagicMock(return_value=MagicMock())
+    )
+    resolved = user_llm_mod._resolve_platform_default("free")
+    assert resolved.provider == "baseten"
+    assert resolved.model == "Qwen/Qwen2.5-7B-Instruct"
+
+
+# ---------------------------------------------------------------------------
+# Specialist cascade: platform default v3 propagates to all four specialists
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "specialist_name", ["scout", "analyst", "matchmaker", "outreach"]
+)
+def test_build_specialist_request_cascades_platform_default_v3(specialist_name):
+    from app.services.orchestrator import _build_specialist_request
+    from app.services.user_llm import ResolvedLLM
+
+    fake_client = MagicMock(name="baseten_client")
+    resolved = ResolvedLLM(
+        client=fake_client,
+        provider="baseten",
+        model="spacegoose-advisor-v3",
+        is_byok=False,
+        specialist_models=None,
+    )
+
+    request, llm, effective_model = _build_specialist_request(
+        name=specialist_name,
+        messages=[{"role": "user", "content": "analyze 337 W Mariposa Rd"}],
+        resolved_llm=resolved,
+        project_context=None,
+        document_context=None,
+        request_id=f"req-{specialist_name}",
+    )
+
+    assert effective_model == "spacegoose-advisor-v3"
+    assert request.model == "spacegoose-advisor-v3"
+    assert llm is fake_client
+
+
+def test_build_specialist_request_byok_override_wins_over_platform_default():
+    """Per-specialist BYOK model override still beats the resolved default."""
+    from app.services.orchestrator import _build_specialist_request
+    from app.services.user_llm import ResolvedLLM
+
+    fake_client = MagicMock(name="byok_client")
+    resolved = ResolvedLLM(
+        client=fake_client,
+        provider="anthropic",
+        model="claude-opus-4-6",
+        is_byok=True,
+        specialist_models={"analyst": "claude-sonnet-4-6"},
+    )
+
+    _, _, analyst_model = _build_specialist_request(
+        name="analyst",
+        messages=[{"role": "user", "content": "run the numbers"}],
+        resolved_llm=resolved,
+        project_context=None,
+        document_context=None,
+        request_id="req-analyst",
+    )
+    _, _, scout_model = _build_specialist_request(
+        name="scout",
+        messages=[{"role": "user", "content": "find sites"}],
+        resolved_llm=resolved,
+        project_context=None,
+        document_context=None,
+        request_id="req-scout",
+    )
+
+    assert analyst_model == "claude-sonnet-4-6"
+    assert scout_model == "claude-opus-4-6"

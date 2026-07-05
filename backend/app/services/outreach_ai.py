@@ -24,14 +24,13 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
 from app.services.email_blast import (
     generate_default_subject,
     generate_void_outreach_body,
     render_template,
 )
-from app.services.user_llm import ResolvedLLM
+from app.services.user_llm import ResolvedLLM, resolved_or_platform_model
 
 logger = logging.getLogger(__name__)
 
@@ -240,11 +239,7 @@ async def generate_outreach_email(
     voice_id = getattr(voice, "id", None) if voice is not None else None
 
     llm = resolved_llm.client if resolved_llm else get_llm_client()
-    model = (
-        resolved_llm.model
-        if resolved_llm
-        else (settings.llm_model or settings.anthropic_model)
-    )
+    model = resolved_or_platform_model(resolved_llm)
     is_byok = bool(resolved_llm and resolved_llm.is_byok)
 
     system = f"{_SYSTEM_PROMPT_BASE}\n\n{build_voice_block(voice)}"

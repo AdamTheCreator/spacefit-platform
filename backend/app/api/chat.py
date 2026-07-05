@@ -330,6 +330,8 @@ async def simulate_agent_work(
 
 async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
     """Validate token and return user."""
+    from app.db.models.subscription import Subscription
+
     payload = verify_token(token)
     if payload is None or payload.get("type") != "access":
         return None
@@ -338,7 +340,11 @@ async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
     if user_id is None:
         return None
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.subscription).selectinload(Subscription.plan))
+        .where(User.id == user_id)
+    )
     return result.scalar_one_or_none()
 
 

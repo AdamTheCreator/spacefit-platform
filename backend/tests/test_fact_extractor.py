@@ -8,16 +8,29 @@ database or a live LLM:
   * Jaccard similarity is sensible enough to suppress near-duplicates.
   * Confidence is clamped to ``[0.0, 1.0]``.
   * Categories outside the allow-list collapse to ``other``.
+
+Also locks down the mixed client/model fix: when the caller passes a
+``ResolvedLLM`` the outgoing ``LLMChatRequest.model`` matches
+``resolved_llm.model``; when no ``ResolvedLLM`` is supplied under
+``LLM_PROVIDER=baseten`` the extractor falls back to
+``settings.baseten_model`` instead of the Anthropic default.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
+from app.core.config import settings
+from app.llm.types import LLMResponse
+from app.services import fact_extractor as fact_extractor_module
 from app.services.fact_extractor import (
     _jaccard_similarity,
     _parse_fact_payload,
+    extract_facts_from_turn,
 )
+from app.services.user_llm import ResolvedLLM
 
 
 def test_parse_handles_plain_json_list():
@@ -105,3 +118,70 @@ def test_jaccard_similarity_distinguishes_unrelated():
 def test_jaccard_similarity_handles_empty_inputs():
     assert _jaccard_similarity("", "anything") == 0.0
     assert _jaccard_similarity("anything", "") == 0.0
+
+
+class _FakeClient:
+    """Minimal LLMClient stand-in that records the ``LLMChatRequest``."""
+
+    def __init__(self, content: str = "[]") -> None:
+        self._content = content
+        self.calls: list[Any] = []
+
+    async def chat(self, request):  # type: ignore[no-untyped-def]
+        self.calls.append(request)
+        return LLMResponse(content=self._content, tool_calls=[], stop_reason="end_turn")
+
+    async def aclose(self) -> None:  # pragma: no cover
+        pass
+
+
+def _resolved(client: Any, *, model: str, provider: str, is_byok: bool) -> ResolvedLLM:
+    return ResolvedLLM(
+        client=client, model=model, provider=provider, is_byok=is_byok
+    )
+
+
+async def test_extract_facts_uses_resolved_baseten_model() -> None:
+    """Under LLM_PROVIDER=baseten with a ResolvedLLM, the outgoing request
+    carries ``resolved_llm.model`` (spacegoose-advisor-v3), not the Anthropic
+    default. The LLM returns ``[]`` so no DB write is attempted."""
+    fake = _FakeClient(content="[]")
+    resolved = _resolved(
+        fake, model="spacegoose-advisor-v3", provider="baseten", is_byok=False
+    )
+
+    persisted = await extract_facts_from_turn(
+        user_id="user-1",
+        user_message="I focus on Charlotte grocery-anchored deals.",
+        assistant_response="Great, noted your Charlotte focus.",
+        resolved_llm=resolved,
+    )
+
+    assert persisted == []
+    assert len(fake.calls) == 1
+    request = fake.calls[0]
+    assert request.model == "spacegoose-advisor-v3"
+    assert "haiku" not in request.model.lower()
+    assert "claude" not in request.model.lower()
+
+
+async def test_extract_facts_falls_back_to_baseten_default_when_no_resolved_llm(
+    monkeypatch,
+) -> None:
+    """No ``ResolvedLLM`` supplied and ``LLM_PROVIDER=baseten`` → outgoing model
+    is ``settings.baseten_model``, not the retired Anthropic default."""
+    monkeypatch.setattr(settings, "llm_provider", "baseten")
+    monkeypatch.setattr(settings, "baseten_model", "spacegoose-advisor-v3")
+
+    fake = _FakeClient(content="[]")
+    monkeypatch.setattr(fact_extractor_module, "get_llm_client", lambda: fake)
+
+    await extract_facts_from_turn(
+        user_id="user-2",
+        user_message="Where should I look for value-add multifamily?",
+        assistant_response="Consider Sunbelt secondary markets.",
+        resolved_llm=None,
+    )
+
+    assert len(fake.calls) == 1
+    assert fake.calls[0].model == "spacegoose-advisor-v3"

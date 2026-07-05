@@ -117,7 +117,7 @@ class Settings(BaseSettings):
 
     # Anthropic AI
     anthropic_api_key: str = Field(default="")
-    anthropic_model: str = Field(default="claude-3-5-haiku-20241022")
+    anthropic_model: str = Field(default="claude-haiku-4-5")
 
     # LLM Routing / Provider Abstraction
     # - LLM_PROVIDER=anthropic (default) uses ANTHROPIC_API_KEY and ANTHROPIC_MODEL
@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     guardrail_rate_limit_messages: int = Field(default=30)
     guardrail_rate_limit_window_seconds: int = Field(default=60)
     guardrail_tool_recursion_max_depth: int = Field(default=3)
-    guardrail_classifier_model: str = Field(default="claude-3-5-haiku-20241022")
+    guardrail_classifier_model: str = Field(default="claude-haiku-4-5")
     guardrail_free_monthly_token_budget: int = Field(default=500_000)
     guardrail_pro_monthly_token_budget: int = Field(default=-1)
 
@@ -165,6 +165,19 @@ class Settings(BaseSettings):
     huggingface_api_key: str = Field(default="")
     huggingface_model: str = Field(default="Qwen/Qwen2.5-7B-Instruct")
     huggingface_base_url: str = Field(default="https://router.huggingface.co/v1")
+
+    # Baseten (self-hosted Qwen2.5-7B + advisor LoRAs on an L4, vLLM,
+    # OpenAI-compatible /v1). BYOK: users supply their Baseten API key +
+    # endpoint URL via /ai-config. These platform-level fields make Baseten
+    # available as an operator-opt-in platform default
+    # (LLM_PROVIDER=baseten + BASETEN_API_KEY + BASETEN_BASE_URL). No default
+    # base_url — it is deployment-specific (contains the Baseten model id).
+    # NOTE: advisor quality (v3 ~3.05/5) is not yet at parity with Haiku
+    # (4.35/5); do not set this as the global default until the eval clears
+    # the non-regression gate on both tool-calling AND advisory dimensions.
+    baseten_api_key: str = Field(default="")
+    baseten_model: str = Field(default="Qwen/Qwen2.5-7B-Instruct")
+    baseten_base_url: str = Field(default="")
 
     # Census Bureau API
     census_api_key: str = Field(default="")

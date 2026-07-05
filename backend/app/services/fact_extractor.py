@@ -33,7 +33,7 @@ from app.core.database import async_session_factory
 from app.db.models.user_fact import UserFact
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
 from app.llm.redaction import redact_secrets
-from app.services.user_llm import ResolvedLLM
+from app.services.user_llm import ResolvedLLM, resolved_or_platform_model
 
 logger = logging.getLogger(__name__)
 
@@ -156,15 +156,7 @@ async def extract_facts_from_turn(
         return []
 
     llm = resolved_llm.client if resolved_llm else get_llm_client()
-    model = (
-        resolved_llm.model
-        if resolved_llm
-        else None
-    )
-    if not model:
-        from app.core.config import settings
-
-        model = settings.anthropic_model or "claude-3-5-haiku-20241022"
+    model = resolved_or_platform_model(resolved_llm)
 
     user_payload = (
         "User message:\n"

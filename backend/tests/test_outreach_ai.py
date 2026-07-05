@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from app.core.config import settings
 from app.llm.types import LLMResponse
+from app.services import outreach_ai as outreach_ai_module
 from app.services.outreach_ai import (
     _append_signature,
     _normalize_body_html,
@@ -269,3 +271,45 @@ class TestGenerateOutreachEmail:
         assert out.fallback_used is False
         # Subject backfilled from the property name.
         assert "Cedar Commons" in out.subject
+
+    async def test_uses_resolved_baseten_model(self) -> None:
+        """Under a Baseten ``ResolvedLLM`` the outgoing request carries the
+        resolved model id (spacegoose-advisor-v3), not an Anthropic default."""
+        fake = _FakeClient('{"subject": "S", "body": "<p>B</p>"}')
+        resolved = ResolvedLLM(
+            client=fake,  # type: ignore[arg-type]
+            model="spacegoose-advisor-v3",
+            provider="baseten",
+            is_byok=False,
+        )
+        out = await generate_outreach_email(
+            resolved_llm=resolved,
+            voice=None,
+            property_name="Harper & Ninth",
+        )
+        assert out.fallback_used is False
+        assert out.model == "spacegoose-advisor-v3"
+        assert len(fake.calls) == 1
+        assert fake.calls[0].model == "spacegoose-advisor-v3"
+        assert "haiku" not in fake.calls[0].model.lower()
+        assert "claude" not in fake.calls[0].model.lower()
+
+    async def test_falls_back_to_baseten_default_when_no_resolved_llm(
+        self, monkeypatch
+    ) -> None:
+        """No ``ResolvedLLM`` + ``LLM_PROVIDER=baseten`` → outgoing model is
+        ``settings.baseten_model``, not an Anthropic default."""
+        monkeypatch.setattr(settings, "llm_provider", "baseten")
+        monkeypatch.setattr(settings, "baseten_model", "spacegoose-advisor-v3")
+
+        fake = _FakeClient('{"subject": "S", "body": "<p>B</p>"}')
+        monkeypatch.setattr(outreach_ai_module, "get_llm_client", lambda: fake)
+
+        out = await generate_outreach_email(
+            resolved_llm=None,
+            voice=None,
+            property_name="Harper & Ninth",
+        )
+        assert out.model == "spacegoose-advisor-v3"
+        assert len(fake.calls) == 1
+        assert fake.calls[0].model == "spacegoose-advisor-v3"

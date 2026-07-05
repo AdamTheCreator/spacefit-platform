@@ -25,6 +25,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Sequence
 
 from sqlalchemy import delete, select
@@ -249,6 +250,8 @@ async def index_document(
                 token_count=c.token_count,
             )
         )
+
+    doc.indexed_at = datetime.utcnow()
 
     if commit:
         await db.commit()

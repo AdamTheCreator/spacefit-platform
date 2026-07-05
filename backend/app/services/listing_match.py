@@ -15,9 +15,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
-from app.services.user_llm import ResolvedLLM
+from app.services.user_llm import ResolvedLLM, resolved_or_platform_model
 
 # Cap how many listings we feed the model in one shot — keeps the prompt
 # bounded and the single call cheap. The endpoint already clamps by `limit`,
@@ -249,11 +248,7 @@ async def match_listings_for_client(
     listings_block = format_listings_for_prompt(listings)
 
     llm = resolved_llm.client if resolved_llm else get_llm_client()
-    model = (
-        resolved_llm.model
-        if resolved_llm
-        else (settings.llm_model or settings.anthropic_model)
-    )
+    model = resolved_or_platform_model(resolved_llm)
 
     user_content = (
         "CLIENT BUY-BOX:\n"
