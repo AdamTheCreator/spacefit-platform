@@ -34,6 +34,7 @@ from app.models.document import (
     ParsedDocumentDetailResponse,
     ParsedDocumentResponse,
     InvestmentMemoResponse,
+    ReindexResponse,
     StartAnalysisResponse,
 )
 from app.services.document_parser import parse_document
@@ -500,6 +501,48 @@ async def reprocess_document(
         filename=document.filename,
         status=DocumentStatus.PENDING,
         message="Document queued for reprocessing.",
+    )
+
+
+@router.post("/{document_id}/reindex", response_model=ReindexResponse)
+async def reindex_document(
+    document_id: str,
+    db: DBSession,
+    current_user: CurrentUser,
+) -> ReindexResponse:
+    """Re-run chunking for a completed document and stamp ``indexed_at``."""
+    from app.services.document_chunker import index_document
+
+    result = await db.execute(
+        select(ParsedDocument).where(
+            ParsedDocument.id == document_id,
+            ParsedDocument.user_id == current_user.id,
+        )
+    )
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if document.status != DocumentStatus.COMPLETED.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Document is not in a completed state (status={document.status})"
+            ),
+        )
+
+    chunk_count = await index_document(db, document_id)
+    await db.refresh(document)
+
+    assert document.indexed_at is not None
+    return ReindexResponse(
+        id=document.id,
+        indexed_at=document.indexed_at,
+        chunk_count=chunk_count,
     )
 
 

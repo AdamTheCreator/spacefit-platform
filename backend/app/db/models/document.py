@@ -80,6 +80,7 @@ class ParsedDocument(Base):
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Analysis session link (created when user starts analysis from this document)
     analysis_session_id: Mapped[str | None] = mapped_column(
