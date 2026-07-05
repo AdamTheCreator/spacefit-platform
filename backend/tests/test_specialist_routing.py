@@ -99,7 +99,7 @@ async def test_single_specialist_plan_always_synthesizes():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -144,7 +144,7 @@ async def test_single_specialist_plan_always_synthesizes():
 
     # Fact extraction scheduled with the synthesis content
     schedule_mock.assert_called_once()
-    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]  # noqa: E501
 
     tools_mock.assert_not_called()
     plan_mock.assert_awaited_once()
@@ -196,7 +196,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis(
 
     synth_mock = AsyncMock(
         return_value={
-            "content": "Combined view: solid grocery competition; demographics support a mid-tier QSR.",
+            "content": "Combined view: solid grocery competition; demographics support a mid-tier QSR.",  # noqa: E501
             "input_tokens": 200,
             "output_tokens": 80,
         }
@@ -216,7 +216,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis(
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -260,7 +260,7 @@ async def test_multi_specialist_plan_runs_synthesis_and_persists_only_synthesis(
 
     assert history[-1] == {"role": "assistant", "content": summary["final_content"]}
     schedule_mock.assert_called_once()
-    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]  # noqa: E501
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
         }
     )
     synth_mock = AsyncMock(
-        return_value={"content": "Here is what I found.", "input_tokens": 30, "output_tokens": 20}
+        return_value={"content": "Here is what I found.", "input_tokens": 30, "output_tokens": 20}  # noqa: E501
     )
     save_mock = AsyncMock()
     record_mock = AsyncMock()
@@ -307,7 +307,7 @@ async def test_specialist_tool_calls_dispatch_to_handle_tool_calls():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -376,7 +376,7 @@ async def test_byok_resolved_llm_passes_is_byok_true_to_token_usage():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -429,7 +429,7 @@ async def test_empty_plan_records_zero_tokens_and_skips_streaming():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -494,7 +494,7 @@ async def test_clarification_gate_skips_specialists():
         patch.object(chat_mod, "_schedule_fact_extraction", schedule_mock),
         patch.object(chat_mod, "handle_tool_calls", tools_mock),
         patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
-        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
     ):
         summary = await chat_mod._run_specialist_routing_turn(
             ws,  # type: ignore[arg-type]
@@ -535,7 +535,7 @@ async def test_clarification_gate_skips_specialists():
     assert summary["output_tokens"] == 18
 
     schedule_mock.assert_called_once()
-    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]
+    assert schedule_mock.call_args.kwargs["assistant_response"] == summary["final_content"]  # noqa: E501
     record_mock.assert_awaited_once()
     assert record_mock.await_args.args == ("u-1", 60, 18)
     assert record_mock.await_args.kwargs["is_byok"] is False
