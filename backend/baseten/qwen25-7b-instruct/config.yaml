@@ -13,8 +13,10 @@ base_image:
   image: vllm/vllm-openai:v0.12.0
 
 docker_server:
-  # vLLM pulls the (public, ungated) weights from HF on first boot. Simple and
-  # robust for the first deploy; we add weight caching later to speed cold starts.
+  # vLLM now loads the base weights from the Baseten model_cache volume (pre-fetched
+  # by `truss-transfer-cli` into /app/model_cache/qwen25-7b-instruct-weights) rather
+  # than re-downloading the ~15 GB bf16 checkpoint from HF on every cold start. The
+  # served model name stays `Qwen/Qwen2.5-7B-Instruct` so callers see the same id.
   #   --enable-auto-tool-choice + --tool-call-parser hermes  ← the fix for the
   #     HF-router flakiness: a single, known tool-call parser for Qwen2.5, so
   #     tool calls are emitted and parsed consistently every time.
@@ -30,7 +32,7 @@ docker_server:
   #   --max-lora-rank 64  ← MUST be >= the adapter's rank. Together's `lora=True`
   #     trained this at r=64/alpha=128 (its default, not our Axolotl r=16 yaml).
   start_command: >-
-    vllm serve Qwen/Qwen2.5-7B-Instruct
+    bash -c "truss-transfer-cli && vllm serve /app/model_cache/qwen25-7b-instruct-weights
     --host 0.0.0.0
     --port 8000
     --served-model-name Qwen/Qwen2.5-7B-Instruct
@@ -41,11 +43,28 @@ docker_server:
     --tool-call-parser hermes
     --enable-lora
     --max-lora-rank 64
-    --lora-modules spacegoose-advisor=/app/data/advisor_adapter spacegoose-advisor-v2=/app/data/advisor_adapter_v2 spacegoose-advisor-v3=/app/data/advisor_adapter_v3
+    --lora-modules spacegoose-advisor=/app/data/advisor_adapter spacegoose-advisor-v2=/app/data/advisor_adapter_v2 spacegoose-advisor-v3=/app/data/advisor_adapter_v3"
   server_port: 8000
   predict_endpoint: /v1/chat/completions
   readiness_endpoint: /health
   liveness_endpoint: /health
+
+# Baseten model_cache: prefetch Qwen2.5-7B-Instruct weights from HuggingFace into
+# /app/model_cache/qwen25-7b-instruct-weights so vLLM no longer re-downloads them on
+# every cold start. `truss-transfer-cli` in the start_command blocks until the files
+# are ready before vLLM launches. Public repo, so no `runtime_secret_name` needed.
+model_cache:
+  - repo_id: Qwen/Qwen2.5-7B-Instruct
+    revision: main
+    use_volume: true
+    volume_folder: qwen25-7b-instruct-weights
+    allow_patterns:
+      - "*.json"
+      - "*.safetensors"
+      - "tokenizer*"
+      - "vocab*"
+      - "merges.txt"
+      - "*.py"
 
 resources:
   accelerator: L4
