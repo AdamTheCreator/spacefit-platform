@@ -71,7 +71,7 @@ class TestEffectiveProviderModel:
         )
         provider, model = _effective_provider_model(config, "pro")
         assert provider == "anthropic"
-        assert model == "claude-3-5-sonnet-latest"
+        assert model == "claude-sonnet-4-5"
 
     def test_valid_byok_config_wins_over_tier_default(self) -> None:
         config = SimpleNamespace(

@@ -56,8 +56,8 @@ VALIDATION_MODELS: dict[str, str] = {
 # Previously-shipped model ids that can return provider-side 404s on some keys.
 _ANTHROPIC_DEPRECATED_MODEL_ALIASES: dict[str, str] = {
     "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-haiku-4-5",
-    "claude-sonnet-4-6-20260320": "claude-3-5-sonnet-latest",
-    "claude-sonnet-4-20250514": "claude-3-5-sonnet-latest",
+    "claude-sonnet-4-6-20260320": "claude-sonnet-4-5",
+    "claude-sonnet-4-20250514": "claude-sonnet-4-5",
 }
 
 # Tier values that should route to paid-tier platform LLMs when the user
