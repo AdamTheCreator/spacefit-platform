@@ -187,20 +187,29 @@ The circuit breaker is in-memory + per-process; swap to Redis when we add backgr
 
 ## Specialist agent loop
 
-The modern `/ws` chat endpoint routes through specialist agents when `settings.enable_specialist_routing` is true (default). Flow per turn:
+The modern `/ws` chat endpoint routes through specialist agents when `settings.enable_specialist_routing` is true (default). **The user only ever sees a single "Space Goose Assistant" bubble per turn** — specialists run silently under the hood, mainstream-assistant style (ChatGPT / Claude / Gemini). Orchestration is an implementation detail; the progress strip is the only surface that hints at it.
 
-1. **Plan** — `app/services/orchestrator.py::plan_workflow` asks a small LLM to return a comma-separated list drawn from the keys in `app/agents/specialists/registry.py::SPECIALIST_REGISTRY` (`scout`, `analyst`, `matchmaker`, …). Parse failures and LLM errors both fall back to `["scout"]` so a single specialist always runs.
-2. **Workflow init** — the WS emits a `workflow_init` event with one step per planned specialist so the frontend's `AgentActivityPanel` can render the strip and highlight the active node as messages arrive.
-3. **Per-specialist streaming** — `_stream_specialist_to_ws` (in `app/api/chat.py`) calls `call_specialist_stream` for each name in order, carrying prior specialist outputs as assistant context. Each specialist emits its own `message_start` / `text_delta` / `message_end` triple with the right `agent_type` badge (mapping lives in `_SPECIALIST_TO_AGENT_TYPE`).
-4. **Synthesis** — if more than one specialist ran, the orchestrator streams a final synthesis pass. If only one ran, its content becomes the assistant turn directly.
-5. **Fallback** — any exception inside the routing branch falls through to the legacy monolithic `_stream_orchestrator_to_ws`, so a bad plan or a flaky specialist never breaks the chat surface.
+Flow per turn:
+
+1. **Clarification gate** — `app/services/orchestrator.py::needs_clarification` runs first: a tiny BYOK-aware LLM triage call (max_tokens=10, READY/CLARIFY). Vague input (bare "Analyze property" with no address, greetings, "help") returns CLARIFY, and `_run_specialist_routing_turn` skips specialist routing entirely — no `workflow_init`, no fan-out. The orchestrator streams one clarifying question and that's the whole turn. Any LLM error defaults to READY so a flaky triage call never blocks a real request.
+2. **Plan** — `plan_workflow` asks a small LLM to return a comma-separated list drawn from the keys in `app/agents/specialists/registry.py::SPECIALIST_REGISTRY` (`scout`, `analyst`, `matchmaker`, …). Parse failures and LLM errors both fall back to `["scout"]` so a single specialist always runs.
+3. **Workflow init** — the WS emits a `workflow_init` event with one step per planned specialist so the frontend's `AgentActivityPanel` can render the progress strip and highlight the active node. This is the ONLY user-visible signal that multiple agents are working.
+4. **Silent specialist streaming** — `_stream_specialist_to_ws` (in `app/api/chat.py`) is called with `stream_to_client=False`. It runs `call_specialist_stream` for each name in order (carrying prior specialists' outputs as assistant context), executes their tool calls, buffers their content — but emits **no** `message_start` / `text_delta` / `message_end` / `tool_use_start` frames to the client. Only `workflow_update` running/completed events fire.
+5. **Always synthesize** — after all specialists finish, the orchestrator ALWAYS runs a final streaming synthesis pass through `_stream_orchestrator_to_ws`, even for single-specialist plans. This is the ONLY user-facing bubble. Per-specialist content is treated as intermediate work product and is NOT persisted to the transcript; only the final orchestrator synthesis is `save_message_to_db`'d.
+6. **Fallback** — any exception inside the routing branch falls through to the legacy monolithic `_stream_orchestrator_to_ws`, so a bad plan or a flaky specialist never breaks the chat surface.
+
+**Cost note:** always-synthesize adds one orchestrator call per delegated turn, and the clarification gate adds one tiny call per turn — but the gate short-circuits the whole specialist fan-out for vague inputs (net neutral or cheaper for the common starter-card flow).
+
+**Frontend starter cards** (`components/Chat/ChatContainer.tsx`) don't send the bare card title anymore. Clicking "Analyze property" prefills the composer with `"Analyze property: "` and focuses it (via `draft` + `draftNonce` props on `ChatInput`), forcing the user to add the address/tenant/detail before sending. This is the frontend half of the two-layer validation gate the backend clarification check completes.
 
 Per-specialist model overrides come from `ResolvedLLM.specialist_models[name]` (BYOK setting); `_build_specialist_request` picks the override first, then the resolved default. Tools are filtered per specialist via `SPECIALIST_REGISTRY[name].allowed_tools`. When you add a specialist:
 
 1. Register it in `SPECIALIST_REGISTRY` with `system_prompt`, `allowed_tools`, and a tier hint.
-2. Add the literal name to `AgentType` in both `backend/app/models/chat.py` and `frontend/src/types/chat.ts` (plus the `AGENTS` map for the human-readable label).
+2. Add the literal name to `AgentType` in both `backend/app/models/chat.py` and `frontend/src/types/chat.ts` (plus the `AGENTS` map for the human-readable label — this only surfaces in the progress strip now, not in message bubbles).
 3. Extend `_SPECIALIST_TO_AGENT_TYPE` in `app/api/chat.py` — the test `test_specialist_agent_type_map_is_complete` enforces this so a missing entry fails CI before it ships.
 4. Add an SVG icon + color entry + `idle` initial state in `frontend/src/components/Chat/AgentActivityPanel.tsx` (all three `Record<AgentType, …>` maps must stay complete or `tsc` fails).
+
+**Do not surface specialist content as its own chat bubble.** If you need a genuinely multi-persona experience (which we deliberately do not have), do it by extending the progress strip, not by re-enabling `stream_to_client=True` on `_stream_specialist_to_ws`. The single-voice contract is enforced by `tests/test_specialist_routing.py` — any change that starts persisting per-specialist rows or emitting specialist `message_end` frames will break those tests.
 
 ## Memory + personalization
 
@@ -332,3 +341,37 @@ Active effort to move the chat off the Anthropic API onto a self-hosted, fine-tu
   - The configured `anthropic_model` default `claude-3-5-haiku-20241022` is **retired (404s)**; fix-forward to `claude-haiku-4-5` is owed (see MIGRATION.md §4.1).
   - Vision document parsing stays on Anthropic (out of scope). BYOK stays the "bring your own frontier model" path; the fine-tuned Qwen becomes the platform default.
 - **File map:** evals `backend/evals/`; serving Truss `backend/baseten/qwen25-7b-instruct/`; data + training `backend/finetune/` (`curate.py`, `build_memo_dataset.py`, `together_submit.py`, `training/`).
+
+### Local serving on Mac Mini (alternative to Baseten)
+
+The fine-tuned Qwen2.5-7B can be served locally on the Mac Mini via **Ollama** instead of Baseten. This is viable for dev and light prod traffic — 7B Q4 needs ~6 GB RAM, so 16 GB+ is comfortable.
+
+**Setup:**
+
+```bash
+brew install ollama
+ollama pull qwen2.5:7b-instruct     # base model; for LoRA adapter see below
+ollama serve                         # auto-starts on localhost:11434
+```
+
+**To load a fine-tuned LoRA adapter**, create a `Modelfile`:
+
+```
+FROM qwen2.5:7b-instruct
+ADAPTER /path/to/adapter/gguf
+```
+
+Then `ollama create spacegoose-advisor -f Modelfile`.
+
+**Backend env vars** (in `.env` or Render dashboard):
+
+```
+LLM_PROVIDER=openai_compatible
+LLM_MODEL=spacegoose-advisor        # or qwen2.5:7b-instruct for base
+OPENAI_BASE_URL=http://<mac-mini-ip>:11434/v1
+OPENAI_API_KEY=ollama                # Ollama ignores this but the client requires non-empty
+```
+
+This works because `app/llm/client.py` routes `openai_compatible` through `OpenAICompatibleLLMClient`, which speaks the same OpenAI-format API that Ollama exposes at `/v1`. No code changes needed — only env vars.
+
+**Current prod status (2026-07-05):** `render.yaml` declares `LLM_PROVIDER=baseten` + `LLM_MODEL=spacegoose-advisor-v3` but `BASETEN_API_KEY` / `BASETEN_BASE_URL` are not set in Render, so **prod LLM calls are failing silently**. Either set the Baseten credentials, point to the Mac Mini Ollama endpoint, or revert to `LLM_PROVIDER=anthropic` until self-hosted serving is ready.
