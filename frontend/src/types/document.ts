@@ -65,6 +65,7 @@ export interface ParsedDocument {
   is_archived: boolean;
   created_at: string;
   processed_at: string | null;
+  indexed_at: string | null;
 }
 
 export interface ParsedDocumentDetail extends ParsedDocument {

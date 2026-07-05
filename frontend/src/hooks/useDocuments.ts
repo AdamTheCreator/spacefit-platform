@@ -10,6 +10,7 @@ import type {
   StartAnalysisResponse,
 } from '../types/document';
 import { useUploadStore } from '../stores/uploadStore';
+import { projectKeys } from './useProjects';
 
 interface DocumentsQueryParams {
   page?: number;
@@ -152,6 +153,36 @@ export function useReprocessDocument() {
     onSuccess: (_, documentId) => {
       queryClient.invalidateQueries({ queryKey: documentKeys.detail(documentId) });
       queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
+    },
+  });
+}
+
+export interface ReindexResponse {
+  id: string;
+  indexed_at: string;
+  chunk_count: number;
+}
+
+// Reindex document mutation
+export function useReindexDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      documentId,
+    }: {
+      documentId: string;
+      projectId?: string;
+    }) => {
+      const response = await api.post<ReindexResponse>(`/documents/${documentId}/reindex`);
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: documentKeys.detail(variables.documentId) });
+      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
+      if (variables.projectId) {
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(variables.projectId) });
+      }
     },
   });
 }

@@ -16,6 +16,7 @@ import { useUpdateProject, projectKeys } from '../../hooks/useProjects';
 import {
   useArchiveDocument,
   useDeleteDocument,
+  useReindexDocument,
   documentKeys,
 } from '../../hooks/useDocuments';
 import { useUploadStore, type UploadItem } from '../../stores/uploadStore';
@@ -56,6 +57,7 @@ export function ProjectSidebar({
   const updateProject = useUpdateProject();
   const archiveDocument = useArchiveDocument();
   const deleteDocument = useDeleteDocument();
+  const reindexDocument = useReindexDocument();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const store = useUploadStore.getState;
   const uploadItems = useUploadStore((s) => s.items);
@@ -244,6 +246,20 @@ export function ProjectSidebar({
       toast.error('Failed to delete document');
     }
   };
+
+  const handleReindexDoc = async (doc: ParsedDocument) => {
+    try {
+      await reindexDocument.mutateAsync({ documentId: doc.id, projectId: project.id });
+      toast.success(`Re-indexed "${doc.filename}"`);
+    } catch {
+      toast.error('Failed to re-index document');
+    }
+  };
+
+  const reindexingDocumentId =
+    reindexDocument.isPending && reindexDocument.variables
+      ? reindexDocument.variables.documentId
+      : null;
 
   const prop = project.property;
 
@@ -472,6 +488,8 @@ export function ProjectSidebar({
                     onClick={() => setPreviewDocument(doc)}
                     onArchive={handleArchiveDoc}
                     onDelete={handleDeleteDoc}
+                    onReindex={handleReindexDoc}
+                    isReindexing={reindexingDocumentId === doc.id}
                   />
                 ))}
               </div>
