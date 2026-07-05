@@ -1,7 +1,7 @@
 """document freshness: add parsed_documents.indexed_at
 
-Revision ID: 040
-Revises: 039
+Revision ID: 039
+Revises: 038
 Create Date: 2026-07-04
 
 Adds a nullable ``indexed_at`` timestamp to ``parsed_documents`` so the
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "040"
-down_revision: str = "039"
+revision: str = "039"
+down_revision: str = "038"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
