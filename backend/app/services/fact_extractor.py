@@ -164,7 +164,7 @@ async def extract_facts_from_turn(
     if not model:
         from app.core.config import settings
 
-        model = settings.anthropic_model or "claude-3-5-haiku-20241022"
+        model = settings.anthropic_model or "claude-haiku-4-5"
 
     user_payload = (
         "User message:\n"

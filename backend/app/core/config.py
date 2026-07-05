@@ -117,7 +117,7 @@ class Settings(BaseSettings):
 
     # Anthropic AI
     anthropic_api_key: str = Field(default="")
-    anthropic_model: str = Field(default="claude-3-5-haiku-20241022")
+    anthropic_model: str = Field(default="claude-haiku-4-5")
 
     # LLM Routing / Provider Abstraction
     # - LLM_PROVIDER=anthropic (default) uses ANTHROPIC_API_KEY and ANTHROPIC_MODEL
@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     guardrail_rate_limit_messages: int = Field(default=30)
     guardrail_rate_limit_window_seconds: int = Field(default=60)
     guardrail_tool_recursion_max_depth: int = Field(default=3)
-    guardrail_classifier_model: str = Field(default="claude-3-5-haiku-20241022")
+    guardrail_classifier_model: str = Field(default="claude-haiku-4-5")
     guardrail_free_monthly_token_budget: int = Field(default=500_000)
     guardrail_pro_monthly_token_budget: int = Field(default=-1)
 
