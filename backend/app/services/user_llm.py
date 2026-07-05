@@ -54,7 +54,7 @@ VALIDATION_MODELS: dict[str, str] = {
     "huggingface": settings.huggingface_model or "Qwen/Qwen2.5-7B-Instruct",
     # Baseten: validate against base Qwen — it is always loaded on the L4
     # alongside the advisor LoRA adapters, so it is the safest probe.
-    "baseten": settings.baseten_model or "Qwen/Qwen2.5-7B-Instruct",
+    "baseten": "Qwen/Qwen2.5-7B-Instruct",
 }
 
 # Previously-shipped model ids that can return provider-side 404s on some keys.
