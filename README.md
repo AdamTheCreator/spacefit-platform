@@ -85,6 +85,6 @@ Authorization: Bearer <token>
 ```
 
 - **UI:** the Project sidebar's Documents rail renders a `Fresh` / `Stale`
-  badge on each `DocumentCard` (stale after 7 days without a re-index) and a
+  badge on each `DocumentCard` (stale when the document has never been indexed, or was reprocessed after its most recent index) and a
   `Re-index` item in the kebab menu that fires the endpoint, disables itself
   while the mutation is pending, and surfaces success/error via a sonner toast.
