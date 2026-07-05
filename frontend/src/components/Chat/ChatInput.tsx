@@ -5,12 +5,19 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** When set, the composer prefills this text and focuses itself.
+   *  Re-triggering with the same text still applies because the
+   *  parent bumps `draftNonce` on each starter-card click. */
+  draft?: string;
+  draftNonce?: number;
 }
 
 export function ChatInput({
   onSend,
   disabled = false,
   placeholder = 'Type your message...',
+  draft,
+  draftNonce,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -35,6 +42,21 @@ export function ChatInput({
       }
     }
   }, [input, isFocused]);
+
+  // Apply an external draft (e.g. from a starter-card click) by
+  // prefilling the composer and focusing it so the user can add the
+  // required detail (address, tenant, etc.) before sending.
+  useEffect(() => {
+    if (!draft) return;
+    setInput(draft);
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.focus();
+      const end = draft.length;
+      ta.setSelectionRange(end, end);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftNonce]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

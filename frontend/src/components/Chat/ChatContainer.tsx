@@ -172,8 +172,15 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
   const navigate = useNavigate();
   const { data: aiConfig } = useAIConfig();
   const [byokDismissed, setByokDismissed] = useState(false);
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+  const [draftNonce, setDraftNonce] = useState(0);
   const userMessageCount = messages.filter((m) => m.role === 'user').length;
   const showByokNudge = !byokDismissed && !aiConfig?.has_byok_key && userMessageCount >= 5;
+
+  const handleStarterClick = useCallback((title: string) => {
+    setDraft(`${title}: `);
+    setDraftNonce((n) => n + 1);
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-transparent">
@@ -236,7 +243,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
               {(chatContext ? CONTEXT_SUGGESTIONS[chatContext] || DEFAULT_SUGGESTIONS : DEFAULT_SUGGESTIONS).map((s) => (
                 <button
                   key={s.title}
-                  onClick={() => handleSendMessage(s.title)}
+                  onClick={() => handleStarterClick(s.title)}
                   disabled={!isConnected}
                   className="flex flex-col items-start p-4 rounded-xl border border-[var(--border-default)] hover:bg-[var(--bg-secondary)] hover:border-[var(--border-strong)] transition-all text-left group"
                 >
@@ -368,6 +375,8 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
           <ChatInput
             onSend={handleSendMessage}
             disabled={!isConnected || isProcessing}
+            draft={draft}
+            draftNonce={draftNonce}
             placeholder={
               !isConnected
                 ? 'Server offline — start the backend to chat'

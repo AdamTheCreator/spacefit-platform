@@ -509,6 +509,65 @@ async def execute_tool(
     return await client.call_tool(tool_name, tool_input)
 
 
+async def needs_clarification(
+    user_message: str,
+    context: dict[str, Any] | None = None,
+    resolved_llm: ResolvedLLM | None = None,
+) -> bool:
+    """Decide whether the user's message is too vague to delegate to specialists.
+
+    Returns True when the orchestrator should skip specialist routing and
+    instead ask the user a single clarifying question. Returns False (READY)
+    on any error so a flaky model call never blocks a real request.
+    """
+    request_id = uuid.uuid4().hex[:8]
+    llm = resolved_llm.client if resolved_llm else get_llm_client()
+    model = resolved_llm.model if resolved_llm else (
+        settings.llm_model or settings.anthropic_model
+    )
+
+    context_hint = ""
+    if context:
+        if context.get("documents") or context.get("document_context"):
+            context_hint += "\nA document/flyer is already attached."
+        if context.get("imports"):
+            context_hint += "\nImported data is already attached."
+
+    system_prompt = (
+        "You are a routing triage step for a commercial real estate assistant. "
+        "Decide whether the user's message has enough concrete information to "
+        "start specialist work (a property address, a named property/center, a "
+        "specific tenant or deal question, an attached document, etc.) or "
+        "whether the assistant should first ask one clarifying question.\n\n"
+        "Bare menu phrases like 'Analyze property' or 'Match tenants' with no "
+        "address or target are CLARIFY. Greetings, 'hi', 'help' are CLARIFY.\n"
+        f"{context_hint}\n"
+        "Reply with exactly one token: READY or CLARIFY."
+    )
+
+    try:
+        response = await llm.chat(
+            LLMChatRequest(
+                model=model,
+                max_tokens=10,
+                system=system_prompt,
+                messages=[
+                    LLMChatMessage(role="user", content=user_message)
+                ],
+                request_id=request_id,
+            )
+        )
+        raw = response.content.strip().upper()
+        verdict = raw.split()[0] if raw else ""
+        logger.info("[needs_clarification:%s] verdict=%s", request_id, verdict)
+        return verdict == "CLARIFY"
+    except Exception:
+        logger.exception(
+            "[needs_clarification:%s] failed, defaulting to READY", request_id
+        )
+        return False
+
+
 async def plan_workflow(
     user_message: str,
     context: dict | None = None,
