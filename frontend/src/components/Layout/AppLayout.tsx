@@ -1,20 +1,15 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   MessageSquare,
   Plus,
-  User,
   Settings,
-  LogOut,
   Users,
-  Key,
   Menu,
   X,
   Kanban,
   Mail,
-  HelpCircle,
   Sparkles,
-  Shield,
   Home,
   Search as SearchIcon,
   Building2,
@@ -152,10 +147,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Collapsed only applies on desktop; mobile keeps full-drawer behavior.
   const isCollapsed = !isMobile && sidebarCollapsed;
   const [demoOpen, setDemoOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const { clearChat } = useChatStore();
   const connectionStatus = useApiHealth();
   const navigate = useNavigate();
@@ -163,11 +155,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { sessionId: currentSessionId } = useParams<{ sessionId?: string }>();
   const { sessions, isLoading, deleteSession } = useChatSessions();
   usePreferences();
-
-  const handleLogout = useCallback(async () => {
-    await logout();
-    navigate('/login');
-  }, [logout, navigate]);
 
   const handleNewChat = () => {
     clearChat();
@@ -182,56 +169,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       navigate('/chat');
     }
   };
-
-  const menuItems = useMemo(() => {
-    const items: Array<{ path?: string; action?: string; label: string }> = [
-      { path: '/profile', label: 'Profile' },
-      { path: '/contacts', label: 'Contacts' },
-      { path: '/connections', label: 'Data Library' },
-      { path: '/settings', label: 'Settings' },
-    ];
-    if (user?.is_admin) {
-      items.push({ path: '/admin', label: 'Admin' });
-    }
-    items.push({ action: 'logout', label: 'Sign out' });
-    return items;
-  }, [user?.is_admin]);
-
-  const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!dropdownOpen) return;
-
-    switch (e.key) {
-      case 'Escape':
-        setDropdownOpen(false);
-        setFocusedIndex(-1);
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        setFocusedIndex(prev => Math.min(prev + 1, menuItems.length - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setFocusedIndex(prev => Math.max(prev - 1, 0));
-        break;
-      case 'Enter':
-      case ' ':
-        e.preventDefault();
-        if (focusedIndex >= 0) {
-          const item = menuItems[focusedIndex];
-          if (item.action === 'logout') {
-            handleLogout();
-          } else if (item.path) {
-            navigate(item.path);
-            setDropdownOpen(false);
-          }
-        }
-        break;
-      case 'Tab':
-        setDropdownOpen(false);
-        setFocusedIndex(-1);
-        break;
-    }
-  }, [dropdownOpen, focusedIndex, menuItems, navigate, handleLogout]);
 
   // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {
@@ -511,28 +448,102 @@ export function AppLayout({ children }: AppLayoutProps) {
             );
           })()}
 
-          <a
-            href="mailto:support-spacegoose@agentmail.to"
-            title={isCollapsed ? 'Support' : undefined}
-            aria-label={isCollapsed ? 'Support' : undefined}
-            className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'} rounded-lg text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors`}
-          >
-            <HelpCircle size={16} />
-            {!isCollapsed && <span>Support</span>}
-          </a>
+          {/* Account footer with presence */}
+          {(() => {
+            const isConnected = connectionStatus === 'connected';
+            const initials =
+              (user?.first_name?.[0] ?? '') + (user?.last_name?.[0] ?? '') ||
+              user?.email?.[0]?.toUpperCase() ||
+              'U';
+            const displayName = user?.first_name
+              ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
+              : user?.email ?? '';
 
-          {!isCollapsed && (
-            <div className="px-3 pt-2">
-              <p className="text-[10px] text-industrial-muted">Space Goose v{import.meta.env.VITE_APP_VERSION}</p>
-            </div>
-          )}
+            if (isCollapsed) {
+              return (
+                <div className="flex justify-center py-2">
+                  <div className="relative">
+                    {user?.avatar_url ? (
+                      <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-display text-[11px] font-semibold"
+                        style={{ background: 'linear-gradient(135deg, var(--color-orbit), var(--color-mist))' }}
+                      >
+                        {initials}
+                      </div>
+                    )}
+                    <span
+                      className="absolute rounded-full border-2 border-white"
+                      style={{
+                        right: -1,
+                        bottom: -1,
+                        width: 10,
+                        height: 10,
+                        background: isConnected ? '#2F7A3B' : 'var(--color-neutral-400)',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex items-center gap-2.5 px-3 py-2">
+                <div className="relative flex-shrink-0">
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt="" style={{ width: 34, height: 34 }} className="rounded-full object-cover" />
+                  ) : (
+                    <div
+                      className="rounded-full flex items-center justify-center text-white font-display text-[13px] font-semibold"
+                      style={{ width: 34, height: 34, background: 'linear-gradient(135deg, var(--color-orbit), var(--color-mist))' }}
+                    >
+                      {initials}
+                    </div>
+                  )}
+                  <span
+                    className="absolute rounded-full border-2 border-white"
+                    style={{
+                      right: -1,
+                      bottom: -1,
+                      width: 10,
+                      height: 10,
+                      background: isConnected ? '#2F7A3B' : 'var(--color-neutral-400)',
+                    }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-industrial truncate">{displayName}</div>
+                  <div className="text-[11px] text-industrial-secondary flex items-center gap-1.5">
+                    <span
+                      className="inline-block rounded-full"
+                      style={{
+                        width: 6,
+                        height: 6,
+                        background: isConnected ? '#2F7A3B' : 'var(--color-neutral-400)',
+                      }}
+                    />
+                    {isConnected ? 'Connected' : 'Offline'}
+                  </div>
+                </div>
+                <Link
+                  to="/settings"
+                  onClick={() => isMobile && setSidebarOpen(false)}
+                  className="text-industrial-muted hover:text-industrial-secondary transition-colors"
+                  title="Settings"
+                >
+                  <Settings size={16} />
+                </Link>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="app-topbar h-14 flex items-center justify-between px-4">
+        <header className="app-topbar h-14 flex items-center px-4">
           <div className="flex items-center gap-2">
             {!sidebarOpen && (
               <button
@@ -543,150 +554,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Menu size={20} />
               </button>
             )}
-            <span
-              className={`ml-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-industrial-muted ${
-                connectionStatus === 'connected' ? '' : 'text-industrial-secondary'
-              }`}
-              title={
-                connectionStatus === 'connected'
-                  ? 'Connected to server'
-                  : connectionStatus === 'connecting'
-                  ? 'Connecting to server'
-                  : 'Disconnected from server'
-              }
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  connectionStatus === 'connected'
-                    ? 'bg-emerald-500 animate-pulse-slow'
-                    : connectionStatus === 'connecting'
-                    ? 'bg-amber-500 animate-pulse-slow'
-                    : 'bg-red-500'
-                }`}
-              />
-              <span className="hidden sm:inline">
-                {connectionStatus === 'connected'
-                  ? 'Connected'
-                  : connectionStatus === 'connecting'
-                  ? 'Connecting…'
-                  : 'Offline'}
-              </span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* User Dropdown */}
-            <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
-            <button
-              onClick={() => {
-                setDropdownOpen(prev => !prev);
-                setFocusedIndex(dropdownOpen ? -1 : 0);
-              }}
-              className="flex items-center gap-2 p-1 rounded-full hover:bg-[var(--bg-tertiary)] transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] flex items-center justify-center font-bold text-xs">
-                {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
-              </div>
-            </button>
-
-            {dropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setDropdownOpen(false)}
-                />
-                <div
-                  className="absolute right-0 mt-2 w-56 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-2xl shadow-md z-20 overflow-hidden animate-scale-in"
-                  role="menu"
-                  aria-orientation="vertical"
-                >
-                  <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-tertiary)]">
-                    <p className="text-sm font-medium text-industrial">
-                      {user?.first_name} {user?.last_name}
-                    </p>
-                    <p className="text-xs text-industrial-muted mt-0.5">{user?.email}</p>
-                  </div>
-
-                  <div className="py-1">
-                    <Link
-                      to="/profile"
-                      onClick={() => setDropdownOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 0 ? 'bg-[var(--bg-tertiary)]' : ''}`}
-                      role="menuitem"
-                      tabIndex={focusedIndex === 0 ? 0 : -1}
-                    >
-                      <User size={16} />
-                      <span>Profile</span>
-                    </Link>
-
-                  <Link
-                    to="/customers"
-                    onClick={() => setDropdownOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 1 ? 'bg-[var(--bg-tertiary)]' : ''}`}
-                    role="menuitem"
-                    tabIndex={focusedIndex === 1 ? 0 : -1}
-                  >
-                    <Users size={16} />
-                    <span>Customers</span>
-                  </Link>
-
-                  <Link
-                    to="/connections"
-                    onClick={() => setDropdownOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 2 ? 'bg-[var(--bg-tertiary)]' : ''}`}
-                    role="menuitem"
-                    tabIndex={focusedIndex === 2 ? 0 : -1}
-                  >
-                    <Key size={16} />
-                    <span>Data Library</span>
-                  </Link>
-
-                  <Link
-                    to="/settings"
-                    onClick={() => setDropdownOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 3 ? 'bg-[var(--bg-tertiary)]' : ''}`}
-                    role="menuitem"
-                    tabIndex={focusedIndex === 3 ? 0 : -1}
-                  >
-                      <Settings size={16} />
-                      <span>Settings</span>
-                    </Link>
-
-                    {user?.is_admin && (
-                      <Link
-                        to="/admin"
-                        onClick={() => setDropdownOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-2.5 text-sm text-industrial-secondary hover:bg-[var(--bg-tertiary)] transition-colors ${focusedIndex === 4 ? 'bg-[var(--bg-tertiary)]' : ''}`}
-                        role="menuitem"
-                        tabIndex={focusedIndex === 4 ? 0 : -1}
-                      >
-                        <Shield size={16} />
-                        <span>Admin</span>
-                      </Link>
-                    )}
-                  </div>
-
-                  <div className="border-t border-[var(--border-subtle)] py-1">
-                    {(() => {
-                      const logoutIndex = user?.is_admin ? 5 : 4;
-                      const isFocused = focusedIndex === logoutIndex;
-                      return (
-                        <button
-                          onClick={() => { setDropdownOpen(false); handleLogout(); }}
-                          role="menuitem"
-                          tabIndex={isFocused ? 0 : -1}
-                          className={`flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--color-error)] hover:bg-[var(--bg-error)] transition-colors w-full ${isFocused ? 'bg-[var(--bg-error)]' : ''}`}
-                        >
-                          <LogOut size={16} />
-                          <span>Sign out</span>
-                        </button>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </>
-            )}
-            </div>
           </div>
         </header>
 
