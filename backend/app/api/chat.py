@@ -68,8 +68,21 @@ def _pre_orchestrator_guardrails(user_id: str, content: str) -> tuple[bool, str 
 
 
 # Pydantic models for REST endpoints
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, field_serializer
+from datetime import datetime, timezone
+
+
+def _as_utc_iso(dt: datetime) -> str:
+    """Serialize a DB datetime as tz-aware UTC ISO.
+
+    chat_messages.created_at is a naive-UTC column; serializing it without
+    an offset makes JS parse it as LOCAL time, skewing transcripts by hours
+    next to the tz-aware live-WS timestamps. Stamp UTC explicitly on the
+    way out.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 
 class ChatSessionResponse(BaseModel):
@@ -81,6 +94,10 @@ class ChatSessionResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_serializer("created_at", "updated_at")
+    def _ser_dt(self, dt: datetime) -> str:
+        return _as_utc_iso(dt)
+
 
 class ChatMessageResponse(BaseModel):
     id: str
@@ -90,6 +107,10 @@ class ChatMessageResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("created_at")
+    def _ser_created(self, dt: datetime) -> str:
+        return _as_utc_iso(dt)
 
 
 @router.get("/sessions", response_model=list[ChatSessionResponse])
@@ -412,7 +433,7 @@ async def get_session_messages_for_frontend(session_id: str) -> list[dict]:
                 "role": msg.role,
                 "content": msg.content,
                 "agent_type": msg.agent_type,
-                "timestamp": msg.created_at.isoformat() if msg.created_at else None,
+                "timestamp": _as_utc_iso(msg.created_at) if msg.created_at else None,
             }
             for msg in messages
         ]
