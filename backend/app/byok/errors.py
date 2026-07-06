@@ -21,9 +21,12 @@ a new error subtype between SDK versions.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "BYOKError",
@@ -362,6 +365,19 @@ def map_openai_http_response(response: Any) -> BYOKError | None:
             retry_after_seconds=retry_after,
         )
     if 400 <= status_code < 500:
+        # The user sees the generic "request was malformed" message, but the
+        # provider's actual complaint (e.g. vLLM's "maximum context length is
+        # 16384 tokens, however you requested …") must land in the server
+        # logs — swallowing it here forced multi-hour guessing games.
+        detail = ""
+        try:
+            body = response.json()
+            detail = str((body.get("error") or {}).get("message") or body)[:300]
+        except Exception:  # noqa: BLE001
+            detail = str(getattr(response, "text", ""))[:300]
+        logger.warning(
+            "[llm] provider rejected request: HTTP %s :: %s", status_code, detail
+        )
         return BYOKError(
             code=BYOKErrorCode.INVALID_REQUEST,
             http_status=status_code,
