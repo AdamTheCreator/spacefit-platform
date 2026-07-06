@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="design_doc_mode" content="canvas"/>
+  <title>Perigee — Thinking indicator options</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    a { color: var(--orbit); }
+    a:hover { color: var(--orange); }
+
+    .ti-frame-label {
+      font-family: var(--sora); font-weight: 600; font-size: 15px; color: var(--navy);
+    }
+    .ti-frame-note {
+      font-family: var(--inter); font-size: 12px; color: var(--slate); line-height: 1.5; margin-top: 4px;
+    }
+
+    /* shimmer text sweep */
+    .ti-shimmer {
+      font-family: var(--inter);
+      background: linear-gradient(90deg, var(--slate) 0%, var(--slate) 35%, var(--orange) 50%, var(--slate) 65%, var(--slate) 100%);
+      background-size: 220% 100%;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      animation: tiShimmer 2.1s linear infinite;
+    }
+    @keyframes tiShimmer { from { background-position: 110% 0; } to { background-position: -110% 0; } }
+
+    .ti-spin { animation: tiSpin 0.9s linear infinite; }
+    @keyframes tiSpin { to { transform: rotate(360deg); } }
+
+    .ti-pulse { animation: tiPulse 1.3s ease-in-out infinite; }
+    @keyframes tiPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    .ti-breathe { animation: tiBreathe 1.6s ease-in-out infinite; }
+    @keyframes tiBreathe { 0%,100% { opacity: 0.7; transform: scale(1); } 50% { opacity: 0.15; transform: scale(1.12); } }
+
+    .ti-rise { animation: tiRise 0.3s ease both; }
+    @keyframes tiRise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    .ti-orbit { animation: tiOrbit 7s linear infinite; }
+    @keyframes tiOrbit { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ti-shimmer, .ti-spin, .ti-pulse, .ti-breathe, .ti-orbit { animation: none; }
+      .ti-shimmer { -webkit-text-fill-color: var(--slate); color: var(--slate); }
+    }
+  </style>
+</head>
+<body>
+
+  <div style="position:absolute; left:40px; top:32px; width:620px; font-family:var(--inter);">
+    <div style="font-family:var(--sora); font-weight:700; font-size:22px; color:var(--navy); letter-spacing:-0.01em;">Thinking indicator — 3 directions</div>
+    <div style="font-size:13px; color:var(--slate); line-height:1.6; margin-top:8px;">All three run the same simulated request on a loop: thinking &rarr; Scout &rarr; Analyst &rarr; Matchmaker &rarr; drafting &rarr; answer. Watch a full cycle (~15s) in each frame. When finished, every option collapses to a quiet one-line receipt instead of leaving chrome behind.</div>
+  </div>
+
+  <!-- Option A -->
+  <div style="position:absolute; left:40px; top:150px; width:640px;">
+    <div class="ti-frame-label" data-screen-label="Option A">A — Whisper line</div>
+    <div class="ti-frame-note">Most minimal. One shimmering status line; subagents are small named dots that join beneath it and tick off. No card, no borders — the chat stays calm.</div>
+    <div id="root-a" style="height:400px; margin-top:12px;"></div>
+  </div>
+
+  <!-- Option B -->
+  <div style="position:absolute; left:730px; top:150px; width:640px;">
+    <div class="ti-frame-label" data-screen-label="Option B">B — Work log card</div>
+    <div class="ti-frame-note">Most transparent. A collapsible card appends one row per step with a live spinner and elapsed time — good when users need to trust long multi-agent runs.</div>
+    <div id="root-b" style="height:400px; margin-top:12px;"></div>
+  </div>
+
+  <!-- Option C -->
+  <div style="position:absolute; left:1420px; top:150px; width:640px;">
+    <div class="ti-frame-label" data-screen-label="Option C">C — Orbit badge</div>
+    <div class="ti-frame-note">Most on-brand. Subagents are moons docking on an orbit ring around the Perigee mark; active agents expand into a chip naming their task.</div>
+    <div id="root-c" style="height:400px; margin-top:12px;"></div>
+  </div>
+
+  <script type="text/babel" src="app/thinking-options.jsx"></script>
+  <script type="text/babel">
+    ReactDOM.createRoot(document.getElementById('root-a')).render(<ThinkingA/>);
+    ReactDOM.createRoot(document.getElementById('root-b')).render(<ThinkingB/>);
+    ReactDOM.createRoot(document.getElementById('root-c')).render(<ThinkingC/>);
+  </script>
+</body>
+</html>

@@ -1060,6 +1060,20 @@ textarea.input-industrial {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   THINKING INDICATOR — Work Log Card animations
+   ───────────────────────────────────────────────────────────────────────────── */
+.ti-spin { animation: tiSpin 0.9s linear infinite; }
+@keyframes tiSpin { to { transform: rotate(360deg); } }
+
+.ti-rise { animation: tiRise 0.3s ease both; }
+@keyframes tiRise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ti-spin { animation: none; }
+  .ti-rise { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    AGENT ACTIVITY ANIMATIONS - Softer, more refined
    ───────────────────────────────────────────────────────────────────────────── */
 @keyframes pulse-glow {

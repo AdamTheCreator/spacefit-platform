@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Users, FileText, Mail, Save, ArrowRight, MapPin, Key } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
+import { useChatStore } from '../../stores/chatStore';
 import { useAIConfig } from '../../hooks/useAIConfig';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -10,7 +11,7 @@ import { AnalysisProcessingView } from './AnalysisProcessingView';
 import { ExportBar } from './ExportBar';
 import { TenantSavePanel } from './TenantSavePanel';
 import { ThinkingIndicator } from './ThinkingIndicator';
-import type { AgentType } from '../../types/chat';
+import { AGENTS, type AgentType } from '../../types/chat';
 
 interface ChatContainerProps {
   initialSessionId?: string;
@@ -106,8 +107,46 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSentRef = useRef(false);
+  const processingStartRef = useRef<number>(0);
+  const prevProcessingRef = useRef(false);
+  const prevWorkflowStepsRef = useRef(workflowSteps);
   const lastMessage = messages.at(-1);
-  const showThinkingIndicator = isProcessing && lastMessage?.role === 'user';
+  // Show the work log card while processing — keep it visible until the
+  // streaming agent message has real content (text_delta has fired).
+  const showThinkingIndicator = isProcessing && !!(
+    lastMessage?.role === 'user' ||
+    (lastMessage?.role === 'agent' && lastMessage.isStreaming && !lastMessage.content)
+  );
+
+  // Track processing start time and attach receipt when processing ends
+  useEffect(() => {
+    if (isProcessing && !prevProcessingRef.current) {
+      // Processing just started — record timestamp and snapshot steps
+      processingStartRef.current = Date.now();
+    }
+    if (!isProcessing && prevProcessingRef.current) {
+      // Processing just ended — attach a receipt to the last agent message
+      const elapsed = Math.max(1, Math.round((Date.now() - processingStartRef.current) / 1000));
+      const completedSteps = prevWorkflowStepsRef.current.filter((s) => s.status === 'completed');
+      const agentNames = completedSteps
+        .map((s) => AGENTS[s.agentType]?.name ?? s.agentType)
+        .filter((n) => n !== 'Space Goose Assistant'); // exclude orchestrator
+      if (agentNames.length > 0) {
+        // Find the last agent message and attach the receipt
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          if (msg.role === 'agent' && !msg.receipt) {
+            // Use the store's updateMessage directly
+            const { updateMessage } = useChatStore.getState();
+            updateMessage(msg.id, { receipt: { agents: agentNames, seconds: elapsed } });
+            break;
+          }
+        }
+      }
+    }
+    prevProcessingRef.current = isProcessing;
+    prevWorkflowStepsRef.current = workflowSteps;
+  }, [isProcessing, messages, workflowSteps]);
 
   // Determine next-step actions based on the last agent message
   const nextStepActions = useMemo(() => {
@@ -298,6 +337,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
             <ThinkingIndicator
               isVisible={showThinkingIndicator}
               activeAgentType={activeAgentType as AgentType | null}
+              workflowSteps={workflowSteps}
             />
 
             {/* Continue analysis button for resumed sessions */}
@@ -399,7 +439,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
               !isConnected
                 ? 'Server offline — start the backend to chat'
                 : isProcessing
-                ? 'Processing your request...'
+                ? 'Space Goose is working\u2026'
                 : 'Message Space Goose...'
             }
           />

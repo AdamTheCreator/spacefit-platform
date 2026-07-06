@@ -16,6 +16,11 @@ export type AgentType =
 
 export type MessageRole = 'user' | 'agent' | 'system';
 
+export interface MessageReceipt {
+  agents: string[];
+  seconds: number;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -24,6 +29,7 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   pending?: boolean;
+  receipt?: MessageReceipt;
 }
 
 /**
