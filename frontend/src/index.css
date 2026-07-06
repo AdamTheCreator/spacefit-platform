@@ -869,12 +869,6 @@ textarea.input-industrial {
   50% { opacity: 0.5; }
 }
 
-/* Legacy alias */
-@keyframes pulse-industrial {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 /* Shimmer for loading states */
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
@@ -904,12 +898,6 @@ textarea.input-industrial {
 @keyframes scan-line {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
-}
-
-/* Bounce for thinking dots */
-@keyframes bounce-dot {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-6px); }
 }
 
 /* Fade in with slide */
@@ -969,9 +957,6 @@ textarea.input-industrial {
   animation: pulse-soft 3s ease-in-out infinite;
 }
 
-.animate-pulse-industrial {
-  animation: pulse-industrial 2s ease-in-out infinite;
-}
 
 .animate-shimmer {
   animation: shimmer 1.5s ease-in-out infinite;
@@ -1007,58 +992,6 @@ textarea.input-industrial {
   animation: step-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Thinking dots animation */
-.thinking-dot {
-  animation: bounce-dot 1.4s ease-in-out infinite;
-}
-
-/* Processing indicator bar */
-.processing-bar {
-  position: relative;
-  overflow: hidden;
-  height: 2px;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-full);
-}
-
-.processing-bar::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 40%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--accent),
-    transparent
-  );
-  animation: scan-line 1.5s ease-in-out infinite;
-}
-
-/* Legacy alias */
-.processing-industrial {
-  position: relative;
-  overflow: hidden;
-}
-
-.processing-industrial::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--accent),
-    transparent
-  );
-  animation: scan-line 1.5s ease-in-out infinite;
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
    THINKING INDICATOR — Work Log Card animations
    ───────────────────────────────────────────────────────────────────────────── */
@@ -1073,42 +1006,7 @@ textarea.input-industrial {
   .ti-rise { animation: none; }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   AGENT ACTIVITY ANIMATIONS - Softer, more refined
-   ───────────────────────────────────────────────────────────────────────────── */
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.03);
-  }
-}
-
-@keyframes breathe {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.01);
-    opacity: 1;
-  }
-}
-
-@keyframes ripple {
-  0% {
-    transform: scale(1);
-    opacity: 0.3;
-  }
-  100% {
-    transform: scale(1.8);
-    opacity: 0;
-  }
-}
-
+/* Ping effect for status dots */
 @keyframes ping {
   75%, 100% {
     transform: scale(1.5);
@@ -1116,31 +1014,6 @@ textarea.input-industrial {
   }
 }
 
-.agent-indicator {
-  position: relative;
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.agent-indicator-idle {
-  opacity: 0.4;
-}
-
-.agent-indicator-active {
-  animation: pulse-glow 1.5s ease-in-out infinite;
-}
-
-.agent-indicator-thinking {
-  animation: breathe 2s ease-in-out infinite;
-}
-
-.agent-ripple {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  animation: ripple 1.5s ease-out infinite;
-}
-
-/* Ping effect for status dots */
 .animate-ping {
   animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
