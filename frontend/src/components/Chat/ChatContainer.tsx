@@ -6,7 +6,6 @@ import { useChatStore } from '../../stores/chatStore';
 import { useAIConfig } from '../../hooks/useAIConfig';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { AgentStatusStrip } from './AgentStatusStrip';
 import { AnalysisProcessingView } from './AnalysisProcessingView';
 import { ExportBar } from './ExportBar';
 import { TenantSavePanel } from './TenantSavePanel';
@@ -388,19 +387,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
         </div>
       </div>
 
-      {/* Agent Status Strip — hidden when the work log card or centered processing view is shown */}
-      {!(messages.length === 0 && isProcessing) && !showThinkingIndicator && (
-        <AgentStatusStrip
-          workflowSteps={workflowSteps}
-          activeAgentType={activeAgentType as AgentType | null}
-          isProcessing={isProcessing}
-          analysisTarget={
-            isProcessing && messages.length > 0
-              ? messages.find((m) => m.role === 'user')?.content?.slice(0, 60) || null
-              : null
-          }
-        />
-      )}
+      {/* Agent Status Strip removed — the work log card + receipt line replace it */}
 
       {/* Input Area */}
       <div className="chat-input-shell flex-shrink-0 px-3 sm:px-5 py-4 border-t border-[var(--border-subtle)]">
