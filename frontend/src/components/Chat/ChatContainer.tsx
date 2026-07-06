@@ -311,8 +311,8 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
             </div>
           </div>
         ) : (
-          <div className="space-y-8 pb-10">
-            {messages.map((message, i) => {
+          <div style={{ display: 'grid', gap: 12 }} className="pb-10">
+            {messages.map((message) => {
               // Hide the empty streaming agent bubble while the work log
               // card is visible — it would duplicate the indicator.
               if (
@@ -323,24 +323,10 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
               ) {
                 return null;
               }
-
-              // Quote the question an agent turn answers when the pairing
-              // isn't adjacent (another bubble intervenes) — delayed or
-              // interleaved answers stay legible.
-              let answersQuestion: string | null = null;
-              if (message.role === 'agent') {
-                for (let j = i - 1; j >= 0; j--) {
-                  if (messages[j].role === 'user') {
-                    if (j < i - 1) answersQuestion = messages[j].content;
-                    break;
-                  }
-                }
-              }
               return (
                 <ChatMessage
                   key={message.id}
                   message={message}
-                  answersQuestion={answersQuestion}
                 />
               );
             })}
