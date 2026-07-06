@@ -4,6 +4,7 @@ import {
   MessageSquare,
   Plus,
   Settings,
+  LogOut,
   Users,
   Menu,
   X,
@@ -147,7 +148,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Collapsed only applies on desktop; mobile keeps full-drawer behavior.
   const isCollapsed = !isMobile && sidebarCollapsed;
   const [demoOpen, setDemoOpen] = useState(false);
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { clearChat } = useChatStore();
   const connectionStatus = useApiHealth();
   const navigate = useNavigate();
@@ -534,6 +535,16 @@ export function AppLayout({ children }: AppLayoutProps) {
                 >
                   <Settings size={16} />
                 </Link>
+                <button
+                  onClick={async () => {
+                    await logout();
+                    navigate('/login');
+                  }}
+                  className="text-industrial-muted hover:text-[var(--color-error)] transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut size={16} />
+                </button>
               </div>
             );
           })()}
