@@ -41,6 +41,16 @@ interface WebSocketMessage {
   data: unknown;
 }
 
+// Server datetimes are UTC. Older/naive payloads can arrive without an
+// offset suffix — parse those as UTC, never as local (offset-less parsing
+// skewed transcripts by hours), and never return an Invalid Date.
+function parseServerDate(raw?: string): Date {
+  if (!raw) return new Date();
+  const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/.test(raw);
+  const d = new Date(hasOffset ? raw : `${raw}Z`);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
 // Fetch messages for a session via REST API
 async function fetchSessionMessages(sessionId: string): Promise<Message[]> {
   const response = await api.get<ChatMessage[]>(`/chat/sessions/${sessionId}/messages`);
@@ -49,7 +59,7 @@ async function fetchSessionMessages(sessionId: string): Promise<Message[]> {
     role: msg.role,
     content: msg.content,
     agentType: msg.agent_type as Message['agentType'],
-    timestamp: new Date(msg.created_at),
+    timestamp: parseServerDate(msg.created_at),
   }));
 }
 
@@ -202,6 +212,18 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
 
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
+    // A stream killed mid-flight (provider error surfaced as a system bubble
+    // or an 'error' event) leaves an empty streaming shell behind. Clear any
+    // such shells so error turns don't litter the transcript.
+    const sweepEmptyStreamingBubbles = () => {
+      for (const m of useChatStore.getState().messages) {
+        if (m.isStreaming && !(m.content ?? '').trim()) {
+          streamingMessageIdsRef.current.delete(m.id);
+          removeMessage(m.id);
+        }
+      }
+    };
+
     switch (message.type) {
       case 'session_created': {
         const data = message.data as { session_id: string };
@@ -224,7 +246,8 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           id: string;
           role: 'user' | 'agent' | 'system';
           content: string;
-          created_at: string;
+          created_at?: string;
+          timestamp?: string;
           agent_type?: string;
           is_streaming?: boolean;
           visible?: boolean;
@@ -232,6 +255,15 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
 
         // Skip intermediate agent messages hidden from UI (e.g., raw tool outputs)
         if (msgData.visible === false) break;
+
+        // System bubbles are how server-side errors surface; any streaming
+        // shell still empty at that point is dead.
+        if (msgData.role === 'system') sweepEmptyStreamingBubbles();
+
+        // REST history rows carry created_at; live WS Message payloads carry
+        // timestamp (the backend model's field name). Reading only created_at
+        // produced "Invalid Date" on every live bubble.
+        const msgTimestamp = parseServerDate(msgData.created_at ?? msgData.timestamp);
 
         if (msgData.role === 'user') {
           const pendingIndex = pendingUserMessagesRef.current.findIndex(
@@ -243,7 +275,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
             updateMessage(pendingId, {
               id: msgData.id,
               content: msgData.content,
-              timestamp: new Date(msgData.created_at),
+              timestamp: msgTimestamp,
               pending: false,
             });
             break;
@@ -255,7 +287,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           role: msgData.role,
           content: msgData.content,
           agentType: msgData.agent_type as Message['agentType'],
-          timestamp: new Date(msgData.created_at),
+          timestamp: msgTimestamp,
           isStreaming: msgData.is_streaming,
         });
 
@@ -378,16 +410,26 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           error?: string;
         };
         streamingMessageIdsRef.current.delete(data.msg_id);
-        updateMessage(data.msg_id, {
-          content: data.content,
-          isStreaming: false,
-        });
+        const finalContent = (data.content ?? '').trim();
+        if (!finalContent) {
+          // Dead stream or a zero-preamble tool round: an empty finalized
+          // bubble helps nobody (and used to litter transcripts). Drop it.
+          removeMessage(data.msg_id);
+          if (supersededMsgIdRef.current === data.msg_id) {
+            supersededMsgIdRef.current = null;
+          }
+        } else {
+          updateMessage(data.msg_id, {
+            content: data.content,
+            isStreaming: false,
+          });
+        }
         // If there are no follow-on tool calls and no workflow steps,
         // we can drop the processing indicator here. Otherwise the
         // workflow_update path will clear it when all steps complete.
         const tool_calls_present =
           Array.isArray(data.tool_calls) && data.tool_calls.length > 0;
-        if (tool_calls_present) {
+        if (tool_calls_present && finalContent) {
           // Intermediate answer: more tools are about to run and a fresh
           // synthesis bubble will replace this one (mirrors the backend,
           // which only persists tool-free turns). Mark it superseded; the
@@ -428,6 +470,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
 
       case 'error': {
         console.error('Server error:', message.data);
+        sweepEmptyStreamingBubbles();
         setIsProcessing(false);
         break;
       }

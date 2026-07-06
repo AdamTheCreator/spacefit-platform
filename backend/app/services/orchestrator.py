@@ -167,6 +167,53 @@ You already have the property details above. Proceed immediately with the analys
     return prompt
 
 
+def _estimate_tokens(text: str) -> int:
+    """Tokenizer-free heuristic (~4 chars/token) — same one the chunker uses."""
+    return len(text) // 4
+
+
+def fit_messages_to_budget(
+    llm_messages: list[LLMChatMessage],
+    *,
+    fixed_tokens: int,
+    budget_tokens: int,
+) -> tuple[list[LLMChatMessage], int]:
+    """Trim a message list so (fixed + messages) fits a model context budget.
+
+    Small self-hosted models (the Baseten L4 serves --max-model-len 16384)
+    reject over-long prompts with HTTP 400 — which surfaced to users as
+    "The request was malformed" once history + three 12k-char tool results
+    outgrew the window. Anthropic's 200k window never tripped this.
+
+    Strategy: drop OLDEST messages first (the trailing message — the live
+    question or the tool-results block — is never dropped), then, if a single
+    message still overflows, hard-truncate it with a marker. Returns the
+    fitted list and how many messages were dropped.
+    """
+    msgs = list(llm_messages)
+    if budget_tokens <= 0:
+        return msgs, 0
+
+    def total() -> int:
+        return fixed_tokens + sum(_estimate_tokens(m.content) for m in msgs)
+
+    dropped = 0
+    while total() > budget_tokens and len(msgs) > 1:
+        msgs.pop(0)
+        dropped += 1
+
+    if msgs and total() > budget_tokens:
+        allowed_chars = max(2000, (budget_tokens - fixed_tokens) * 4)
+        last = msgs[-1]
+        if len(last.content) > allowed_chars:
+            msgs[-1] = LLMChatMessage(
+                role=last.role,
+                content=last.content[:allowed_chars]
+                + "\n\n[TRUNCATED to fit the model's context window]",
+            )
+    return msgs, dropped
+
+
 def _build_orchestrator_request(
     messages: list[dict[str, str]],
     pending_tool_results: list[dict] | None,
@@ -198,6 +245,10 @@ def _build_orchestrator_request(
         if role not in ("user", "assistant"):
             continue
         if not isinstance(content, str):
+            continue
+        # Empty turns add nothing and some OpenAI-compatible servers reject
+        # content-less messages outright (HTTP 400).
+        if not content.strip():
             continue
         llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
 
@@ -318,6 +369,34 @@ def _build_orchestrator_request(
         resolved_llm.provider if resolved_llm else settings.llm_provider
     )
     is_byok = bool(resolved_llm and resolved_llm.is_byok)
+
+    # Small-window self-hosted providers 400 on over-long prompts (surfaced
+    # as "The request was malformed"). Fit the request to the budget: system
+    # prompt + tool schemas + completion reserve are fixed; history trims.
+    budget = int(getattr(settings, "llm_context_token_budget", 0) or 0)
+    if budget > 0 and (effective_provider or "").lower() in (
+        "openai_compatible",
+        "baseten",
+    ):
+        import json as _json
+
+        fixed = (
+            _estimate_tokens(full_system_prompt)
+            + _estimate_tokens(_json.dumps(tools) if tools else "")
+            + 2048  # completion reserve (max_tokens below)
+        )
+        llm_messages, dropped = fit_messages_to_budget(
+            llm_messages, fixed_tokens=fixed, budget_tokens=budget
+        )
+        if dropped:
+            logger.warning(
+                "[orchestrator:%s] trimmed %d oldest message(s) to fit the "
+                "%d-token context budget (provider=%s)",
+                request_id,
+                dropped,
+                budget,
+                effective_provider,
+            )
 
     request = LLMChatRequest(
         system=full_system_prompt,
@@ -693,6 +772,10 @@ def _build_specialist_request(
             continue
         if not isinstance(content, str):
             continue
+        # Empty turns add nothing and some OpenAI-compatible servers reject
+        # content-less messages outright (HTTP 400).
+        if not content.strip():
+            continue
         llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
 
     system_prompt = spec.system_prompt
@@ -709,6 +792,38 @@ def _build_specialist_request(
     specialist_tools = [t for t in all_tools if t["name"] in spec.allowed_tools]
     last_user = llm_messages[-1].content if llm_messages else ""
     force_tools = bool(specialist_tools) and should_force_tool_use(last_user)
+
+    # Same context-budget guard as the orchestrator: specialist turns carry
+    # prior specialists' findings and grow fast; small-window providers 400.
+    spec_provider = (
+        resolved_llm.provider if resolved_llm else settings.llm_provider
+    )
+    budget = int(getattr(settings, "llm_context_token_budget", 0) or 0)
+    if budget > 0 and (spec_provider or "").lower() in (
+        "openai_compatible",
+        "baseten",
+    ):
+        import json as _json
+
+        fixed = (
+            _estimate_tokens(system_prompt)
+            + _estimate_tokens(
+                _json.dumps(specialist_tools) if specialist_tools else ""
+            )
+            + 2048
+        )
+        llm_messages, dropped = fit_messages_to_budget(
+            llm_messages, fixed_tokens=fixed, budget_tokens=budget
+        )
+        if dropped:
+            logger.warning(
+                "[specialist:%s:%s] trimmed %d oldest message(s) to fit the "
+                "%d-token context budget",
+                name,
+                request_id,
+                dropped,
+                budget,
+            )
 
     request = LLMChatRequest(
         system=system_prompt,

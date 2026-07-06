@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     llm_max_retries: int = Field(default=2)
     llm_max_concurrency: int = Field(default=4)
     llm_tool_result_max_chars: int = Field(default=12000)
+    # Prompt-side token budget applied to openai_compatible/baseten providers
+    # (the self-hosted L4 serves --max-model-len 16384; budget = window minus
+    # the 2048 completion reserve minus template/tool-schema headroom).
+    # 0 disables trimming. Anthropic (200k window) is never trimmed.
+    llm_context_token_budget: int = Field(default=12000)
 
     # Streaming responses (Initiative 1).
     streaming_enabled: bool = Field(default=True)

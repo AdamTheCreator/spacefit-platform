@@ -5,11 +5,22 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatMessageProps {
   message: Message;
+  /**
+   * The user question this agent turn answers, supplied ONLY when the
+   * pairing isn't visually adjacent (other bubbles intervene) — keeps
+   * delayed/interleaved replies legible.
+   */
+  answersQuestion?: string | null;
 }
 
-export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, answersQuestion }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const agent = message.agentType ? AGENTS[message.agentType] : null;
+  const quote = !isUser && answersQuestion
+    ? answersQuestion.length > 110
+      ? `${answersQuestion.slice(0, 110)}…`
+      : answersQuestion
+    : null;
 
   return (
     <div className={`w-full group animate-fade-in ${isUser ? '' : 'bg-[var(--bg-secondary)]/50 py-2 rounded-2xl'}`}>
@@ -38,6 +49,14 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
                 </span>
               )}
             </div>
+
+            {quote && (
+              <div className="mb-2 pl-2 border-l-2 border-[var(--border-subtle)]">
+                <span className="text-xs text-industrial-muted italic">
+                  Answering: “{quote}”
+                </span>
+              </div>
+            )}
 
             <div className="text-[15px] text-industrial leading-relaxed prose prose-sm max-w-none">
               {isUser ? (

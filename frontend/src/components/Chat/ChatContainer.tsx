@@ -273,9 +273,27 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
           </div>
         ) : (
           <div className="space-y-8 pb-10">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
+            {messages.map((message, i) => {
+              // Quote the question an agent turn answers when the pairing
+              // isn't adjacent (another bubble intervenes) — delayed or
+              // interleaved answers stay legible.
+              let answersQuestion: string | null = null;
+              if (message.role === 'agent') {
+                for (let j = i - 1; j >= 0; j--) {
+                  if (messages[j].role === 'user') {
+                    if (j < i - 1) answersQuestion = messages[j].content;
+                    break;
+                  }
+                }
+              }
+              return (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  answersQuestion={answersQuestion}
+                />
+              );
+            })}
 
             <ThinkingIndicator
               isVisible={showThinkingIndicator}
