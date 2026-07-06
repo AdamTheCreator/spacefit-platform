@@ -313,6 +313,17 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
         ) : (
           <div className="space-y-8 pb-10">
             {messages.map((message, i) => {
+              // Hide the empty streaming agent bubble while the work log
+              // card is visible — it would duplicate the indicator.
+              if (
+                showThinkingIndicator &&
+                message.role === 'agent' &&
+                message.isStreaming &&
+                !message.content
+              ) {
+                return null;
+              }
+
               // Quote the question an agent turn answers when the pairing
               // isn't adjacent (another bubble intervenes) — delayed or
               // interleaved answers stay legible.
@@ -391,8 +402,8 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
         </div>
       </div>
 
-      {/* Agent Status Strip — hidden when centered processing view is shown */}
-      {!(messages.length === 0 && isProcessing) && (
+      {/* Agent Status Strip — hidden when the work log card or centered processing view is shown */}
+      {!(messages.length === 0 && isProcessing) && !showThinkingIndicator && (
         <AgentStatusStrip
           workflowSteps={workflowSteps}
           activeAgentType={activeAgentType as AgentType | null}
