@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { Message } from '../../types/chat';
 import { AGENTS } from '../../types/chat';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ThinkingReceipt } from './ThinkingReceipt';
 
 interface ChatMessageProps {
   message: Message;
@@ -24,6 +25,9 @@ export const ChatMessage = memo(function ChatMessage({ message, answersQuestion 
 
   return (
     <div className={`w-full group animate-fade-in ${isUser ? '' : 'bg-[var(--bg-secondary)]/50 py-2 rounded-2xl'}`}>
+      {!isUser && message.receipt && (
+        <ThinkingReceipt receipt={message.receipt} />
+      )}
       <div className="chat-stage px-4 py-2">
         <div className="flex gap-4 sm:gap-6">
           {/* Avatar Area */}
