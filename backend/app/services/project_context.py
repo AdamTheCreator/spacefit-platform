@@ -253,6 +253,18 @@ async def build_project_context(
         # Fall back to first completed document's property info
         property_info = doc_summaries[0].get("property_info", {})
 
+    # Inline free-text address (from the "Create new" / chat-promotion flow,
+    # which sets Project.property_address without a linked Property record or
+    # any documents). Without this a project grounded on just an address would
+    # produce empty property_info and build_project_context would return None,
+    # silently dropping the address the user supplied to link the chat.
+    if not property_info.get("address") and project.property_address:
+        property_info = {
+            **property_info,
+            "address": project.property_address,
+        }
+        property_info.setdefault("name", project.name)
+
     # Load attached imports
     import_result = await db.execute(
         select(ImportJob).where(

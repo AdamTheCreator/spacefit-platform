@@ -140,6 +140,7 @@ async def test_build_project_context_bucketizes_documents_by_status():
         id="proj-1",
         name="Greenway",
         instructions="be terse",
+        property_address=None,
         property=SimpleNamespace(
             name="Greenway Plaza",
             address="123 Main",
@@ -192,6 +193,7 @@ async def test_build_project_context_dedupes_tenants_across_documents():
         id="proj-1",
         name="Greenway",
         instructions=None,
+        property_address=None,
         property=None,
     )
     doc1 = _doc(
@@ -234,6 +236,7 @@ async def test_build_project_context_falls_back_to_first_doc_property():
         id="proj-1",
         name="Greenway",
         instructions=None,
+        property_address=None,
         property=None,  # no linked property row
     )
     doc1 = _doc(
@@ -254,6 +257,67 @@ async def test_build_project_context_falls_back_to_first_doc_property():
     ctx = await build_project_context(db, "proj-1")
     assert ctx["property"]["name"] == "Greenway Plaza"
     assert "Tucson" in ctx["property"]["address"]
+
+
+@pytest.mark.asyncio
+async def test_build_project_context_uses_inline_property_address():
+    """A project created from just a free-text address (the "Create new" /
+    chat-promotion flow) — no linked Property, no documents — still yields
+    context grounded on that address instead of returning None."""
+    project = SimpleNamespace(
+        id="proj-1",
+        name="1842 Boston Post Rd",
+        instructions=None,
+        property_address="1842 Boston Post Rd, Fairfield, CT",
+        property=None,  # no linked property row
+    )
+    db = _stub_db_with_results(
+        _scalar(project),
+        _scalars([]),  # no documents
+        _scalars([]),  # chunk counts
+        _scalars([]),  # imports
+    )
+    ctx = await build_project_context(db, "proj-1")
+
+    assert ctx is not None, "address-only project must not drop its context"
+    assert ctx["property"]["address"] == "1842 Boston Post Rd, Fairfield, CT"
+    # Name falls back to the project name when no property name is known.
+    assert ctx["property"]["name"] == "1842 Boston Post Rd"
+
+    # And the address flows through to the tool-grounding hint in the prompt.
+    block = format_project_context_block(ctx)
+    assert "1842 Boston Post Rd, Fairfield, CT" in block
+
+
+@pytest.mark.asyncio
+async def test_build_project_context_prefers_linked_property_over_inline_address():
+    """When both a linked Property and a free-text address exist, the linked
+    property's structured address wins (the inline field is only a fallback)."""
+    project = SimpleNamespace(
+        id="proj-1",
+        name="Greenway",
+        instructions=None,
+        property_address="999 Ignored Ave",
+        property=SimpleNamespace(
+            name="Greenway Plaza",
+            address="123 Main",
+            city="Tucson",
+            state="AZ",
+            zip_code="85705",
+            property_type="retail",
+            total_sf=42000,
+        ),
+    )
+    db = _stub_db_with_results(
+        _scalar(project),
+        _scalars([]),
+        _scalars([]),
+        _scalars([]),
+    )
+    ctx = await build_project_context(db, "proj-1")
+
+    assert ctx["property"]["address"] == "123 Main, Tucson, AZ 85705"
+    assert "999 Ignored Ave" not in ctx["property"]["address"]
 
 
 # ---------------------------------------------------------------------------
