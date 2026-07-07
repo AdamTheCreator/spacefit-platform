@@ -91,12 +91,34 @@ class ChatSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
+    # Project link — lets the chat surface show an "In: {project}" pill vs the
+    # "Free-form" pill and hide the promote affordances once a chat is attached.
+    project_id: str | None = None
+    project_name: str | None = None
 
     model_config = {"from_attributes": True}
 
     @field_serializer("created_at", "updated_at")
     def _ser_dt(self, dt: datetime) -> str:
         return _as_utc_iso(dt)
+
+
+class PromoteSessionNewProject(BaseModel):
+    """Inline project to create when promoting a chat with no existing target."""
+
+    name: str
+    property_address: str | None = None
+
+
+class PromoteSessionRequest(BaseModel):
+    """Attach a free-form chat to a project.
+
+    Exactly one of ``project_id`` (existing project) or ``new_project``
+    (create-and-attach) must be provided.
+    """
+
+    project_id: str | None = None
+    new_project: PromoteSessionNewProject | None = None
 
 
 class ChatMessageResponse(BaseModel):
@@ -121,7 +143,10 @@ async def list_chat_sessions(
     """List all chat sessions for the current user."""
     result = await db.execute(
         select(ChatSession)
-        .options(selectinload(ChatSession.messages))
+        .options(
+            selectinload(ChatSession.messages),
+            selectinload(ChatSession.project),
+        )
         .where(ChatSession.user_id == current_user.id)
         .order_by(ChatSession.updated_at.desc())
     )
@@ -141,6 +166,8 @@ async def list_chat_sessions(
             created_at=s.created_at,
             updated_at=s.updated_at,
             message_count=len(s.messages),
+            project_id=s.project_id,
+            project_name=s.project.name if s.project else None,
         )
         for s in sessions
     ]
@@ -216,6 +243,85 @@ async def delete_chat_session(
 
     await db.delete(session)
     await db.commit()
+
+
+@router.post("/sessions/{session_id}/promote", response_model=ChatSessionResponse)
+async def promote_chat_session(
+    session_id: str,
+    payload: PromoteSessionRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChatSessionResponse:
+    """Attach a free-form chat to a project (existing or newly created).
+
+    The chat's existing history is untouched — only *future* turns pick up
+    the project context (see the WS handler's ``build_project_context`` call).
+    """
+    from app.db.models.project import Project
+
+    result = await db.execute(
+        select(ChatSession)
+        .options(selectinload(ChatSession.messages))
+        .where(
+            ChatSession.id == session_id,
+            ChatSession.user_id == current_user.id,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    # Resolve the target project: either an existing one owned by the user, or
+    # a brand-new project created inline. Exactly one path must be provided.
+    if payload.new_project is not None:
+        name = (payload.new_project.name or "").strip()
+        if not name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Project name is required",
+            )
+        project = Project(
+            user_id=current_user.id,
+            name=name,
+            property_address=(payload.new_project.property_address or "").strip()
+            or None,
+            is_archived=False,
+        )
+        db.add(project)
+        await db.flush()  # assign project.id before linking
+    elif payload.project_id:
+        proj_result = await db.execute(
+            select(Project).where(
+                Project.id == payload.project_id,
+                Project.user_id == current_user.id,
+            )
+        )
+        project = proj_result.scalar_one_or_none()
+        if project is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide either project_id or new_project",
+        )
+
+    session.project_id = project.id
+    await db.commit()
+    await db.refresh(session)
+
+    return ChatSessionResponse(
+        id=session.id,
+        title=session.title,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        message_count=len(session.messages),
+        project_id=project.id,
+        project_name=project.name,
+    )
 
 
 # Demo agent responses for simulation
@@ -800,9 +906,14 @@ async def handle_tool_calls(
             )
 
     except Exception as e:
+        # Surface the underlying provider error if available (e.g. from
+        # Anthropic's 400 response) so we can diagnose, not just the
+        # generic BYOKError wrapper.
+        cause = e.__cause__ if e.__cause__ else e
+        logger.exception("[handle_tools] synthesis failed: %s (cause: %s)", e, cause)
         error_msg = Message(
             role=MessageRole.SYSTEM,
-            content=f"Error synthesizing results: {str(e)}",
+            content=f"Error synthesizing results: {cause}",
         )
         await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
 
