@@ -275,6 +275,11 @@ async def promote_chat_session(
 
     # Resolve the target project: either an existing one owned by the user, or
     # a brand-new project created inline. Exactly one path must be provided.
+    if payload.project_id and payload.new_project is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide either project_id or new_project, not both",
+        )
     if payload.new_project is not None:
         name = (payload.new_project.name or "").strip()
         if not name:
@@ -906,14 +911,14 @@ async def handle_tool_calls(
             )
 
     except Exception as e:
-        # Surface the underlying provider error if available (e.g. from
-        # Anthropic's 400 response) so we can diagnose, not just the
-        # generic BYOKError wrapper.
+        # Log the full cause for debugging but only send the safe
+        # normalized message to the client — raw provider exceptions
+        # can contain request details or key material.
         cause = e.__cause__ if e.__cause__ else e
         logger.exception("[handle_tools] synthesis failed: %s (cause: %s)", e, cause)
         error_msg = Message(
             role=MessageRole.SYSTEM,
-            content=f"Error synthesizing results: {cause}",
+            content=f"Error synthesizing results: {str(e)}",
         )
         await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
 
