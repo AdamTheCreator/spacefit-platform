@@ -413,10 +413,21 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
         };
         streamingMessageIdsRef.current.delete(data.msg_id);
         const finalContent = (data.content ?? '').trim();
+        const tool_calls_present =
+          Array.isArray(data.tool_calls) && data.tool_calls.length > 0;
+
         if (!finalContent) {
-          // Dead stream or a zero-preamble tool round: an empty finalized
-          // bubble helps nobody (and used to litter transcripts). Drop it.
-          removeMessage(data.msg_id);
+          if (tool_calls_present) {
+            // Intermediate tool round with no preamble text — hide the
+            // empty bubble; the next message_start will create a fresh one.
+            removeMessage(data.msg_id);
+          } else {
+            // Terminal message with no content (e.g. backend error that
+            // only sent an error event, or a cancelled stream). Don't
+            // remove — keep the bubble so ChatContainer has something to
+            // show. Just mark it non-streaming.
+            updateMessage(data.msg_id, { isStreaming: false });
+          }
           if (supersededMsgIdRef.current === data.msg_id) {
             supersededMsgIdRef.current = null;
           }
@@ -426,11 +437,7 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
             isStreaming: false,
           });
         }
-        // If there are no follow-on tool calls and no workflow steps,
-        // we can drop the processing indicator here. Otherwise the
-        // workflow_update path will clear it when all steps complete.
-        const tool_calls_present =
-          Array.isArray(data.tool_calls) && data.tool_calls.length > 0;
+
         if (tool_calls_present && finalContent) {
           // Intermediate answer: more tools are about to run and a fresh
           // synthesis bubble will replace this one (mirrors the backend,
