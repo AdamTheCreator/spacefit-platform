@@ -109,13 +109,12 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
   const processingStartRef = useRef<number>(0);
   const prevProcessingRef = useRef(false);
   const prevWorkflowStepsRef = useRef(workflowSteps);
-  const lastMessage = messages.at(-1);
-  // Show the work log card while processing — keep it visible until the
-  // streaming agent message has real content (text_delta has fired).
-  const showThinkingIndicator = isProcessing && !!(
-    lastMessage?.role === 'user' ||
-    (lastMessage?.role === 'agent' && lastMessage.isStreaming && !lastMessage.content)
-  );
+  // Show the work log card while processing — keep it visible until an
+  // agent message with real content exists (text has actually streamed in).
+  const hasVisibleAgentContent = isProcessing
+    ? messages.some((m) => m.role === 'agent' && m.content.trim().length > 0)
+    : false;
+  const showThinkingIndicator = isProcessing && !hasVisibleAgentContent;
 
   // Track processing start time and attach receipt when processing ends
   useEffect(() => {
