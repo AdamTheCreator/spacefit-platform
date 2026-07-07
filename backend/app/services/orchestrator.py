@@ -6,6 +6,7 @@ This replaces keyword-matching with structured tool use for reliable data retrie
 """
 
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -598,6 +599,45 @@ async def execute_tool(
         session_id=session_id,
     )
     return await client.call_tool(tool_name, tool_input)
+
+
+# A 5-digit ZIP (optionally ZIP+4). In this domain a bare 5-digit number is
+# almost always a ZIP, so matching it is a safe "concrete target" signal.
+_ZIP_RE = re.compile(r"\b\d{5}(?:-\d{4})?\b")
+
+# A street-address shape: a 1-6 digit house number, 1-4 words, then a street
+# suffix. Deliberately narrow — a miss just falls back to the LLM gate.
+_STREET_ADDRESS_RE = re.compile(
+    r"\b\d{1,6}\s+[\w.'\-]+(?:\s+[\w.'\-]+){0,4}\s+"
+    r"(?:st|street|ave|avenue|rd|road|blvd|boulevard|ln|lane|dr|drive|way|"
+    r"ct|court|pkwy|parkway|hwy|highway|pl|place|ter|terrace|cir|circle|"
+    r"sq|square|trl|trail|loop|row|walk)\b\.?",
+    re.IGNORECASE,
+)
+
+
+def message_has_concrete_target(message: str) -> bool:
+    """Cheap, no-LLM check for an obviously actionable message.
+
+    Returns True when the message clearly names a place to act on (a street
+    address or a ZIP code) so callers can skip the ``needs_clarification``
+    LLM round-trip on the common broker flow, shaving one serial call off
+    time-to-first-feedback.
+
+    Deliberately conservative: a False result means "let the LLM gate
+    decide", never "block the request" — so a missed address only costs the
+    round-trip we would have made anyway.
+    """
+    if not message:
+        return False
+    text = message.strip()
+    if not text:
+        return False
+    if _ZIP_RE.search(text):
+        return True
+    if _STREET_ADDRESS_RE.search(text):
+        return True
+    return False
 
 
 async def needs_clarification(

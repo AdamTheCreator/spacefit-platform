@@ -1,15 +1,25 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Users, FileText, Mail, Save, ArrowRight, MapPin, Key } from 'lucide-react';
+import { Users, FileText, Mail, Save, ArrowRight, MapPin, Key, Layers } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useChatStore } from '../../stores/chatStore';
 import { useAIConfig } from '../../hooks/useAIConfig';
+import { useChatSessions } from '../../hooks/useChatSessions';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { AnalysisProcessingView } from './AnalysisProcessingView';
 import { ExportBar } from './ExportBar';
 import { TenantSavePanel } from './TenantSavePanel';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import { PromoteNudge } from './PromoteNudge';
+import { PromoteModal } from './PromoteModal';
+import {
+  headerMode,
+  shouldShowSaveButton,
+  shouldShowNudge,
+  composerFootnoteVariant,
+  type PromoteChatContext,
+} from './promoteChat';
 import { AGENTS, type AgentType } from '../../types/chat';
 
 interface ChatContainerProps {
@@ -215,7 +225,12 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
     scrollToBottom();
   }, [messages, isProcessing]);
 
+  // Whether the user has sent a message during this mount — the nudge only
+  // shows on a restored chat the user hasn't picked back up yet.
+  const [userSentThisSession, setUserSentThisSession] = useState(false);
+
   const handleSendMessage = useCallback((content: string) => {
+    setUserSentThisSession(true);
     sendMessage(content);
   }, [sendMessage]);
 
@@ -231,6 +246,49 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
     setDraft(`${title}: `);
     setDraftNonce((n) => n + 1);
   }, []);
+
+  // ---- Save to project (chat promotion) ----------------------------------
+  // The promote affordances only apply to the free-form chat surface. Project
+  // chats (ProjectChatPage passes `projectId`) already have project context and
+  // their own header, so the whole flow is suppressed there.
+  const isProjectRoute = !!projectId;
+  const { sessions } = useChatSessions();
+  const sessionIdForPromote = currentSessionId ?? initialSessionId ?? null;
+  const sessionMeta = sessions.find((s) => s.id === sessionIdForPromote);
+  // Locally-remembered promotion so the header flips instantly after the modal
+  // succeeds, before the sessions query refetches.
+  const [promotedTo, setPromotedTo] = useState<{ id: string; name: string } | null>(null);
+  const effectiveProjectId = promotedTo?.id ?? sessionMeta?.project_id ?? null;
+  const effectiveProjectName = promotedTo?.name ?? sessionMeta?.project_name ?? null;
+
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const nudgeKey = `spacegoose:promote-nudge-dismissed:${initialSessionId ?? 'new'}`;
+  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(nudgeKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const dismissNudge = useCallback(() => {
+    setNudgeDismissed(true);
+    try {
+      sessionStorage.setItem(nudgeKey, '1');
+    } catch {
+      /* sessionStorage unavailable — dismissal stays in-memory */
+    }
+  }, [nudgeKey]);
+
+  const promoteCtx: PromoteChatContext = {
+    inProject: isProjectRoute || !!effectiveProjectId,
+    hasMessages: messages.length > 0,
+    messageCount: messages.length,
+    isProcessing,
+    userSentThisSession,
+    nudgeDismissed,
+  };
+  const headerState = headerMode(promoteCtx);
+  const footnoteVariant = composerFootnoteVariant(promoteCtx);
 
   return (
     <div className="flex flex-col h-full bg-transparent">
@@ -255,6 +313,36 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
       )}
 
       {/* Connection status is shown in the header dot — no banner needed */}
+
+      {/* Chat header — scope pill + promote button (free-form surface only) */}
+      {!isProjectRoute && headerState !== 'hidden' && (
+        <div className="flex-shrink-0 flex items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-[var(--border-subtle)]">
+          <h1 className="text-sm font-semibold text-industrial truncate">
+            {sessionMeta?.title || 'Chat'}
+          </h1>
+          {headerState === 'project' ? (
+            <span
+              className="flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--accent-subtle)] text-[var(--accent)] truncate max-w-[200px]"
+              title={effectiveProjectName ?? undefined}
+            >
+              In: {effectiveProjectName}
+            </span>
+          ) : (
+            <span className="flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--bg-tertiary)] text-industrial-muted">
+              Free-form
+            </span>
+          )}
+          {shouldShowSaveButton(promoteCtx) && (
+            <button
+              onClick={() => setPromoteOpen(true)}
+              className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-strong)] text-[13px] font-medium text-industrial hover:bg-[var(--bg-tertiary)] transition-colors"
+            >
+              <Layers size={13} />
+              Save to project
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Loading state is handled inline in the messages area */}
 
@@ -383,6 +471,16 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
               </div>
             )}
 
+            {/* Inline nudge — offer to ground the free-form chat in a project */}
+            {shouldShowNudge(promoteCtx) && (
+              <div className="px-1 py-1">
+                <PromoteNudge
+                  onPromote={() => setPromoteOpen(true)}
+                  onDismiss={dismissNudge}
+                />
+              </div>
+            )}
+
             {/* Save void/matchmaker tenant suggestions as Contacts */}
             <TenantSavePanel key={currentSessionId ?? 'none'} />
 
@@ -440,12 +538,37 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
             }
           />
           <p className="text-xs text-industrial-muted mt-3 text-center">
-            {isProcessing
-              ? 'AI agents are working on your request'
-              : 'Enter to send, Shift+Enter for a new line'}
+            {isProcessing ? (
+              'AI agents are working on your request'
+            ) : footnoteVariant === 'none' ? (
+              'Enter to send, Shift+Enter for a new line'
+            ) : footnoteVariant === 'new' ? (
+              'No project context.'
+            ) : (
+              <>
+                No project context. Citations will pull from external sources
+                only ·{' '}
+                <button
+                  onClick={() => setPromoteOpen(true)}
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  Save to project
+                </button>{' '}
+                to ground in your uploaded data.
+              </>
+            )}
           </p>
         </div>
       </div>
+
+      {/* Promote-to-project modal */}
+      {promoteOpen && sessionIdForPromote && (
+        <PromoteModal
+          sessionId={sessionIdForPromote}
+          onClose={() => setPromoteOpen(false)}
+          onPromoted={(project) => setPromotedTo(project)}
+        />
+      )}
     </div>
   );
 }

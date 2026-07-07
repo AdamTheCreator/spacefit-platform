@@ -148,7 +148,9 @@ async def test_single_specialist_plan_always_synthesizes():
 
     tools_mock.assert_not_called()
     plan_mock.assert_awaited_once()
-    clarify_mock.assert_awaited_once()
+    # Attached project context makes the turn self-evidently READY, so the
+    # clarification LLM round-trip is skipped (a TTFT optimization).
+    clarify_mock.assert_not_awaited()
     record_mock.assert_awaited_once()
     assert record_mock.await_args.args == ("u-1", 260, 94)
     assert record_mock.await_args.kwargs["is_byok"] is False
@@ -707,3 +709,181 @@ def test_build_specialist_request_byok_override_wins_over_platform_default():
 
     assert analyst_model == "claude-sonnet-4-6"
     assert scout_model == "claude-opus-4-6"
+
+
+# ---------------------------------------------------------------------------
+# TTFT: concrete-target heuristic skips the clarification gate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "message, expected",
+    [
+        ("29 Lovell Ave Mill Valley CA find coffee shops", True),
+        ("void analysis for 1842 Boston Post Rd", True),
+        ("demographics for 90210", True),
+        ("what are cap rates in Phoenix retail?", False),
+        ("Analyze property", False),
+        ("hi", False),
+        ("", False),
+    ],
+)
+def test_message_has_concrete_target(message, expected):
+    from app.services.orchestrator import message_has_concrete_target
+
+    assert message_has_concrete_target(message) is expected
+
+
+@pytest.mark.asyncio
+async def test_concrete_address_skips_clarification_gate():
+    """A message that names a street address is self-evidently READY, so the
+    clarification LLM call is skipped while planning + synthesis still run."""
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+
+    plan_mock = AsyncMock(return_value=["scout"])
+    clarify_mock = AsyncMock(return_value=False)
+    stream_mock = AsyncMock(
+        return_value={
+            "specialist": "scout",
+            "content": "ok",
+            "tool_calls": [],
+            "stop_reason": "end_turn",
+            "input_tokens": 10,
+            "output_tokens": 5,
+        }
+    )
+    synth_mock = AsyncMock(
+        return_value={"content": "Synthesized.", "input_tokens": 8, "output_tokens": 4}
+    )
+
+    with (
+        patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
+        patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
+        patch.object(chat_mod, "save_message_to_db", AsyncMock()),
+        patch.object(chat_mod, "record_token_usage", AsyncMock()),
+        patch.object(chat_mod, "_schedule_fact_extraction", MagicMock()),
+        patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
+    ):
+        summary = await chat_mod._run_specialist_routing_turn(
+            ws,  # type: ignore[arg-type]
+            user_id="u-1",
+            session_id="s-1",
+            user_content="void analysis for 1842 Boston Post Rd",
+            conversation_history=[],
+            proj_context=None,
+            doc_context=None,
+            user_context=None,
+            memory_context=None,
+            has_imported_data={"costar": False, "placer": False},
+            s_prompt_id=None,
+            s_analysis_type=None,
+            user_resolved_llm=None,
+        )
+
+    # The gate LLM call is skipped entirely on an obviously-ready message.
+    clarify_mock.assert_not_awaited()
+    # Planning + synthesis still happen.
+    plan_mock.assert_awaited_once()
+    synth_mock.assert_awaited_once()
+    assert summary["synthesized"] is True
+
+
+# ---------------------------------------------------------------------------
+# Intermediate leak fix: internal tool execution stays off the transcript
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_calls_internal_hides_results_and_skips_synthesis():
+    """In ``internal=True`` mode raw tool outputs are neither emitted as
+    ``message`` events nor persisted, and no competing orchestrator synthesis
+    runs. The executed results are returned so the caller can fold them into
+    its single synthesis."""
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+
+    exec_mock = AsyncMock(return_value="RAW DEMOGRAPHICS DUMP")
+    synth_mock = AsyncMock()
+    save_mock = AsyncMock()
+
+    with (
+        patch.object(chat_mod, "execute_tool", exec_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
+        patch.object(chat_mod, "save_message_to_db", save_mock),
+    ):
+        results = await chat_mod.handle_tool_calls(
+            websocket=ws,  # type: ignore[arg-type]
+            tool_calls=[
+                {
+                    "id": "tu-1",
+                    "name": "demographics_analysis",
+                    "input": {"location": "1842 Boston Post Rd"},
+                }
+            ],
+            session_id="s-1",
+            user_id="u-1",
+            conversation_history=[],
+            user_context=None,
+            internal=True,
+        )
+
+    # Raw results returned to the caller.
+    assert isinstance(results, list)
+    assert results[0]["tool_name"] == "demographics_analysis"
+    assert results[0]["result"] == "RAW DEMOGRAPHICS DUMP"
+
+    # No user-facing message bubble, no persistence, no competing synthesis.
+    assert "message" not in _event_types(ws)
+    save_mock.assert_not_awaited()
+    synth_mock.assert_not_awaited()
+
+    # The progress strip still gets a completion event for the tool step.
+    assert ("workflow_update", {"step_id": "tu-1", "status": "completed"}) in ws.events
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_calls_legacy_persists_hidden_result():
+    """The legacy (``internal=False``) path still persists the raw tool row —
+    but always hidden (``visible=False``) so it never renders, even for a tool
+    that maps to no specific AgentType."""
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+
+    exec_mock = AsyncMock(return_value="RAW DUMP")
+    synth_mock = AsyncMock(
+        return_value={"content": "answer", "tool_calls": [], "input_tokens": 1, "output_tokens": 1}  # noqa: E501
+    )
+    save_mock = AsyncMock()
+
+    with (
+        patch.object(chat_mod, "execute_tool", exec_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
+        patch.object(chat_mod, "save_message_to_db", save_mock),
+        patch.object(chat_mod, "record_token_usage", AsyncMock()),
+    ):
+        await chat_mod.handle_tool_calls(
+            websocket=ws,  # type: ignore[arg-type]
+            tool_calls=[
+                {"id": "tu-9", "name": "some_unmapped_tool", "input": {}}
+            ],
+            session_id="s-1",
+            user_id="u-1",
+            conversation_history=[],
+            user_context=None,
+        )
+
+    # The raw tool row is persisted hidden (visible=False), never as a
+    # visible transcript bubble.
+    raw_saves = [
+        c for c in save_mock.await_args_list if c.args[3] == "some_unmapped_tool"
+    ]
+    assert raw_saves, "raw tool result should still be persisted in legacy mode"
+    assert raw_saves[0].kwargs["visible"] is False

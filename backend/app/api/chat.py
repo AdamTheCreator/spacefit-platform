@@ -507,9 +507,16 @@ async def load_session_history(session_id: str) -> list[dict[str, str]]:
     from app.core.database import async_session_factory
 
     async with async_session_factory() as db:
+        # Only replay user-facing rows. Intermediate work product (raw tool
+        # outputs persisted with visible=False by the legacy path) must not
+        # re-enter the model's context on later turns — it bloats the prompt
+        # and reinjects untrusted tool dumps as if they were assistant text.
         result = await db.execute(
             select(ChatMessage)
-            .where(ChatMessage.session_id == session_id)
+            .where(
+                ChatMessage.session_id == session_id,
+                ChatMessage.visible == True,  # noqa: E712
+            )
             .order_by(ChatMessage.created_at)
         )
         messages = result.scalars().all()
@@ -629,7 +636,8 @@ async def handle_tool_calls(
     analysis_type: str | None = None,
     depth: int = 0,
     resolved_llm: ResolvedLLM | None = None,
-) -> None:
+    internal: bool = False,
+) -> list[dict] | None:
     """
     Handle tool calls from Claude's native tool use.
 
@@ -638,6 +646,15 @@ async def handle_tool_calls(
     2. Executes each tool in parallel (when possible)
     3. Sends results back to Claude for synthesis
     4. Returns the final synthesized response
+
+    ``internal=True`` runs the tools purely as internal work product for
+    the specialist-routing path: the raw tool outputs are NOT emitted as
+    ``message`` events and NOT persisted, and the competing orchestrator
+    synthesis is skipped (the caller owns the single user-facing synthesis).
+    In that mode the executed tool results are returned so the caller can
+    fold them into its own synthesis input. The default (``internal=False``)
+    is the legacy monolithic path, where this function's synthesis IS the
+    user-facing answer.
     """
     from app.core.config import settings as _settings
 
@@ -808,28 +825,36 @@ async def handle_tool_calls(
     tool_results = await asyncio.gather(*[execute_single_tool(tc) for tc in tool_calls])
     logger.debug("[handle_tools] completed tools=%d", len(tool_results))
 
-    # Send results for each tool and update workflow UI
+    # Update workflow UI. Raw tool outputs are ALWAYS intermediate work
+    # product — they are never a user-facing bubble, so they are emitted
+    # hidden (and never persisted) regardless of which AgentType they map
+    # to. Previously an unmapped tool defaulted to ORCHESTRATOR and leaked
+    # its raw JSON into the transcript as a visible bubble.
     for result_dict in tool_results:
         tool_name = result_dict["tool_name"]
         result = result_dict["result"]
         tool_call_id = result_dict["tool_call_id"]
 
-        # Send tool result as a message (hidden from UI — orchestrator will summarize)
-        agent_type = tool_to_agent_type.get(tool_name, AgentType.ORCHESTRATOR)
-        is_intermediate = agent_type != AgentType.ORCHESTRATOR
-        tool_msg = Message(
-            role=MessageRole.AGENT,
-            agent_type=agent_type,
-            content=result,
-            visible=not is_intermediate,
-        )
-        await send_ws_message(websocket, "message", tool_msg.model_dump(mode="json"))
+        # In internal (specialist-routing) mode tool execution stays fully
+        # under the hood: no message frame, no DB row. The caller folds the
+        # returned results into its own single synthesis.
+        if not internal:
+            agent_type = tool_to_agent_type.get(tool_name, AgentType.ORCHESTRATOR)
+            tool_msg = Message(
+                role=MessageRole.AGENT,
+                agent_type=agent_type,
+                content=result,
+                visible=False,
+            )
+            await send_ws_message(
+                websocket, "message", tool_msg.model_dump(mode="json")
+            )
+            if session_id:
+                await save_message_to_db(
+                    session_id, "agent", result, tool_name, visible=False
+                )
 
-        # Save to database
-        if session_id:
-            await save_message_to_db(session_id, "agent", result, tool_name, visible=not is_intermediate)
-
-        # Mark step as completed
+        # Mark step as completed (the progress strip stays live in both modes)
         await send_ws_message(
             websocket,
             "workflow_update",
@@ -858,6 +883,14 @@ async def handle_tool_calls(
             entry["error_kind"] = "timeout_or_exception"
             entry["user_message"] = result_text
         pending_results.append(entry)
+
+    # Internal mode: hand the raw results back to the caller instead of
+    # running (and persisting) a competing orchestrator synthesis here. The
+    # specialist-routing turn owns the single user-facing synthesis, so a
+    # synthesis in this function would double-persist and leak a second
+    # "orchestrator" bubble into the transcript.
+    if internal:
+        return pending_results
 
     try:
         synthesis_response = await _stream_orchestrator_to_ws(
@@ -1964,7 +1997,11 @@ async def _run_specialist_routing_turn(
             "synthesized": bool,
         }
     """
-    from app.services.orchestrator import needs_clarification, plan_workflow
+    from app.services.orchestrator import (
+        message_has_concrete_target,
+        needs_clarification,
+        plan_workflow,
+    )
 
     # ----------------------------------------------------------
     # Clarification gate: if the user's message is too vague to
@@ -1972,6 +2009,15 @@ async def _run_specialist_routing_turn(
     # skip specialist routing and stream a single orchestrator
     # clarifying question so the user only ever sees one
     # "Space Goose Assistant" response with no progress strip.
+    #
+    # TTFT: the gate is a serial LLM round-trip in front of every
+    # turn. When the message already names a concrete target (a
+    # street address / ZIP) or arrives with attached document /
+    # project context, it is self-evidently READY — skip the gate
+    # call entirely so the common broker flow pays one small LLM
+    # call (planning) instead of two before the progress strip
+    # appears. Planning is NOT launched speculatively: on a vague
+    # turn we must not pay for a plan we are about to discard.
     # ----------------------------------------------------------
     planning_context: dict = {}
     if proj_context:
@@ -1979,11 +2025,20 @@ async def _run_specialist_routing_turn(
     if doc_context:
         planning_context["document_context"] = doc_context
 
-    if await needs_clarification(
-        user_content,
-        context=planning_context or None,
-        resolved_llm=user_resolved_llm,
-    ):
+    obviously_ready = bool(
+        doc_context
+        or proj_context
+        or message_has_concrete_target(user_content)
+    )
+    needs_clar = False
+    if not obviously_ready:
+        needs_clar = await needs_clarification(
+            user_content,
+            context=planning_context or None,
+            resolved_llm=user_resolved_llm,
+        )
+
+    if needs_clar:
         logger.info("[chat-ws] clarification gate tripped for session=%s", session_id)
         clar_history = list(conversation_history)
         clar_history.append(
@@ -2120,7 +2175,7 @@ async def _run_specialist_routing_turn(
         spec_total_out += spec_result.get("output_tokens", 0)
 
         if spec_result.get("tool_calls"):
-            await handle_tool_calls(
+            tool_results = await handle_tool_calls(
                 websocket=websocket,
                 tool_calls=spec_result["tool_calls"],
                 session_id=session_id,
@@ -2133,7 +2188,21 @@ async def _run_specialist_routing_turn(
                 system_prompt_id=s_prompt_id,
                 analysis_type=s_analysis_type,
                 resolved_llm=user_resolved_llm,
+                internal=True,
             )
+            # Fold the raw tool outputs into this specialist's findings so the
+            # single downstream synthesis (and any later specialist in the
+            # plan) can see the data. In internal mode handle_tool_calls does
+            # not synthesize or persist — it only returns the executed results.
+            if isinstance(tool_results, list) and tool_results:
+                tool_block = "\n\n".join(
+                    f"### {r.get('tool_name', 'tool')}\n{r.get('result', '')}"
+                    for r in tool_results
+                )
+                merged = (spec_result.get("content") or "").rstrip()
+                spec_result["content"] = (
+                    f"{merged}\n\n{tool_block}" if merged else tool_block
+                )
 
         spec_outputs.append(spec_result)
         await send_ws_message(
