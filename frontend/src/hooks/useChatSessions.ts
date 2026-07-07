@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 
-interface ChatSession {
+export interface ChatSession {
   id: string;
   title: string | null;
   created_at: string;
   updated_at: string;
   message_count: number;
+  /** Project link — null for free-form chats. */
+  project_id: string | null;
+  project_name: string | null;
 }
 
 export function useChatSessions() {
