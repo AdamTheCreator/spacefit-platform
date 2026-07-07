@@ -110,11 +110,24 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
   const prevProcessingRef = useRef(false);
   const prevWorkflowStepsRef = useRef(workflowSteps);
   // Show the work log card while processing — keep it visible until an
-  // agent message with real content exists (text has actually streamed in).
-  const hasVisibleAgentContent = isProcessing
-    ? messages.some((m) => m.role === 'agent' && m.content.trim().length > 0)
-    : false;
-  const showThinkingIndicator = isProcessing && !hasVisibleAgentContent;
+  // agent message in the CURRENT turn has real content (text has streamed in).
+  // Only check messages after the last user message to avoid prior turns
+  // making the indicator vanish on follow-up questions.
+  const showThinkingIndicator = (() => {
+    if (!isProcessing) return false;
+    // Find the last user message index — current turn starts after it
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { lastUserIdx = i; break; }
+    }
+    // Check if any agent message AFTER the last user message has content
+    for (let i = lastUserIdx + 1; i < messages.length; i++) {
+      if (messages[i].role === 'agent' && messages[i].content.trim().length > 0) {
+        return false;
+      }
+    }
+    return true;
+  })();
 
   // Track processing start time and attach receipt when processing ends
   useEffect(() => {
