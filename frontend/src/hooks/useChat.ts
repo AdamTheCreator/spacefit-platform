@@ -341,7 +341,9 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           );
           if (allComplete) {
             setActiveAgentType(null);
-            setIsProcessing(false);
+            // Don't clear isProcessing here — the synthesis message_end
+            // will do it after the final agent bubble exists, which lets
+            // the receipt attach correctly.
           }
         }
         break;
