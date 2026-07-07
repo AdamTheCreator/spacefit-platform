@@ -301,6 +301,8 @@ def map_anthropic_exception(exc: BaseException) -> BYOKError:
             provider_request_id=request_id,
         )
     if (isinstance(status_code, int) and 400 <= status_code < 500) or cls_name in _ANTHROPIC_400_NAMES:
+        detail = str(exc)[:500]
+        logger.warning("[byok] Anthropic rejected request (400): %s", detail)
         return BYOKError(
             code=BYOKErrorCode.INVALID_REQUEST,
             http_status=400,

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
 from app.byok.errors import map_anthropic_exception
+
+logger = logging.getLogger(__name__)
 from app.llm.exceptions import LLMConfigurationError
 from app.llm.types import (
     LLMChatRequest,
@@ -50,15 +53,40 @@ class AnthropicLLMClient:
         )
         self._semaphore = asyncio.Semaphore(max(1, max_concurrency))
 
+    @staticmethod
+    def _sanitize_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Enforce Anthropic's alternating-roles requirement.
+
+        - Merge consecutive same-role messages.
+        - Strip empty messages.
+        - Ensure the first message is "user".
+        """
+        sanitized: list[dict[str, str]] = []
+        for msg in messages:
+            content = msg.get("content", "").strip()
+            if not content:
+                continue
+            role = msg["role"]
+            if sanitized and sanitized[-1]["role"] == role:
+                sanitized[-1]["content"] += "\n\n" + content
+            else:
+                sanitized.append({"role": role, "content": content})
+        # Anthropic requires the first message to be "user"
+        if sanitized and sanitized[0]["role"] != "user":
+            sanitized.insert(0, {"role": "user", "content": "(continuing conversation)"})
+        return sanitized
+
     async def chat(self, request: LLMChatRequest) -> LLMResponse:
+        raw_messages = [
+            {"role": m.role, "content": m.content}
+            for m in request.messages
+        ]
+        messages = self._sanitize_messages(raw_messages)
         create_kwargs: dict[str, Any] = {
             "model": request.model,
             "max_tokens": request.max_tokens,
             "system": request.system,
-            "messages": [
-                {"role": m.role, "content": m.content}
-                for m in request.messages
-            ],
+            "messages": messages,
         }
         if request.temperature is not None:
             create_kwargs["temperature"] = request.temperature
@@ -112,14 +140,16 @@ class AnthropicLLMClient:
         per-tool so callers receive a fully-parsed dict on
         ``tool_use_end``.
         """
+        raw_messages = [
+            {"role": m.role, "content": m.content}
+            for m in request.messages
+        ]
+        messages = self._sanitize_messages(raw_messages)
         create_kwargs: dict[str, Any] = {
             "model": request.model,
             "max_tokens": request.max_tokens,
             "system": request.system,
-            "messages": [
-                {"role": m.role, "content": m.content}
-                for m in request.messages
-            ],
+            "messages": messages,
         }
         if request.temperature is not None:
             create_kwargs["temperature"] = request.temperature
