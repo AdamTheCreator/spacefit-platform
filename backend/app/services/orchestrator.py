@@ -286,7 +286,15 @@ def _build_orchestrator_request(
             "tool calls is discarded and replaced by your post-tool answer, so save "
             "the complete write-up for the turn where you have everything."
         )
-        llm_messages.append(LLMChatMessage(role="user", content=results_text))
+        # Merge into the last user message if it's already "user" to avoid
+        # consecutive same-role messages (Anthropic rejects them with 400).
+        if llm_messages and llm_messages[-1].role == "user":
+            llm_messages[-1] = LLMChatMessage(
+                role="user",
+                content=llm_messages[-1].content + "\n\n" + results_text,
+            )
+        else:
+            llm_messages.append(LLMChatMessage(role="user", content=results_text))
 
     effective_prompt_id = system_prompt_id
     effective_analysis_type = analysis_type
@@ -1078,10 +1086,22 @@ async def synthesize_specialist_outputs(
     for msg in conversation_history:
         role = msg.get("role", "")
         content = msg.get("content", "")
-        if role in ("user", "assistant") and isinstance(content, str):
-            llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            continue
+        if not content.strip():
+            continue
+        llm_messages.append(LLMChatMessage(role=role, content=redact_secrets(content)))
 
-    llm_messages.append(LLMChatMessage(role="user", content=synthesis_input))
+    # The synthesis input is a "user" message. If the last message is
+    # already "user" (the original question), merge them so we don't
+    # violate Anthropic's alternating-roles requirement (HTTP 400).
+    if llm_messages and llm_messages[-1].role == "user":
+        llm_messages[-1] = LLMChatMessage(
+            role="user",
+            content=llm_messages[-1].content + "\n\n" + synthesis_input,
+        )
+    else:
+        llm_messages.append(LLMChatMessage(role="user", content=synthesis_input))
 
     system_prompt = ORCHESTRATOR_SYSTEM_PROMPT
     if project_context:
