@@ -227,9 +227,10 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     switch (message.type) {
       case 'session_created': {
         const data = message.data as { session_id: string };
-        // Update URL and refs for new session
+        // Update URL and refs for new session — but do NOT reset
+        // isProcessing / workflowSteps; the turn is still in flight.
         currentSessionRef.current = data.session_id;
-        setCurrentSession(data.session_id, useChatStore.getState().messages);
+        useChatStore.setState({ currentSessionId: data.session_id });
         const nextUrl = projectIdRef.current
           ? `/projects/${projectIdRef.current}/chat/${data.session_id}`
           : `/chat/${data.session_id}`;
