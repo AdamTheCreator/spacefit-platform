@@ -210,6 +210,30 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     wsRef.current = ws;
   }, [setConnectionStatus, setIsProcessing]);
 
+  // Force a fresh WebSocket connection. The server caches per-session context
+  // (project/document) in per-connection memory and only reloads it from the
+  // DB the first time a session is seen on a connection. After a chat is
+  // promoted to a project mid-session, the live socket would otherwise keep
+  // its pre-promotion (ungrounded) context until the page reloads — a new
+  // connection re-reads the now-attached project_id and grounds future turns.
+  const reloadContext = useCallback(() => {
+    const ws = wsRef.current;
+    wsRef.current = null;
+    if (ws) {
+      // Detach handlers so the old socket's close doesn't race the reconnect.
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
+      try {
+        ws.close();
+      } catch {
+        /* already closing */
+      }
+    }
+    reconnectAttemptsRef.current = 0;
+    connect();
+  }, [connect]);
+
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
     // A stream killed mid-flight (provider error surfaced as a system bubble
@@ -575,5 +599,6 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
     // Actions
     sendMessage,
     cancelInflight,
+    reloadContext,
   };
 }
