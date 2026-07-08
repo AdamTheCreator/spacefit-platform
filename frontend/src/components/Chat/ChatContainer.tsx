@@ -111,6 +111,7 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
     isLoading,
     sendMessage,
     cancelInflight,
+    reloadContext,
     currentSessionId,
   } = useChat(initialSessionId, selectedMode, projectId);
 
@@ -566,7 +567,13 @@ export function ChatContainer({ initialSessionId, chatContext, projectId }: Chat
         <PromoteModal
           sessionId={sessionIdForPromote}
           onClose={() => setPromoteOpen(false)}
-          onPromoted={(project) => setPromotedTo(project)}
+          onPromoted={(project) => {
+            // Flip the header pill immediately, then reconnect the socket so the
+            // next turn is grounded in the just-attached project's data (the
+            // server caches session context per-connection).
+            setPromotedTo(project);
+            reloadContext();
+          }}
         />
       )}
     </div>
