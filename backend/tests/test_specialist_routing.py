@@ -887,3 +887,298 @@ async def test_handle_tool_calls_legacy_persists_hidden_result():
     ]
     assert raw_saves, "raw tool result should still be persisted in legacy mode"
     assert raw_saves[0].kwargs["visible"] is False
+
+# ---------------------------------------------------------------------------
+# Conversation-aware routing: the gate/planner see prior turns, so follow-ups
+# ("generate an investment memo") stop tripping CLARIFY on addresses the user
+# already gave. Regression coverage for the in-conversation amnesia bug.
+# ---------------------------------------------------------------------------
+
+
+def test_recent_history_digest_drops_live_turn_and_truncates():
+    from app.services.orchestrator import _recent_history_digest
+
+    history = [
+        {"role": "user", "content": "void analysis for 120 Post Rd W, Westport CT"},
+        {"role": "assistant", "content": "x" * 1000},
+        {"role": "user", "content": "generate an investment memo"},
+    ]
+    digest = _recent_history_digest(history, "generate an investment memo")
+
+    # The live turn (passed separately to the triage call) is not repeated.
+    assert "generate an investment memo" not in digest
+    # Prior turns are present, long ones truncated.
+    assert "120 Post Rd W" in digest
+    assert "[…]" in digest
+    assert digest.startswith("User: ")
+
+
+def test_recent_history_digest_empty_without_prior_turns():
+    from app.services.orchestrator import _recent_history_digest
+
+    assert _recent_history_digest(None, "hi") == ""
+    assert _recent_history_digest([], "hi") == ""
+    # A history that only contains the live turn digests to nothing.
+    live_only = [{"role": "user", "content": "hi"}]
+    assert _recent_history_digest(live_only, "hi") == ""
+
+
+@pytest.mark.asyncio
+async def test_needs_clarification_includes_history_in_triage_prompt():
+    from app.services import orchestrator as orch_mod
+
+    fake_client = MagicMock()
+    fake_client.chat = AsyncMock(return_value=SimpleNamespace(content="READY"))
+
+    history = [
+        {"role": "user", "content": "run a void analysis for 120 Post Rd W, Westport CT 06880"},  # noqa: E501
+        {"role": "assistant", "content": "Here is the void analysis…"},
+        {"role": "user", "content": "Can you generate an investment memo"},
+    ]
+
+    with patch.object(orch_mod, "get_llm_client", return_value=fake_client):
+        result = await orch_mod.needs_clarification(
+            "Can you generate an investment memo", history=history
+        )
+
+    assert result is False
+    sent = fake_client.chat.await_args.args[0]
+    # The triage call must see the property the conversation established.
+    assert "120 Post Rd W" in sent.system
+    assert "Recent conversation" in sent.system
+
+
+@pytest.mark.asyncio
+async def test_plan_workflow_includes_history_in_planning_prompt():
+    from app.services import orchestrator as orch_mod
+
+    fake_client = MagicMock()
+    fake_client.chat = AsyncMock(return_value=SimpleNamespace(content="analyst"))
+
+    history = [
+        {"role": "user", "content": "void analysis for 120 Post Rd W, Westport CT"},
+        {"role": "assistant", "content": "done"},
+        {"role": "user", "content": "generate the memo"},
+    ]
+
+    with patch.object(orch_mod, "get_llm_client", return_value=fake_client):
+        plan = await orch_mod.plan_workflow("generate the memo", history=history)
+
+    assert plan == ["analyst"]
+    sent = fake_client.chat.await_args.args[0]
+    assert "120 Post Rd W" in sent.system
+
+
+@pytest.mark.asyncio
+async def test_routing_turn_threads_history_into_gate_and_planner():
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+    history = [
+        {"role": "user", "content": "tell me about the Westport office market"},
+        {"role": "assistant", "content": "It is strong."},
+        {"role": "user", "content": "generate an investment memo"},
+    ]
+
+    plan_mock = AsyncMock(return_value=["scout"])
+    clarify_mock = AsyncMock(return_value=False)
+    stream_mock = AsyncMock(
+        return_value={
+            "specialist": "scout",
+            "content": "ok",
+            "tool_calls": [],
+            "stop_reason": "end_turn",
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+    )
+    synth_mock = AsyncMock(
+        return_value={"content": "memo", "input_tokens": 1, "output_tokens": 1}
+    )
+
+    with (
+        patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
+        patch.object(chat_mod, "_stream_specialist_to_ws", stream_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
+        patch.object(chat_mod, "save_message_to_db", AsyncMock()),
+        patch.object(chat_mod, "record_token_usage", AsyncMock()),
+        patch.object(chat_mod, "_schedule_fact_extraction", MagicMock()),
+        patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
+    ):
+        await chat_mod._run_specialist_routing_turn(
+            ws,  # type: ignore[arg-type]
+            user_id="u-1",
+            session_id="s-1",
+            user_content="generate an investment memo",
+            conversation_history=history,
+            proj_context=None,
+            doc_context=None,
+            user_context=None,
+            memory_context=None,
+            has_imported_data={"costar": False, "placer": False},
+            s_prompt_id=None,
+            s_analysis_type=None,
+            user_resolved_llm=None,
+        )
+
+    assert clarify_mock.await_args.kwargs["history"] is history
+    assert plan_mock.await_args.kwargs["history"] is history
+
+
+@pytest.mark.asyncio
+async def test_clarify_path_folds_note_into_live_turn_without_duplication():
+    """The clarify note is merged into the live user turn already present in
+    history — previously the whole user message was appended a second time."""
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+    user_content = "Analyze property"
+    history = [{"role": "user", "content": user_content}]
+
+    plan_mock = AsyncMock(return_value=["scout"])
+    clarify_mock = AsyncMock(return_value=True)
+    synth_mock = AsyncMock(
+        return_value={"content": "Which property?", "input_tokens": 1, "output_tokens": 1}  # noqa: E501
+    )
+
+    with (
+        patch("app.api.chat.plan_workflow", plan_mock, create=True),
+        patch("app.api.chat.needs_clarification", clarify_mock, create=True),
+        patch.object(chat_mod, "_stream_specialist_to_ws", AsyncMock()),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", synth_mock),
+        patch.object(chat_mod, "save_message_to_db", AsyncMock()),
+        patch.object(chat_mod, "record_token_usage", AsyncMock()),
+        patch.object(chat_mod, "_schedule_fact_extraction", MagicMock()),
+        patch.object(chat_mod, "handle_tool_calls", AsyncMock()),
+        patch("app.services.orchestrator.plan_workflow", plan_mock, create=True),
+        patch("app.services.orchestrator.needs_clarification", clarify_mock, create=True),  # noqa: E501
+    ):
+        await chat_mod._run_specialist_routing_turn(
+            ws,  # type: ignore[arg-type]
+            user_id="u-1",
+            session_id="s-1",
+            user_content=user_content,
+            conversation_history=history,
+            proj_context=None,
+            doc_context=None,
+            user_context=None,
+            memory_context=None,
+            has_imported_data={"costar": False, "placer": False},
+            s_prompt_id=None,
+            s_analysis_type=None,
+            user_resolved_llm=None,
+        )
+
+    clar_history = synth_mock.await_args.kwargs["conversation_history"]
+    user_turns = [m for m in clar_history if m["role"] == "user"]
+    # One user turn only: the live message with the note folded in.
+    assert len(user_turns) == 1
+    assert user_turns[0]["content"].startswith(user_content)
+    assert "(Note:" in user_turns[0]["content"]
+    # The caller's history object is untouched by the note.
+    assert history[0]["content"] == user_content
+
+
+# ---------------------------------------------------------------------------
+# Tool grounding: session-tracked address backfills vague location args
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_calls_fallback_address_grounds_vague_location():
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+    exec_mock = AsyncMock(return_value="RESULTS")
+
+    with (
+        patch.object(chat_mod, "execute_tool", exec_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", AsyncMock()),
+        patch.object(chat_mod, "save_message_to_db", AsyncMock()),
+    ):
+        await chat_mod.handle_tool_calls(
+            websocket=ws,  # type: ignore[arg-type]
+            tool_calls=[
+                {
+                    "id": "tu-1",
+                    "name": "business_search",
+                    "input": {"query": "coffee shops", "location": "this address"},
+                }
+            ],
+            session_id="s-1",
+            user_id="u-1",
+            conversation_history=[],
+            user_context=None,
+            internal=True,
+            fallback_address="120 Post Rd W, Westport, CT 06880",
+        )
+
+    sent_input = exec_mock.await_args.args[1]
+    assert sent_input["location"] == "120 Post Rd W, Westport, CT 06880"
+    # Non-location args are preserved.
+    assert sent_input["query"] == "coffee shops"
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_calls_fallback_address_never_overrides_explicit():
+    from app.api import chat as chat_mod
+
+    ws = _FakeWebSocket()
+    exec_mock = AsyncMock(return_value="RESULTS")
+
+    with (
+        patch.object(chat_mod, "execute_tool", exec_mock),
+        patch.object(chat_mod, "_stream_orchestrator_to_ws", AsyncMock()),
+        patch.object(chat_mod, "save_message_to_db", AsyncMock()),
+    ):
+        await chat_mod.handle_tool_calls(
+            websocket=ws,  # type: ignore[arg-type]
+            tool_calls=[
+                {
+                    "id": "tu-1",
+                    "name": "business_search",
+                    "input": {"query": "gyms", "location": "1842 Boston Post Rd, Milford CT"},  # noqa: E501
+                }
+            ],
+            session_id="s-1",
+            user_id="u-1",
+            conversation_history=[],
+            user_context=None,
+            internal=True,
+            fallback_address="120 Post Rd W, Westport, CT 06880",
+        )
+
+    sent_input = exec_mock.await_args.args[1]
+    assert sent_input["location"] == "1842 Boston Post Rd, Milford CT"
+
+
+def test_seed_address_from_history_prefers_latest_concrete_user_turn():
+    from app.api.chat import _seed_address_from_history
+
+    history = [
+        {"role": "user", "content": "void analysis for 1842 Boston Post Rd"},
+        {"role": "assistant", "content": "…analysis…"},
+        {"role": "user", "content": "now look at 120 Post Rd W, Westport CT 06880"},
+        {"role": "assistant", "content": "…contains 999 Fake St but is not a user turn…"},  # noqa: E501
+        {"role": "user", "content": "thanks!"},
+    ]
+    seeded = _seed_address_from_history(history)
+    assert seeded == "now look at 120 Post Rd W, Westport CT 06880"
+
+
+def test_seed_address_from_history_returns_none_without_target():
+    from app.api.chat import _seed_address_from_history
+
+    assert _seed_address_from_history([]) is None
+    assert (
+        _seed_address_from_history(
+            [
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "hi"},
+            ]
+        )
+        is None
+    )
