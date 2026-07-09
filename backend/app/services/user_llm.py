@@ -57,11 +57,21 @@ VALIDATION_MODELS: dict[str, str] = {
     "baseten": "Qwen/Qwen2.5-7B-Instruct",
 }
 
-# Previously-shipped model ids that can return provider-side 404s on some keys.
+# Previously-shipped model ids that can return provider-side 404s on some keys,
+# plus fully retired Anthropic ids (Claude 3.x line) that 404 on every key —
+# earlier builds offered these in the BYOK picker, so existing user configs
+# may still carry them.
 _ANTHROPIC_DEPRECATED_MODEL_ALIASES: dict[str, str] = {
     "claude-haiku-4-5-20251001": settings.anthropic_model or "claude-haiku-4-5",
     "claude-sonnet-4-6-20260320": "claude-sonnet-4-5",
     "claude-sonnet-4-20250514": "claude-sonnet-4-5",
+    "claude-3-5-haiku-latest": "claude-haiku-4-5",
+    "claude-3-5-haiku-20241022": "claude-haiku-4-5",
+    "claude-3-5-sonnet-latest": "claude-sonnet-4-5",
+    "claude-3-5-sonnet-20241022": "claude-sonnet-4-5",
+    "claude-3-5-sonnet-20240620": "claude-sonnet-4-5",
+    "claude-3-opus-latest": "claude-opus-4-8",
+    "claude-3-opus-20240229": "claude-opus-4-8",
 }
 
 # Tier values that should route to paid-tier platform LLMs when the user
