@@ -25,7 +25,7 @@ from app.models.document import (
 VISION_MODEL = "claude-sonnet-4-5"
 
 # Lighter model for classification (fast + cheap, doesn't need Sonnet quality)
-CLASSIFICATION_MODEL = "claude-haiku-4-5-20251001"
+CLASSIFICATION_MODEL = "claude-haiku-4-5"
 
 
 def encode_file_to_base64(file_path: str) -> str:

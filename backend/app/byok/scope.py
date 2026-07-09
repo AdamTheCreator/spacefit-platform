@@ -142,7 +142,12 @@ _PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     # (input_usd_per_mtok, output_usd_per_mtok)
     "claude-sonnet-4-6-20260320": (3.0, 15.0),
     "claude-sonnet-4-20250514": (3.0, 15.0),
-    "claude-haiku-4-5-20251001": (0.25, 1.25),
+    "claude-sonnet-4-5": (3.0, 15.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-opus-4-8": (5.0, 25.0),
+    # Haiku 4.5 is $1/$5 per MTok (the old 0.25/1.25 entry was Haiku 3 pricing)
+    "claude-haiku-4-5": (1.0, 5.0),
+    "claude-haiku-4-5-20251001": (1.0, 5.0),
     "claude-3-haiku-20240307": (0.25, 1.25),
     "gpt-4o": (2.5, 10.0),
     "gpt-4o-mini": (0.15, 0.6),

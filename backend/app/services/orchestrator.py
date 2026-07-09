@@ -640,16 +640,62 @@ def message_has_concrete_target(message: str) -> bool:
     return False
 
 
+def _recent_history_digest(
+    history: list[dict[str, str]] | None,
+    current_user_message: str,
+    max_messages: int = 6,
+    max_chars_per_message: int = 400,
+) -> str:
+    """Render the tail of a conversation as a compact text block.
+
+    Used to make the routing triage (``needs_clarification``) and planning
+    (``plan_workflow``) calls conversation-aware: without it, a follow-up
+    like "generate an investment memo" looks context-free and trips the
+    clarification gate even though the property address is two turns up.
+
+    Skips the trailing entry when it duplicates the in-flight user message
+    (callers append the live turn to history before routing). Returns ""
+    when there is no prior conversation.
+    """
+    if not history:
+        return ""
+    msgs = list(history)
+    if (
+        msgs
+        and msgs[-1].get("role") == "user"
+        and msgs[-1].get("content") == current_user_message
+    ):
+        msgs = msgs[:-1]
+    lines: list[str] = []
+    for msg in msgs[-max_messages:]:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            continue
+        content = content.strip()
+        if not content:
+            continue
+        if len(content) > max_chars_per_message:
+            content = content[:max_chars_per_message] + " […]"
+        lines.append(f"{'User' if role == 'user' else 'Assistant'}: {content}")
+    return "\n".join(lines)
+
+
 async def needs_clarification(
     user_message: str,
     context: dict[str, Any] | None = None,
     resolved_llm: ResolvedLLM | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> bool:
     """Decide whether the user's message is too vague to delegate to specialists.
 
     Returns True when the orchestrator should skip specialist routing and
     instead ask the user a single clarifying question. Returns False (READY)
     on any error so a flaky model call never blocks a real request.
+
+    ``history`` (the prior conversation turns) makes the gate follow-up
+    aware: "generate an investment memo" mid-conversation about a specific
+    property is READY, not CLARIFY.
     """
     request_id = uuid.uuid4().hex[:8]
     llm = resolved_llm.client if resolved_llm else get_llm_client()
@@ -664,6 +710,14 @@ async def needs_clarification(
         if context.get("imports"):
             context_hint += "\nImported data is already attached."
 
+    history_block = _recent_history_digest(history, user_message)
+    history_hint = ""
+    if history_block:
+        history_hint = (
+            "\nRecent conversation (the user's message may be a follow-up "
+            "that refers back to it):\n" + history_block + "\n"
+        )
+
     system_prompt = (
         "You are a routing triage step for a commercial real estate assistant. "
         "Decide whether the user's message has enough concrete information to "
@@ -672,8 +726,14 @@ async def needs_clarification(
         "READY when the message contains ANY of: a street address, a named "
         "property/center, a city or ZIP with a specific question, a tenant "
         "name, a deal question, or a request referencing attached data.\n\n"
+        "READY also when the message is a follow-up whose target is already "
+        "established in the recent conversation — e.g. 'generate an "
+        "investment memo', 'export that to CSV', or 'what about retail?' "
+        "after a property address was discussed. Never ask the user to "
+        "repeat information that already appears in the conversation.\n\n"
         "CLARIFY only when the message is genuinely empty or a bare menu "
-        "phrase with NO target at all (e.g. 'Analyze property', 'hi', "
+        "phrase with NO target at all — neither in the message nor anywhere "
+        "in the recent conversation (e.g. 'Analyze property', 'hi', "
         "'help', 'Match tenants' with zero context).\n\n"
         "When in doubt, respond READY — it is always better to attempt the "
         "work than to ask for information the user already provided.\n\n"
@@ -681,9 +741,11 @@ async def needs_clarification(
         "- '29 lovell ave mill valley ca find coffee shops' → READY\n"
         "- 'void analysis for 1842 Boston Post Rd' → READY\n"
         "- 'what are cap rates in Phoenix retail?' → READY\n"
-        "- 'Analyze property' → CLARIFY\n"
+        "- 'generate an investment memo' after discussing an address → READY\n"
+        "- 'Analyze property' with no prior conversation → CLARIFY\n"
         "- 'hello' → CLARIFY\n"
         f"{context_hint}\n"
+        f"{history_hint}"
         "Reply with exactly one token: READY or CLARIFY."
     )
 
@@ -714,10 +776,14 @@ async def plan_workflow(
     user_message: str,
     context: dict | None = None,
     resolved_llm: ResolvedLLM | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> list[str]:
     """Ask a small LLM call: which specialists should handle this user message?
 
     Returns an ordered list of specialist names, e.g. ["scout", "analyst", "matchmaker"].
+
+    ``history`` lets the planner resolve follow-ups ("now draft outreach for
+    those tenants") against what the conversation already established.
     """
     from app.agents.specialists.registry import SPECIALIST_REGISTRY
 
@@ -745,6 +811,13 @@ async def plan_workflow(
             if spaces:
                 context_hint += f"\n{len(spaces)} available spaces extracted from document."
             context_hint += "\nSkip Scout for property discovery — go straight to Analyst + Matchmaker."
+
+    history_block = _recent_history_digest(history, user_message)
+    if history_block:
+        context_hint += (
+            "\n\nRecent conversation (resolve follow-ups like 'this address' "
+            "or 'generate the memo' against it):\n" + history_block
+        )
 
     planning_prompt = f"""Given the user's message, decide which specialists to call and in what order.
 

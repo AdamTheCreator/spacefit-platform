@@ -19,11 +19,15 @@ class SpecialistConfig:
 
 
 # Model tier -> concrete model, respecting BYOK override when available.
-# These are verified against the Anthropic API as of 2026-04.
+# Platform policy: every tier runs on Claude Haiku 4.5 — the cheapest current
+# Claude model ($1/$5 per MTok) — to keep non-BYOK costs minimal. The prior
+# "balanced"/"deep" id (claude-sonnet-4-6-20260320) is deprecated and 404s
+# (see _ANTHROPIC_DEPRECATED_MODEL_ALIASES in services/user_llm.py). BYOK
+# users get stronger models via per-specialist overrides.
 MODEL_TIER_MAP: dict[str, str] = {
-    "fast": "claude-haiku-4-5-20251001",
-    "balanced": "claude-sonnet-4-6-20260320",
-    "deep": "claude-sonnet-4-6-20260320",
+    "fast": "claude-haiku-4-5",
+    "balanced": "claude-haiku-4-5",
+    "deep": "claude-haiku-4-5",
 }
 
 
