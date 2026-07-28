@@ -1,0 +1,16 @@
+language: en-us
+
+reviews:
+  profile: assertive
+  request_changes: true
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # Empty list means auto-review runs against all base branches.
+    base_branches: []
+
+chat:
+  auto_reply: true
