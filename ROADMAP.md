@@ -208,8 +208,16 @@ rank listings; surface top matches per client
 - **Document staleness** — add a freshness indicator / re-index on project docs.
 - **Vehicle/traffic counts** — needs a real source (Placer.ai is already stubbed and closest;
   StreetLight or Caltrans/DOT are alternatives).
-- **Kanban (Workflow)** — wire to the real `Deal` / `DealStage` model so "start an outreach sequence"
-  drops a card; today it's pure mock with mismatched stage names.
+- **Kanban (Workflow)** — ✅ **done.** Both boards (`/workflow` + legacy `/pipeline`) are wired to
+  the real `Deal` / `DealStage` model (drag-to-move records stage history); the `types/deal.ts`
+  stage union matches the backend enum 1:1 (the old "pure mock / mismatched stage names" note was
+  stale). **Sending an outreach campaign now drops a card**: `outreach_campaigns.deal_id` (migration
+  039) links to a `Deal` that `app/services/deal_from_campaign.py::ensure_deal_for_campaign` creates
+  at `intake` stage on send (idempotent, best-effort so it never fails the send). **TODO — missing
+  send on-ramp:** `EmailComposer` creates draft campaigns and `CampaignDetail` displays them, but
+  neither exposes a *send* action; `DraftsReviewModal` is the only send path in the app, so
+  manually-composed campaigns are stranded as drafts (and never drop a card). Wiring a send action
+  onto composed/draft campaigns is the real remaining "missing on-ramp."
 - **Cleanup** — ✅ **shipped.** (a) The orchestrator's "DATA SOURCE STATUS" prompt no longer tells
   users to "connect" CoStar/SiteUSA — those (and Placer.ai) are file-upload sources now (CSV/PDF
   exports uploaded at `/connections`, repurposed in PR #28), so the guidance was reworded from

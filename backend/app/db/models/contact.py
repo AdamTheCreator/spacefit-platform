@@ -142,7 +142,7 @@ class ContactInteraction(Base):
         index=True,
     )
 
-    # type: meeting | note | enrich | email_in | email_out
+    # kind values: meeting | note | enrich | email_in | email_out
     type: Mapped[str] = mapped_column(String(20), default="note")
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     who: Mapped[str | None] = mapped_column(String(150), nullable=True)

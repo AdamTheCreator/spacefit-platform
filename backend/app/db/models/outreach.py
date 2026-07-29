@@ -99,6 +99,13 @@ class OutreachCampaign(Base):
     void_analysis_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # Chat session where this was created
 
+    # Pipeline link — set when the campaign is sent, so starting an outreach
+    # sequence drops a card on the Kanban board. SET NULL so deleting the deal
+    # doesn't cascade into the campaign.
+    deal_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("deals.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # File attachments — list of document IDs from parsed_documents table
     attachment_ids: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
 

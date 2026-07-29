@@ -664,6 +664,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: 'Gemini',
   deepseek: 'DeepSeek',
   huggingface: 'Hugging Face',
+  baseten: 'Baseten',
   openai_compatible: 'Custom',
   platform_default: 'Platform',
 };

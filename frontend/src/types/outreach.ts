@@ -51,6 +51,7 @@ export interface OutreachCampaign {
   clicked_count: number;
   replied_count: number;
   bounced_count: number;
+  deal_id?: string | null;
   recipients?: OutreachRecipient[];
 }
 
@@ -65,6 +66,7 @@ export interface OutreachCampaignListItem {
   sent_count: number;
   opened_count: number;
   replied_count: number;
+  deal_id?: string | null;
 }
 
 export interface OutreachThread {
@@ -121,4 +123,5 @@ export interface SendCampaignResponse {
   message: string;
   total_sent: number;
   total_failed: number;
+  deal_id?: string | null;
 }

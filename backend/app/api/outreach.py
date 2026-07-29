@@ -26,6 +26,7 @@ from app.db.models.outreach import (
     CampaignStatus,
     RecipientStatus,
 )
+from app.services.deal_from_campaign import ensure_deal_for_campaign
 from app.services.email_blast import (
     send_campaign_emails,
     generate_default_subject,
@@ -113,6 +114,7 @@ class CampaignResponse(BaseModel):
     opened_count: int
     replied_count: int
     bounced_count: int
+    deal_id: str | None = None
     recipients: list[RecipientResponse] | None = None
 
     class Config:
@@ -130,6 +132,7 @@ class CampaignListResponse(BaseModel):
     sent_count: int
     opened_count: int
     replied_count: int
+    deal_id: str | None = None
 
     class Config:
         from_attributes = True
@@ -166,6 +169,7 @@ class SendCampaignResponse(BaseModel):
     message: str
     total_sent: int
     total_failed: int
+    deal_id: str | None = None
 
 
 class TemplateCreate(BaseModel):
@@ -293,6 +297,7 @@ async def create_campaign(
         opened_count=db_campaign.opened_count,
         replied_count=db_campaign.replied_count,
         bounced_count=db_campaign.bounced_count,
+        deal_id=db_campaign.deal_id,
         recipients=[
             RecipientResponse(
                 id=r.id,
@@ -339,6 +344,7 @@ async def list_campaigns(
             sent_count=c.sent_count,
             opened_count=c.opened_count,
             replied_count=c.replied_count,
+            deal_id=c.deal_id,
         )
         for c in campaigns
     ]
@@ -435,6 +441,7 @@ async def get_campaign(
         opened_count=campaign.opened_count,
         replied_count=campaign.replied_count,
         bounced_count=campaign.bounced_count,
+        deal_id=campaign.deal_id,
         recipients=[
             RecipientResponse(
                 id=r.id,
@@ -663,11 +670,26 @@ async def send_campaign(
 
     await db.commit()
 
+    # Starting the sequence drops a card on the Kanban board. Best-effort: a
+    # failure here must never fail the send that already succeeded.
+    deal_id: str | None = None
+    try:
+        deal_id = await ensure_deal_for_campaign(db, campaign)
+        await db.commit()
+    except Exception:  # noqa: BLE001 - deal creation is non-critical
+        await db.rollback()
+        logger.warning(
+            "[outreach] failed to create pipeline deal for campaign %s",
+            campaign.id,
+            exc_info=True,
+        )
+
     return SendCampaignResponse(
         success=summary.successful > 0,
         message=f"Sent {summary.successful} emails, {summary.failed} failed",
         total_sent=summary.successful,
         total_failed=summary.failed,
+        deal_id=deal_id,
     )
 
 
