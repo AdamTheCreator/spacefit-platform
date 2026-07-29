@@ -39,7 +39,11 @@ def upgrade() -> None:
     ).fetchall()
 
     if duplicates:
-        collisions = ", ".join(f"{row.normalized} (x{row.n})" for row in duplicates)
+        collisions = ", ".join(
+            f"{row.normalized.split('@')[0][:2]}***@"
+            f"{row.normalized.split('@')[-1]} (x{row.n})"
+            for row in duplicates
+        )
         raise RuntimeError(
             "Cannot normalize user emails: case/whitespace-variant duplicates "
             f"exist and must be merged first: {collisions}"

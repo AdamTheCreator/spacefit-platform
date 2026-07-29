@@ -67,8 +67,13 @@ async def test_signup_stores_normalized_email_and_login_is_case_insensitive() ->
 
 
 @pytest.mark.asyncio
-async def test_email_provider_down_does_not_break_signup() -> None:
-    # No RESEND_API_KEY in the test env -> send returns False; signup still ok.
+async def test_email_provider_down_does_not_break_signup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Force the unconfigured path -> send returns False; signup still ok.
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "resend_api_key", "")
     async with _session() as db:
         user = await _register(AuthService(db), "down@example.com")
         assert user.id is not None

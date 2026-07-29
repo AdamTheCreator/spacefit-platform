@@ -109,9 +109,11 @@ class TestOAuthCodeStore:
         assert OAuthCodeStore().redeem("nope") is None
 
     def test_expired_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from app.services.oauth_exchange import _CODE_TTL_SECONDS
+
         store = OAuthCodeStore()
         code = store.issue("acc", "ref", 900)
-        future = time.monotonic() + 120
+        future = time.monotonic() + _CODE_TTL_SECONDS + 1
         monkeypatch.setattr(
             "app.services.oauth_exchange.time.monotonic", lambda: future
         )

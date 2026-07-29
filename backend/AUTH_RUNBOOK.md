@@ -47,7 +47,7 @@ Run `alembic upgrade head` on deploy (the container does this on boot). Relevant
 
 ## Triage: "a user can't log in"
 
-1. **Look up the account** (admin): `GET /api/v1/admin/users/lookup?email=<email>`.
+1. **Look up the account** (admin): `GET /api/v1/admin/users/by-email?email=<email>`.
    Check `is_active`, `email_verified`, `has_password`, `oauth_providers`,
    `active_sessions`, `password_changed_at`.
    - No record → they signed up in a different environment / never registered.

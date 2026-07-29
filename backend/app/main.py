@@ -85,6 +85,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     critical, warnings = check_auth_config()
     for msg in critical:
         logger.critical("auth.config: %s", msg)
+    if critical:
+        raise RuntimeError(
+            "Refusing to start with insecure auth configuration; "
+            "see critical log lines above."
+        )
     for msg in warnings:
         logger.warning("auth.config: %s", msg)
 

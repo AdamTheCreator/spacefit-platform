@@ -73,9 +73,6 @@ class Settings(BaseSettings):
     # When true, unverified accounts cannot log in (default off so existing
     # unverified users aren't stranded by the rollout).
     require_verified_email_for_login: bool = Field(default=False)
-    # Optional alert sink (Sentry/Slack/webhook URL) for email-send failures
-    # and lockouts. No-op when empty.
-    auth_alert_webhook_url: str = Field(default="")
     # OAuth: when true, the Google callback hands the SPA a short-lived
     # one-time code to exchange for tokens instead of putting tokens in the
     # redirect URL. Flip off to fall back to the legacy redirect.

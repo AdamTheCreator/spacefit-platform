@@ -90,7 +90,7 @@ lower-risk, in-grain choice. Hardening:
 - New table `auth_events` (see §3): append-only rows for `login`, `login_failed`,
   `reset_requested`, `reset_completed`, `password_changed`, `email_verified`,
   `account_locked`, `refresh_reuse_detected`. Columns: user_id (nullable), event,
-  ip, user_agent, request_id, metadata JSON, created_at. **Never** stores passwords,
+  ip, user_agent, request_id, detail (free-form text), created_at. **Never** stores passwords,
   tokens, or reset links.
 - Structured logger events on the same actions (already added `auth.email.send_failed`
   / `auth.email.not_configured` in Phase 1).

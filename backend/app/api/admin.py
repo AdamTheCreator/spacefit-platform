@@ -450,7 +450,7 @@ async def _get_user_or_404(db: DBSession, user_id: str) -> User:
     return user
 
 
-@router.get("/users/lookup", response_model=AdminAuthStatus)
+@router.get("/users/by-email", response_model=AdminAuthStatus)
 async def admin_lookup_user(admin: AdminUser, db: DBSession, email: str = Query(...)):
     """Look up a user's auth status by email (triage 'can't log in' reports)."""
     from sqlalchemy.orm import selectinload

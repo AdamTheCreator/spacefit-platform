@@ -171,14 +171,21 @@ class AuthService:
         if user_id is None or jti is None:
             return None
 
-        # Exact-hash lookup regardless of revoked state — a revoked hit means
-        # the token was already rotated and is being replayed (theft).
+        # Legacy JWTs issued before the hardening deploy carry a 16-char jti
+        # (prefix of the stored hash); new JWTs carry the full 64-char hash.
+        # Accept the legacy prefix for one TTL period so existing sessions
+        # don't get mass-signed-out on deploy.
+        predicate = (
+            RefreshToken.token_hash == jti
+            if len(jti) == 64
+            else RefreshToken.token_hash.like(f"{jti}%")
+        )
         try:
             result = await asyncio.wait_for(
                 self.db.execute(
                     select(RefreshToken).where(
                         RefreshToken.user_id == user_id,
-                        RefreshToken.token_hash == jti,
+                        predicate,
                     )
                 ),
                 timeout=5.0,
@@ -224,9 +231,31 @@ class AuthService:
         if user is None:
             return None
 
-        # Rotate: revoke the presented token and issue a successor in the same
-        # family, linked via replaced_by_id.
-        token_record.revoked = True
+        # Atomic rotation: conditionally revoke the presented token only if
+        # it is still active. If a concurrent request already revoked it,
+        # the UPDATE affects 0 rows — treat that as reuse/theft.
+        atomically_revoked = await self.db.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.id == token_record.id,
+                RefreshToken.revoked == False,  # noqa: E712
+            )
+            .values(revoked=True)
+        )
+        if atomically_revoked.rowcount == 0:  # type: ignore[attr-defined]
+            # Another request beat us to it — revoke the family and bail.
+            logger.warning(
+                "auth.refresh: concurrent rotation detected, revoking family "
+                "user_id=%s",
+                user_id,
+            )
+            await self._revoke_family(token_record)
+            await record_auth_event(
+                self.db, EVENT_REFRESH_REUSE, user_id=str(user_id)
+            )
+            return None
+
+        # Issue the successor in the same family, linked via replaced_by_id.
         token_response, new_record = await self._issue_tokens(
             user, token_record.device_info, token_record.family_id
         )
@@ -247,10 +276,16 @@ class AuthService:
         if jti is None or user_id is None:
             return False
 
+        # Accept legacy 16-char prefix jti as well as the new full-hash jti.
+        predicate = (
+            RefreshToken.token_hash == jti
+            if len(jti) == 64
+            else RefreshToken.token_hash.like(f"{jti}%")
+        )
         result = await self.db.execute(
             select(RefreshToken).where(
                 RefreshToken.user_id == user_id,
-                RefreshToken.token_hash == jti,
+                predicate,
             )
         )
         token_record = result.scalar_one_or_none()
@@ -339,6 +374,18 @@ class AuthService:
         user_id_str = str(user_id) if isinstance(user_id, UUID) else user_id
         result = await self.db.execute(select(User).where(User.id == user_id_str))
         return result.scalar_one_or_none()
+
+    async def get_user_id_by_email(self, email: str) -> str | None:
+        """Resolve a normalized email to its user_id for audit logging.
+
+        Used to associate login-failure events with the user even when
+        authentication fails, so admin auth-event queries can find them.
+        """
+        result = await self.db.execute(
+            select(User.id).where(User.email == normalize_email(email))
+        )
+        row = result.scalar_one_or_none()
+        return str(row) if row else None
 
     async def update_password(
         self, user: User, current_password: str, new_password: str

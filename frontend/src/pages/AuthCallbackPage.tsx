@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../lib/axios';
@@ -7,6 +7,7 @@ export function AuthCallbackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { checkAuth } = useAuthStore();
+  const processedCode = useRef<string | null>(null);
 
   useEffect(() => {
     const finish = () =>
@@ -15,6 +16,10 @@ export function AuthCallbackPage() {
     // Preferred path: single-use code exchanged for tokens (no tokens in URL).
     const code = searchParams.get('code');
     if (code) {
+      // Guard against double-exchange in React Strict Mode (effects run
+      // twice in dev) — the single-use code would fail on the second call.
+      if (processedCode.current === code) return;
+      processedCode.current = code;
       api
         .post('/auth/oauth/exchange', { code })
         .then((res) => {

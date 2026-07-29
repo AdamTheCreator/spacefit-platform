@@ -55,10 +55,12 @@ class OAuthExchangeRequest(BaseModel):
 
 
 def _login_keys(email: str, ip: str | None) -> list[str]:
-    keys = [f"email:{email}"]
+    # Pair-scoped so a third party can't lock a victim's account by
+    # spraying wrong passwords from an unrelated host. IP-only key
+    # still throttles brute-force from a single source.
     if ip:
-        keys.append(f"ip:{ip}")
-    return keys
+        return [f"email+ip:{email}|{ip}", f"ip:{ip}"]
+    return [f"email:{email}"]
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -126,7 +128,12 @@ async def login(
         if settings.auth_rate_limit_enabled:
             for k in keys:
                 locked_for = max(locked_for, login_lockout.register_failure(k))
-        await record_auth_event(db, EVENT_LOGIN_FAILED, request=request)
+        # Resolve the user_id for audit while keeping the HTTP response
+        # enumeration-safe (same 401 regardless of whether the email exists).
+        failed_user_id = await auth_service.get_user_id_by_email(email)
+        await record_auth_event(
+            db, EVENT_LOGIN_FAILED, request=request, user_id=failed_user_id
+        )
         if locked_for > 0:
             await record_auth_event(
                 db, EVENT_ACCOUNT_LOCKED, request=request, detail="threshold"

@@ -17,10 +17,11 @@ export function VerifyEmailPage() {
     setResendState('sending');
     try {
       await api.post('/auth/resend-verification', { email: resendEmail });
-    } catch {
-      // Enumeration-safe: always report the same neutral outcome.
-    } finally {
       setResendState('sent');
+    } catch {
+      // Enumeration-safe: keep the form retryable without revealing
+      // whether the email exists.
+      setResendState('idle');
     }
   };
 
@@ -99,7 +100,13 @@ export function VerifyEmailPage() {
                   If an account exists and is unverified, a new link has been sent.
                 </p>
               ) : (
-                <div className="mb-6 space-y-3 text-left">
+                <form
+                  className="mb-6 space-y-3 text-left"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleResend();
+                  }}
+                >
                   <label htmlFor="resend-email" className="text-sm font-medium text-industrial block">
                     Resend verification link
                   </label>
@@ -112,16 +119,16 @@ export function VerifyEmailPage() {
                     spellCheck={false}
                     className="input-industrial"
                     placeholder="you@company.com"
+                    required
                   />
                   <button
-                    type="button"
-                    onClick={handleResend}
+                    type="submit"
                     disabled={resendState === 'sending' || !resendEmail}
                     className="btn-industrial-primary w-full py-2.5 disabled:opacity-60"
                   >
                     {resendState === 'sending' ? 'Sending...' : 'Resend link'}
                   </button>
-                </div>
+                </form>
               )}
               <Link
                 to="/login"
