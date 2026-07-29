@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.deal import Deal, DealStage, DealStageHistory, DealType
@@ -30,10 +30,13 @@ async def ensure_deal_for_campaign(
 ) -> str | None:
     """Ensure a `Deal` exists for a sent campaign; return its id.
 
-    Idempotent: if ``campaign.deal_id`` already points at a live deal, returns
-    it untouched. Otherwise creates an ``intake``-stage deal (with its initial
-    stage-history row), links it back onto the campaign, and flushes. The caller
-    owns the commit.
+    Idempotent and concurrency-safe: if ``campaign.deal_id`` already points at a
+    live deal, returns it untouched. Otherwise creates an ``intake``-stage deal
+    (with its initial stage-history row) and claims the campaign link with a
+    guarded ``UPDATE ... WHERE deal_id IS NULL``. Two concurrent sends of the
+    same campaign can't both win that guard (Postgres serializes on the row
+    lock), so at most one deal is ever linked; the loser discards its
+    just-created deal and reuses the winner's. The caller owns the commit.
     """
     if campaign.deal_id:
         existing = await db.execute(
@@ -60,6 +63,27 @@ async def ensure_deal_for_campaign(
     )
     db.add(deal)
     await db.flush()
+
+    claimed = await db.execute(
+        update(OutreachCampaign)
+        .where(
+            OutreachCampaign.id == campaign.id,
+            OutreachCampaign.deal_id.is_(None),
+        )
+        .values(deal_id=deal.id)
+    )
+    if claimed.rowcount == 0:  # type: ignore[attr-defined]
+        # A concurrent send linked a deal first. Drop ours and reuse theirs so
+        # we never leave an orphaned pipeline card behind.
+        await db.delete(deal)
+        await db.flush()
+        winner = await db.execute(
+            select(OutreachCampaign.deal_id).where(
+                OutreachCampaign.id == campaign.id
+            )
+        )
+        campaign.deal_id = winner.scalar_one_or_none()
+        return campaign.deal_id
 
     campaign.deal_id = deal.id
     return deal.id

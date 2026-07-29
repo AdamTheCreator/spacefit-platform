@@ -46,7 +46,7 @@ export function useTrafficCount(address: string | null | undefined) {
   const trimmed = (address ?? '').trim();
   const enabled = trimmed.length >= 3;
 
-  return useQuery({
+  const query = useQuery({
     queryKey: trafficKeys.count(trimmed),
     enabled,
     staleTime: 24 * 60 * 60 * 1000, // AADT is annual; cache aggressively.
@@ -57,4 +57,9 @@ export function useTrafficCount(address: string | null | undefined) {
       return res.data;
     },
   });
+
+  // Surface `enabled` so consumers can tell a disabled (address too short to
+  // look up) lookup apart from a failed request and render a neutral idle
+  // state instead of an error.
+  return { ...query, enabled };
 }

@@ -1,7 +1,7 @@
 """Add outreach_campaigns.deal_id link to the pipeline.
 
-Revision ID: 039
-Revises: 038
+Revision ID: 042
+Revises: 041
 Create Date: 2026-07-03
 
 Links a campaign to the ``deals`` row created when the campaign is sent, so
@@ -18,8 +18,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "039"
-down_revision: str = "038"
+revision: str = "042"
+down_revision: str = "041"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

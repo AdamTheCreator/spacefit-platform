@@ -29,8 +29,8 @@ Optional tuning (sane defaults in `app/core/config.py`): `AUTH_RATE_LIMIT_ENABLE
    owner's own address (test mode) and silently drops everything else.
 3. Confirm `RESEND_FROM_EMAIL` is on that verified domain and `FRONTEND_URL`
    matches the environment.
-4. Verify: trigger `POST /auth/forgot-password` for a known address and confirm
-   delivery. If it fails, the server logs `auth.email.send_failed` /
+4. Verify: trigger `POST /api/v1/auth/forgot-password` for a known address and
+   confirm delivery. If it fails, the server logs `auth.email.send_failed` /
    `auth.email.not_configured` (they are no longer silent).
 
 ## Migrations
@@ -41,13 +41,10 @@ Run `alembic upgrade head` on deploy (the container does this on boot). Relevant
 - `041` — `auth_events` audit table + `refresh_tokens.family_id/replaced_by_id`
   + `users.password_changed_at`.
 
-> Prereq: resolve the duplicate `039` revision id (committed
-> `039_document_indexed_at.py` vs untracked `039_add_campaign_deal_link.py`)
-> before running migrations, or Alembic errors on multiple heads.
-
 ## Triage: "a user can't log in"
 
-1. **Look up the account** (admin): `GET /api/v1/admin/users/by-email?email=<email>`.
+1. **Look up the account** (admin): `GET /api/v1/admin/users/by-email?email=<url-encoded-email>`
+   (URL-encode the address, e.g. `user%40example.com`).
    Check `is_active`, `email_verified`, `has_password`, `oauth_providers`,
    `active_sessions`, `password_changed_at`.
    - No record → they signed up in a different environment / never registered.
@@ -73,8 +70,8 @@ Run `alembic upgrade head` on deploy (the container does this on boot). Relevant
 
 - Never log passwords, tokens, or reset links. Audit rows in `auth_events` store
   only event name, IP, user-agent, request id, and a short non-sensitive detail.
-- OAuth sign-in hands the SPA a single-use code (`/auth/oauth/exchange`) instead
-  of putting tokens in the redirect URL.
+- OAuth sign-in hands the SPA a single-use code (`/api/v1/auth/oauth/exchange`)
+  instead of putting tokens in the redirect URL.
 - Refresh tokens rotate on use; replaying a rotated token revokes the whole
   family (`refresh_reuse_detected`). Password change/reset revokes all sessions.
 - Rate-limit / lockout / OAuth-code state is per-process in-memory; **move to

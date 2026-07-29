@@ -30,7 +30,22 @@ function formatNumber(n: number): string {
  * toast for a missing count — we render it as information.
  */
 export function TrafficCountCard({ address }: TrafficCountCardProps) {
-  const { data, isLoading, isError } = useTrafficCount(address);
+  const { data, isLoading, isError, enabled } = useTrafficCount(address);
+
+  if (!enabled) {
+    return (
+      <div className="card-industrial-static p-4">
+        <div className="flex items-center gap-2 text-sm text-industrial-secondary">
+          <Gauge size={16} className="text-industrial-muted" />
+          <span>Traffic counts</span>
+        </div>
+        <div className="mt-3 flex items-start gap-2 text-sm text-industrial-muted">
+          <Info size={16} className="text-industrial-muted flex-shrink-0 mt-0.5" />
+          Enter a street address to look up nearby traffic counts.
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

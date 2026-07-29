@@ -678,6 +678,9 @@ async def send_campaign(
         await db.commit()
     except Exception:  # noqa: BLE001 - deal creation is non-critical
         await db.rollback()
+        # The rollback undid the deal/link, so don't report an id for a
+        # transaction that never committed.
+        deal_id = None
         logger.warning(
             "[outreach] failed to create pipeline deal for campaign %s",
             campaign.id,

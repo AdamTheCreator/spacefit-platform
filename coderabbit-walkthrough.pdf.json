@@ -19,7 +19,7 @@
 
     { "text": "1. Setup and First Attempt", "style": "h2" },
     { "text": "I started with an existing project, Space Goose, and created a small frontend-only PR: a traffic-counts card that calls a ready backend endpoint.", "style": "body" },
-    { "text": "PR: #81 — feat(traffic): add property traffic counts card", "style": "link" },
+    { "text": "PR: #81 — feat(traffic): add property traffic counts card", "style": "link", "link": "https://github.com/AdamTheCreator/spacefit-platform/pull/81" },
     { "text": "The change was clean and self-contained:", "style": "body" },
     {
       "ul": [
@@ -36,7 +36,7 @@
 
     { "text": "2. Configuring CodeRabbit", "style": "h2" },
     { "text": "I opened a second PR to add a .coderabbit.yaml file that enables auto-review on every branch and switches the profile from chill to assertive.", "style": "body" },
-    { "text": "PR: #82 — chore(coderabbit): enable assertive auto-review on all branches", "style": "link" },
+    { "text": "PR: #82 — chore(coderabbit): enable assertive auto-review on all branches", "style": "link", "link": "https://github.com/AdamTheCreator/spacefit-platform/pull/82" },
     { "text": "Initial configuration:", "style": "body" },
     {
       "text": "language: en-us\nreviews:\n  profile: assertive\n  request_changes: true\n  auto_review:\n    enabled: true\n    base_branches: []",
@@ -50,7 +50,7 @@
 
     { "text": "3. Creating a Deliberate Bug to Test the Review", "style": "h2" },
     { "text": "To verify that CodeRabbit catches real issues, I opened a third PR with a small, intentional React bug.", "style": "body" },
-    { "text": "PR: #83 — test(coderabbit): deliberate useEffect dependency bug", "style": "link" },
+    { "text": "PR: #83 — test(coderabbit): deliberate useEffect dependency bug", "style": "link", "link": "https://github.com/AdamTheCreator/spacefit-platform/pull/83" },
     { "text": "The component was a throwaway counter with a stale closure:", "style": "body" },
     {
       "text": "useEffect(() => {\n  const interval = setInterval(() => {\n    setCount(count + 1);\n  }, 1000);\n  return () => clearInterval(interval);\n}, []);",
@@ -134,9 +134,9 @@
     { "text": "PR References", "style": "h2" },
     {
       "ul": [
-        { "text": "github.com/AdamTheCreator/spacefit-platform/pull/81" },
-        { "text": "github.com/AdamTheCreator/spacefit-platform/pull/82" },
-        { "text": "github.com/AdamTheCreator/spacefit-platform/pull/83" }
+        { "text": "github.com/AdamTheCreator/spacefit-platform/pull/81", "style": "link", "link": "https://github.com/AdamTheCreator/spacefit-platform/pull/81" },
+        { "text": "github.com/AdamTheCreator/spacefit-platform/pull/82", "style": "link", "link": "https://github.com/AdamTheCreator/spacefit-platform/pull/82" },
+        { "text": "github.com/AdamTheCreator/spacefit-platform/pull/83", "style": "link", "link": "https://github.com/AdamTheCreator/spacefit-platform/pull/83" }
       ]
     }
   ]

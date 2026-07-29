@@ -38,6 +38,23 @@ def test_baseten_defaults_pull_from_settings(monkeypatch):
     assert client._base_url == "https://from-settings/v1"
 
 
+def test_baseten_key_falls_back_even_with_explicit_base_url(monkeypatch):
+    """An explicit base_url must not suppress the Baseten default api_key.
+
+    Regression: the key and base_url fallbacks are resolved independently, so
+    supplying only the URL still pulls the key from ``settings.baseten_api_key``
+    rather than leaking the generic OpenAI key.
+    """
+    monkeypatch.setattr("app.core.config.settings.baseten_api_key", "cfg-baseten-key")
+    monkeypatch.setattr("app.core.config.settings.openai_api_key", "wrong-openai-key")
+    client = _build_client(
+        provider="baseten", base_url="https://explicit-model.api.baseten.co/v1"
+    )
+    assert isinstance(client, OpenAICompatibleLLMClient)
+    assert client._base_url == "https://explicit-model.api.baseten.co/v1"
+    assert client._client.headers["Authorization"] == "Bearer cfg-baseten-key"
+
+
 def test_baseten_registered_in_user_llm_defaults():
     """BYOK resolution knows Baseten's default + validation models."""
     assert "baseten" in PROVIDER_DEFAULT_MODELS
