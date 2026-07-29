@@ -1,23 +1,25 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Query
-from sqlalchemy import func, select, case
+from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
+from sqlalchemy import func, select
 
 from app.api.deps import AdminUser, DBSession
-from app.db.models.user import User
-from app.db.models.chat import ChatSession, ChatMessage
+from app.db.models.auth_event import AuthEvent
+from app.db.models.chat import ChatMessage, ChatSession
 from app.db.models.deal import Deal
 from app.db.models.document import ParsedDocument
 from app.db.models.project import Project
 from app.db.models.subscription import Subscription, TokenUsage
+from app.db.models.user import RefreshToken, User
 from app.models.admin import (
+    AbuseFlag,
     AdminAbuse,
     AdminOverview,
     AdminUsage,
     AdminUserDetail,
     AdminUserList,
     AdminUserSummary,
-    AbuseFlag,
     RecentSession,
     SignupBucket,
     TokenUsageSummary,
@@ -410,6 +412,140 @@ async def get_abuse(admin: AdminUser, db: DBSession):
         )
 
     return AdminAbuse(flags=flags)
+
+
+class AdminAuthStatus(BaseModel):
+    user_id: str
+    email: str
+    is_active: bool
+    is_admin: bool
+    email_verified: bool
+    has_password: bool
+    oauth_providers: list[str]
+    active_sessions: int
+    password_changed_at: datetime | None
+    created_at: datetime
+
+
+class AdminAuthEvent(BaseModel):
+    event: str
+    ip_address: str | None
+    created_at: datetime | None
+    detail: str | None
+
+
+async def _get_user_or_404(db: DBSession, user_id: str) -> User:
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.oauth_accounts))
+        .where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    return user
+
+
+@router.get("/users/lookup", response_model=AdminAuthStatus)
+async def admin_lookup_user(admin: AdminUser, db: DBSession, email: str = Query(...)):
+    """Look up a user's auth status by email (triage 'can't log in' reports)."""
+    from sqlalchemy.orm import selectinload
+
+    from app.models.user import normalize_email
+
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.oauth_accounts))
+        .where(User.email == normalize_email(email))
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    return await _auth_status(db, user)
+
+
+@router.get("/users/{user_id}/auth-status", response_model=AdminAuthStatus)
+async def admin_auth_status(admin: AdminUser, db: DBSession, user_id: str):
+    user = await _get_user_or_404(db, user_id)
+    return await _auth_status(db, user)
+
+
+async def _auth_status(db: DBSession, user: User) -> AdminAuthStatus:
+    active_sessions = (
+        await db.execute(
+            select(func.count(RefreshToken.id)).where(
+                RefreshToken.user_id == user.id,
+                RefreshToken.revoked == False,  # noqa: E712
+                RefreshToken.expires_at > datetime.utcnow(),
+            )
+        )
+    ).scalar() or 0
+    return AdminAuthStatus(
+        user_id=user.id,
+        email=user.email,
+        is_active=user.is_active,
+        is_admin=user.is_admin,
+        email_verified=user.email_verified,
+        has_password=user.password_hash is not None,
+        oauth_providers=[a.provider for a in user.oauth_accounts],
+        active_sessions=int(active_sessions),
+        password_changed_at=user.password_changed_at,
+        created_at=user.created_at,
+    )
+
+
+@router.get("/users/{user_id}/auth-events", response_model=list[AdminAuthEvent])
+async def admin_auth_events(
+    admin: AdminUser, db: DBSession, user_id: str, limit: int = Query(50, ge=1, le=200)
+):
+    result = await db.execute(
+        select(AuthEvent)
+        .where(AuthEvent.user_id == user_id)
+        .order_by(AuthEvent.created_at.desc())
+        .limit(limit)
+    )
+    return [
+        AdminAuthEvent(
+            event=e.event,
+            ip_address=e.ip_address,
+            created_at=e.created_at,
+            detail=e.detail,
+        )
+        for e in result.scalars().all()
+    ]
+
+
+@router.post(
+    "/users/{user_id}/resend-verification",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def admin_resend_verification(
+    admin: AdminUser, db: DBSession, user_id: str
+) -> dict:
+    from app.services.auth import AuthService
+
+    user = await _get_user_or_404(db, user_id)
+    if user.email_verified:
+        return {"message": "User email is already verified"}
+    await AuthService(db).send_email_verification(user)
+    return {"message": "Verification email sent"}
+
+
+@router.post("/users/{user_id}/issue-reset", status_code=status.HTTP_202_ACCEPTED)
+async def admin_issue_reset(admin: AdminUser, db: DBSession, user_id: str) -> dict:
+    """Send a password-reset email to the user. The link is never returned or
+    logged — it is emailed to the user's own address only."""
+    from app.services.auth import AuthService
+
+    user = await _get_user_or_404(db, user_id)
+    await AuthService(db).send_password_reset(user.email)
+    return {"message": "Password reset email sent"}
 
 
 @router.get("/metrics/specialists")

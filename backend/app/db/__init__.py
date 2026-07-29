@@ -4,6 +4,7 @@ from app.db.models.chat import ChatSession, ChatMessage
 from app.db.models.customer import Customer, CustomerContact
 from app.db.models.credential import SiteCredential, AgentConnection, OnboardingProgress
 from app.db.models.email_token import EmailToken
+from app.db.models.auth_event import AuthEvent
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "AgentConnection",
     "OnboardingProgress",
     "EmailToken",
+    "AuthEvent",
 ]

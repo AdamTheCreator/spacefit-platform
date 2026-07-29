@@ -57,6 +57,30 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
+    # Auth hardening (Phase 3). All in-memory + per-process; swap for Redis
+    # when scaling horizontally (same caveat as the sales/BYOK limiters).
+    auth_rate_limit_enabled: bool = Field(default=True)
+    # Login: after N failures per key (email or IP) within the window, lock the
+    # key out for lockout_seconds. Lockout returns 429 + Retry-After (never a
+    # masked 401), and the wait doubles on repeat lockouts up to a cap.
+    auth_login_max_attempts: int = Field(default=5)
+    auth_login_window_seconds: int = Field(default=900)
+    auth_login_lockout_seconds: int = Field(default=900)
+    auth_login_lockout_max_seconds: int = Field(default=3600)
+    # Reset / resend-verification: per-email + per-IP submission cap.
+    auth_reset_max_attempts: int = Field(default=3)
+    auth_reset_window_seconds: int = Field(default=900)
+    # When true, unverified accounts cannot log in (default off so existing
+    # unverified users aren't stranded by the rollout).
+    require_verified_email_for_login: bool = Field(default=False)
+    # Optional alert sink (Sentry/Slack/webhook URL) for email-send failures
+    # and lockouts. No-op when empty.
+    auth_alert_webhook_url: str = Field(default="")
+    # OAuth: when true, the Google callback hands the SPA a short-lived
+    # one-time code to exchange for tokens instead of putting tokens in the
+    # redirect URL. Flip off to fall back to the legacy redirect.
+    oauth_code_exchange_enabled: bool = Field(default=True)
+
     # Encryption (for storing credentials)
     encryption_master_key: str = Field(
         default="development-encryption-key-32bytes!"
@@ -256,3 +280,28 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def check_auth_config(s: Settings = settings) -> tuple[list[str], list[str]]:
+    """Return (critical, warnings) about auth/email misconfiguration.
+
+    Logged loudly at startup so a misconfigured environment is never silent
+    (the root cause of the reset-email incident). Non-fatal by design so a
+    deploy isn't hard-blocked, but the criticals must be resolved in prod.
+    """
+    critical: list[str] = []
+    warnings: list[str] = []
+
+    if not s.debug:
+        if s.secret_key == "development-secret-key-change-in-production":
+            critical.append("SECRET_KEY is the insecure development default")
+        if s.encryption_master_key == "development-encryption-key-32bytes!":
+            critical.append(
+                "ENCRYPTION_MASTER_KEY is the insecure development default"
+            )
+        if not s.resend_api_key:
+            warnings.append(
+                "RESEND_API_KEY is unset — verification/reset emails will NOT send"
+            )
+
+    return critical, warnings

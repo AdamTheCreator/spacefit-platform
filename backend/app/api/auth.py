@@ -3,22 +3,31 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, CurrentUser
+from app.api.deps import CurrentUser, get_db
 from app.core.config import settings
-from pydantic import BaseModel, Field
-
+from app.db.models.auth_event import (
+    EVENT_ACCOUNT_LOCKED,
+    EVENT_LOGIN,
+    EVENT_LOGIN_FAILED,
+    EVENT_RESET_REQUESTED,
+)
 from app.models.user import (
-    UserCreate,
-    UserResponse,
-    LoginRequest,
-    TokenResponse,
-    RefreshTokenRequest,
     ForgotPasswordRequest,
+    LoginRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+    UserCreate,
     UserPasswordUpdate,
+    UserResponse,
+    normalize_email,
 )
 from app.services.auth import AuthService
+from app.services.auth_audit import client_ip, record_auth_event
+from app.services.auth_rate_limit import login_lockout, reset_limiter
+from app.services.oauth_exchange import oauth_code_store
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +36,29 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def _normalize_email(cls, v: str) -> str:
+        return normalize_email(v)
+
+
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(min_length=8)
+
+
+class OAuthExchangeRequest(BaseModel):
+    code: str
+
+
+def _login_keys(email: str, ip: str | None) -> list[str]:
+    keys = [f"email:{email}"]
+    if ip:
+        keys.append(f"ip:{ip}")
+    return keys
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -72,10 +101,41 @@ async def login(
 ) -> TokenResponse:
     """Login with email and password."""
     auth_service = AuthService(db)
+    email = login_data.email  # normalized by the schema validator
+    ip = client_ip(request)
+    keys = _login_keys(email, ip)
 
-    user = await auth_service.authenticate_user(login_data.email, login_data.password)
+    # Progressive lockout: a locked key returns a distinct 429 + Retry-After,
+    # never a masked 401, so it can't be confused with a wrong password.
+    if settings.auth_rate_limit_enabled:
+        wait = max((login_lockout.retry_after(k) for k in keys), default=0)
+        if wait > 0:
+            await record_auth_event(
+                db, EVENT_ACCOUNT_LOCKED, request=request, detail="pre-check"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Please try again later.",
+                headers={"Retry-After": str(wait)},
+            )
+
+    user = await auth_service.authenticate_user(email, login_data.password)
 
     if user is None:
+        locked_for = 0
+        if settings.auth_rate_limit_enabled:
+            for k in keys:
+                locked_for = max(locked_for, login_lockout.register_failure(k))
+        await record_auth_event(db, EVENT_LOGIN_FAILED, request=request)
+        if locked_for > 0:
+            await record_auth_event(
+                db, EVENT_ACCOUNT_LOCKED, request=request, detail="threshold"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Please try again later.",
+                headers={"Retry-After": str(locked_for)},
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -87,6 +147,17 @@ async def login(
             detail="Account is disabled",
         )
 
+    if settings.require_verified_email_for_login and not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before logging in.",
+        )
+
+    if settings.auth_rate_limit_enabled:
+        for k in keys:
+            login_lockout.reset(k)
+
+    await record_auth_event(db, EVENT_LOGIN, request=request, user_id=user.id)
     device_info = request.headers.get("User-Agent")
     return await auth_service.create_tokens(user, device_info)
 
@@ -199,8 +270,9 @@ async def google_callback(
     state: str | None = None,
 ) -> RedirectResponse:
     """Handle Google OAuth callback."""
-    import httpx
     import logging
+
+    import httpx
     logger = logging.getLogger(__name__)
 
     # Handle OAuth error from Google (e.g. user denied access)
@@ -259,6 +331,16 @@ async def google_callback(
 
         tokens = await auth_service.create_tokens(user)
 
+        if settings.oauth_code_exchange_enabled:
+            # Hand the SPA a single-use code instead of putting tokens in the
+            # URL (which leaks into history / referrer / logs).
+            code = oauth_code_store.issue(
+                tokens.access_token, tokens.refresh_token, tokens.expires_in
+            )
+            return RedirectResponse(
+                url=f"{settings.frontend_url}/auth/callback?code={code}"
+            )
+
         redirect_url = (
             f"{settings.frontend_url}/auth/callback"
             f"?access_token={tokens.access_token}"
@@ -274,13 +356,88 @@ async def google_callback(
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
 async def forgot_password(
-    request: ForgotPasswordRequest,
+    body: ForgotPasswordRequest,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
-    """Request password reset email."""
+    """Request password reset email. Enumeration-safe + rate-limited."""
     auth_service = AuthService(db)
-    await auth_service.send_password_reset(request.email)
+    email = body.email
+    ip = client_ip(request)
+
+    allowed = True
+    if settings.auth_rate_limit_enabled:
+        email_ok = reset_limiter.allow(
+            f"reset:email:{email}",
+            settings.auth_reset_max_attempts,
+            settings.auth_reset_window_seconds,
+        )
+        ip_ok = (
+            reset_limiter.allow(
+                f"reset:ip:{ip}",
+                settings.auth_reset_max_attempts,
+                settings.auth_reset_window_seconds,
+            )
+            if ip
+            else True
+        )
+        allowed = email_ok and ip_ok
+
+    await record_auth_event(db, EVENT_RESET_REQUESTED, request=request)
+    if allowed:
+        await auth_service.send_password_reset(email)
+    # Identical response whether or not the email exists / was rate-limited.
     return {"message": "If an account exists with this email, a reset link will be sent"}
+
+
+@router.post("/resend-verification", status_code=status.HTTP_202_ACCEPTED)
+async def resend_verification(
+    body: ResendVerificationRequest,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Re-send the email-verification link. Enumeration-safe + rate-limited."""
+    auth_service = AuthService(db)
+    email = body.email
+    ip = client_ip(request)
+
+    allowed = True
+    if settings.auth_rate_limit_enabled:
+        email_ok = reset_limiter.allow(
+            f"verify:email:{email}",
+            settings.auth_reset_max_attempts,
+            settings.auth_reset_window_seconds,
+        )
+        ip_ok = (
+            reset_limiter.allow(
+                f"verify:ip:{ip}",
+                settings.auth_reset_max_attempts,
+                settings.auth_reset_window_seconds,
+            )
+            if ip
+            else True
+        )
+        allowed = email_ok and ip_ok
+
+    if allowed:
+        await auth_service.resend_verification(email)
+    return {"message": "If an account exists and is unverified, a link will be sent"}
+
+
+@router.post("/oauth/exchange", response_model=TokenResponse)
+async def oauth_exchange(body: OAuthExchangeRequest) -> TokenResponse:
+    """Exchange a single-use OAuth handoff code for tokens."""
+    entry = oauth_code_store.redeem(body.code)
+    if entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired code",
+        )
+    return TokenResponse(
+        access_token=entry.access_token,
+        refresh_token=entry.refresh_token,
+        expires_in=entry.expires_in,
+    )
 
 
 @router.post("/verify-email")

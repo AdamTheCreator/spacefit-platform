@@ -1,13 +1,27 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+def normalize_email(email: str) -> str:
+    """Canonicalize an email for storage and lookup (trim + lowercase).
+
+    Signup and login must apply this identically or a differing casing
+    silently fails to match the stored record.
+    """
+    return email.strip().lower()
 
 
 class UserBase(BaseModel):
     email: EmailStr
     first_name: str | None = None
     last_name: str | None = None
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def _normalize_email(cls, v: str) -> str:
+        return normalize_email(v)
 
 
 class UserCreate(UserBase):
@@ -47,6 +61,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+    @field_validator("email", mode="after")
+    @classmethod
+    def _normalize_email(cls, v: str) -> str:
+        return normalize_email(v)
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -61,6 +80,11 @@ class RefreshTokenRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def _normalize_email(cls, v: str) -> str:
+        return normalize_email(v)
 
 
 class ResetPasswordRequest(BaseModel):

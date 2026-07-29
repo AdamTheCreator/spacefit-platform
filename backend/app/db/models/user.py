@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, LargeBinary
+from sqlalchemy import Boolean, DateTime, ForeignKey, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -30,6 +30,11 @@ class User(Base):
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    # Stamped on any password change (reset or self-service update); used for
+    # audit and the "sign out everywhere" invariant.
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
 
     # Relationships
     oauth_accounts: Mapped[list["OAuthAccount"]] = relationship(
@@ -123,6 +128,12 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     device_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Rotation lineage for refresh-reuse detection: all tokens rotated from a
+    # single login share a ``family_id``; presenting an already-revoked token
+    # (replay) revokes the whole family. ``replaced_by_id`` links a rotated
+    # token to its successor.
+    family_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    replaced_by_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")
@@ -149,11 +160,16 @@ class SSOConfiguration(Base):
 
 # Forward references for relationships
 from app.db.models.chat import ChatSession  # noqa: E402
+from app.db.models.credential import (  # noqa: E402
+    OnboardingProgress,
+    SiteCredential,
+    UserAIConfig,
+    UserPreferences,
+)
 from app.db.models.customer import Customer  # noqa: E402
-from app.db.models.credential import SiteCredential, OnboardingProgress, UserPreferences, UserAIConfig  # noqa: E402
 from app.db.models.deal import Deal, Property  # noqa: E402
 from app.db.models.document import ParsedDocument  # noqa: E402
+from app.db.models.email_token import EmailToken  # noqa: E402
 from app.db.models.project import Project  # noqa: E402
 from app.db.models.subscription import Subscription  # noqa: E402
-from app.db.models.email_token import EmailToken  # noqa: E402
 from app.db.models.user_memory import UserMemory  # noqa: E402

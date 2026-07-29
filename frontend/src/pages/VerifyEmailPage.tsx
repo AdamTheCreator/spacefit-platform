@@ -9,6 +9,20 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const [state, setState] = useState<VerifyState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+  const [resendEmail, setResendEmail] = useState('');
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const handleResend = async () => {
+    if (!resendEmail) return;
+    setResendState('sending');
+    try {
+      await api.post('/auth/resend-verification', { email: resendEmail });
+    } catch {
+      // Enumeration-safe: always report the same neutral outcome.
+    } finally {
+      setResendState('sent');
+    }
+  };
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -80,6 +94,35 @@ export function VerifyEmailPage() {
               <p className="text-sm text-industrial-muted mb-6">
                 {errorMessage}
               </p>
+              {resendState === 'sent' ? (
+                <p className="text-sm text-industrial-muted mb-6">
+                  If an account exists and is unverified, a new link has been sent.
+                </p>
+              ) : (
+                <div className="mb-6 space-y-3 text-left">
+                  <label htmlFor="resend-email" className="text-sm font-medium text-industrial block">
+                    Resend verification link
+                  </label>
+                  <input
+                    id="resend-email"
+                    type="email"
+                    value={resendEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                    autoComplete="email"
+                    spellCheck={false}
+                    className="input-industrial"
+                    placeholder="you@company.com"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendState === 'sending' || !resendEmail}
+                    className="btn-industrial-primary w-full py-2.5 disabled:opacity-60"
+                  >
+                    {resendState === 'sending' ? 'Sending...' : 'Resend link'}
+                  </button>
+                </div>
+              )}
               <Link
                 to="/login"
                 className="btn-industrial-secondary inline-flex items-center justify-center py-3 px-6"

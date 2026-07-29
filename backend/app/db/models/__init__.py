@@ -1,3 +1,4 @@
+from app.db.models.auth_event import AuthEvent
 from app.db.models.chat import ChatMessage, ChatSession
 from app.db.models.contact import Company, Contact, ContactInteraction
 from app.db.models.credential import (
@@ -79,4 +80,5 @@ __all__ = [
     "OutreachVoiceProfile",
     "SalesLead",
     "SalesLeadStatus",
+    "AuthEvent",
 ]
