@@ -13,7 +13,10 @@ import base64
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# argon2id is the default for new hashes; bcrypt is kept in the scheme list so
+# legacy hashes still verify and can be transparently rehashed on next login.
+# Do NOT remove bcrypt from this list or pre-argon2 accounts lock out.
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
@@ -22,6 +25,13 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
+
+
+def password_needs_rehash(hashed_password: str) -> bool:
+    """True when a stored hash uses a deprecated scheme/params (e.g. legacy
+    bcrypt) and should be re-hashed with the current default after a
+    successful verify."""
+    return pwd_context.needs_update(hashed_password)
 
 
 def create_access_token(
@@ -56,7 +66,10 @@ def create_refresh_token(user_id: UUID) -> tuple[str, str]:
         "sub": str(user_id),
         "exp": expires,
         "type": "refresh",
-        "jti": token_hash[:16],
+        # Full hash as the jti so the DB lookup is an exact match (no prefix
+        # collision surface). The raw token is never sent to the client — the
+        # signed JWT is the bearer credential.
+        "jti": token_hash,
     }
     encoded_token = jwt.encode(
         to_encode, settings.secret_key, algorithm=settings.jwt_algorithm

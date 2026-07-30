@@ -93,7 +93,16 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // A 401/403 from an auth endpoint itself (bad password, lockout, expired
+    // reset token…) is a real, displayable error — not an expired session.
+    // Don't run the refresh-and-redirect dance for these, or the login page
+    // reloads instead of showing the inline message.
+    const reqUrl = originalRequest.url ?? '';
+    const isAuthEndpoint = /\/auth\/(login|register|forgot-password|reset-password|resend-verification|oauth\/exchange)/.test(
+      reqUrl
+    );
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

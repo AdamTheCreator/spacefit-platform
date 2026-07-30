@@ -12,7 +12,10 @@ async def send_verification_email(email: str, first_name: str, verification_url:
     Returns True on success, False on failure. Silently fails if API key not configured.
     """
     if not settings.resend_api_key:
-        logger.warning("Resend API key not configured - skipping verification email")
+        logger.error(
+            "auth.email.not_configured event=verify_email "
+            "reason=RESEND_API_KEY_missing"
+        )
         return False
 
     name = first_name or "there"
@@ -99,7 +102,10 @@ async def send_password_reset_email(email: str, first_name: str, reset_url: str)
     Returns True on success, False on failure. Silently fails if API key not configured.
     """
     if not settings.resend_api_key:
-        logger.warning("Resend API key not configured - skipping password reset email")
+        logger.error(
+            "auth.email.not_configured event=password_reset "
+            "reason=RESEND_API_KEY_missing"
+        )
         return False
 
     name = first_name or "there"

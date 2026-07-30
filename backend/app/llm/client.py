@@ -64,30 +64,34 @@ def _build_client(
         "huggingface",
         "baseten",
     ):
-        resolved_key = api_key or settings.openai_api_key
-        resolved_url = base_url or settings.openai_base_url
-        # Provider-specific defaults for base_url
-        if not base_url:
-            if provider_norm == "google":
-                resolved_key = api_key or settings.google_gemini_api_key
-                resolved_url = settings.google_gemini_base_url
-            elif provider_norm == "deepseek":
-                resolved_url = "https://api.deepseek.com/v1"
-            elif provider_norm == "openai":
-                resolved_url = "https://api.openai.com/v1"
-            elif provider_norm == "huggingface":
-                # Serverless router that fronts every HF inference provider and
-                # speaks the OpenAI chat-completions dialect.
-                resolved_key = api_key or settings.huggingface_api_key
-                resolved_url = settings.huggingface_base_url
-            elif provider_norm == "baseten":
-                # Self-hosted Qwen2.5-7B + advisor LoRAs on a Baseten L4 via
-                # vLLM's OpenAI-compatible /v1 endpoint. No default URL — it
-                # is deployment-specific (contains the Baseten model id), so
-                # the operator (LLM_PROVIDER=baseten) or the BYOK user must
-                # supply it.
-                resolved_key = api_key or settings.baseten_api_key
-                resolved_url = settings.baseten_base_url
+        # Resolve the default key and base_url independently so an explicit
+        # base_url never suppresses the provider's default key (and vice-versa).
+        if provider_norm == "google":
+            default_key = settings.google_gemini_api_key
+            default_url = settings.google_gemini_base_url
+        elif provider_norm == "deepseek":
+            default_key = settings.openai_api_key
+            default_url = "https://api.deepseek.com/v1"
+        elif provider_norm == "openai":
+            default_key = settings.openai_api_key
+            default_url = "https://api.openai.com/v1"
+        elif provider_norm == "huggingface":
+            # Serverless router that fronts every HF inference provider and
+            # speaks the OpenAI chat-completions dialect.
+            default_key = settings.huggingface_api_key
+            default_url = settings.huggingface_base_url
+        elif provider_norm == "baseten":
+            # Self-hosted Qwen2.5-7B + advisor LoRAs on a Baseten L4 via
+            # vLLM's OpenAI-compatible /v1 endpoint. No default URL — it is
+            # deployment-specific (contains the Baseten model id), so the
+            # operator (LLM_PROVIDER=baseten) or the BYOK user must supply it.
+            default_key = settings.baseten_api_key
+            default_url = settings.baseten_base_url
+        else:  # openai_compatible
+            default_key = settings.openai_api_key
+            default_url = settings.openai_base_url
+        resolved_key = api_key or default_key
+        resolved_url = base_url or default_url
         return OpenAICompatibleLLMClient(
             api_key=resolved_key,
             base_url=resolved_url,

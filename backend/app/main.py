@@ -80,6 +80,19 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from app.core.config import check_auth_config
+
+    critical, warnings = check_auth_config()
+    for msg in critical:
+        logger.critical("auth.config: %s", msg)
+    if critical:
+        raise RuntimeError(
+            "Refusing to start with insecure auth configuration; "
+            "see critical log lines above."
+        )
+    for msg in warnings:
+        logger.warning("auth.config: %s", msg)
+
     yield
     await aclose_llm_client()
     await engine.dispose()

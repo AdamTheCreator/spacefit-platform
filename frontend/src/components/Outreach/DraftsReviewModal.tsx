@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Check, Edit3, Send, X, Loader2 } from 'lucide-react';
 import api from '../../lib/axios';
-import { useSendCampaign, sendCampaignErrorMessage } from '../../hooks/useOutreachCampaigns';
+import { dealKeys } from '../../hooks/useDeals';
 
 export interface OutreachDraft {
   tenant_name: string;
@@ -24,6 +25,7 @@ export function DraftsReviewModal({
   onClose,
   onSent,
 }: DraftsReviewModalProps) {
+  const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState(initialDrafts);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [sent, setSent] = useState(false);
@@ -61,8 +63,12 @@ export function DraftsReviewModal({
         })),
       });
 
-      // Send the campaign via the shared mutation (owns deal-cache invalidation)
-      await sendCampaign.mutateAsync(res.data.id);
+      const campaignId = res.data.id;
+
+      // Send the campaign
+      await api.post(`/outreach/campaigns/${campaignId}/send`);
+      // Sending drops an intake-stage deal on the Kanban board; refresh it.
+      queryClient.invalidateQueries({ queryKey: dealKeys.all });
       setSent(true);
       onSent?.();
     } catch (err: unknown) {

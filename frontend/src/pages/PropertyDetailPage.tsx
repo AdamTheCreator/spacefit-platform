@@ -4,6 +4,7 @@ import { MapPin } from 'lucide-react';
 import { AppLayout } from '../components/Layout/AppLayout';
 import { AnalysisPlayground } from '../components/Playground/AnalysisPlayground';
 import { useDocuments } from '../hooks/useDocuments';
+import { TrafficCountCard } from '../components/Traffic/TrafficCountCard';
 import type { ExtractedFlyerData } from '../types/document';
 
 // Property detail is an analysis workbench: it surfaces the documents linked to
@@ -53,6 +54,12 @@ export function PropertyDetailPage() {
               </div>
             )}
           </div>
+
+          {subjectAddress && (
+            <div className="mb-6 max-w-sm">
+              <TrafficCountCard address={subjectAddress} />
+            </div>
+          )}
 
           {isLoading ? (
             <div className="flex items-center gap-2 py-12 justify-center">

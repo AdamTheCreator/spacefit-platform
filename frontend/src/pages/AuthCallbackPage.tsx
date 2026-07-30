@@ -1,23 +1,43 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import api from '../lib/axios';
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { checkAuth } = useAuthStore();
+  const processedCode = useRef<string | null>(null);
 
   useEffect(() => {
+    const finish = () =>
+      checkAuth().then(() => navigate('/dashboard', { replace: true }));
+
+    // Preferred path: single-use code exchanged for tokens (no tokens in URL).
+    const code = searchParams.get('code');
+    if (code) {
+      // Guard against double-exchange in React Strict Mode (effects run
+      // twice in dev) — the single-use code would fail on the second call.
+      if (processedCode.current === code) return;
+      processedCode.current = code;
+      api
+        .post('/auth/oauth/exchange', { code })
+        .then((res) => {
+          localStorage.setItem('access_token', res.data.access_token);
+          localStorage.setItem('refresh_token', res.data.refresh_token);
+          return finish();
+        })
+        .catch(() => navigate('/login?error=oauth_exchange_failed', { replace: true }));
+      return;
+    }
+
+    // Legacy fallback: tokens passed directly in the URL.
     const accessToken = searchParams.get('access_token');
     const refreshToken = searchParams.get('refresh_token');
-
     if (accessToken && refreshToken) {
       localStorage.setItem('access_token', accessToken);
       localStorage.setItem('refresh_token', refreshToken);
-
-      checkAuth().then(() => {
-        navigate('/dashboard', { replace: true });
-      });
+      finish();
     } else {
       navigate('/login', { replace: true });
     }

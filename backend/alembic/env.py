@@ -22,6 +22,7 @@ from app.db import (  # noqa: F401 - Import all models to register them
     AgentConnection,
     OnboardingProgress,
     EmailToken,
+    AuthEvent,
 )
 
 config = context.config
