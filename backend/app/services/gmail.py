@@ -13,6 +13,7 @@ Benefits over SMTP:
 
 import base64
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
@@ -124,7 +125,16 @@ class GmailService:
             client_config,
             scopes=GMAIL_SCOPES,
             redirect_uri=redirect_uri or settings.gmail_redirect_uri,
+            autogenerate_code_verifier=False,
         )
+
+        # We're a confidential client (client secret in hand), so PKCE is
+        # optional. Authorize and callback build separate Flow instances, so an
+        # auto-generated code_verifier from the authorize step would be lost,
+        # and Google would reject the exchange with "Missing code verifier".
+        # Force PKCE off on both instances so the flow stays consistent.
+        flow.autogenerate_code_verifier = False
+        flow.code_verifier = None
 
         return flow
 
@@ -159,6 +169,11 @@ class GmailService:
         Returns:
             GmailTokens object
         """
+        # Google returns the *union* of newly-requested and previously-granted
+        # scopes (we authorize with include_granted_scopes=true, and the user
+        # already granted the sign-in scopes openid/email/profile). Without this
+        # relaxation oauthlib's strict check raises "Scope has changed" here.
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
         flow = cls.create_oauth_flow()
         flow.fetch_token(code=code)
 
@@ -334,8 +349,10 @@ async def get_user_gmail_tokens(
     Load a user's connected Gmail OAuth tokens, if usable.
 
     Returns a ``GmailTokens`` built from the stored ``OAuthAccount``
-    (provider == "google") combined with the platform Google client
-    credentials. Returns ``None`` when the user has no connected Google
+    (provider == "gmail" — the dedicated Connect-Gmail integration, which
+    carries the ``gmail.send`` scope, as opposed to the "google" sign-in row
+    which only has ``openid email profile``) combined with the platform Google
+    client credentials. Returns ``None`` when the user has no connected Gmail
     account, the stored access token is missing, or the platform Google
     client id/secret are not configured (in which case no refresh or send
     could succeed anyway).
@@ -346,7 +363,7 @@ async def get_user_gmail_tokens(
     result = await db.execute(
         select(OAuthAccount).where(
             OAuthAccount.user_id == user_id,
-            OAuthAccount.provider == "google",
+            OAuthAccount.provider == "gmail",
             OAuthAccount.access_token.is_not(None),
         )
     )

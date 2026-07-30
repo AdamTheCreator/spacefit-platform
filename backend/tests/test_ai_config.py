@@ -248,5 +248,21 @@ class TestNormalizeProviderModel:
         assert model == PROVIDER_DEFAULT_MODELS["anthropic"]
 
     def test_non_deprecated_model_unchanged(self) -> None:
-        model = normalize_provider_model("anthropic", "claude-3-5-sonnet-latest")
-        assert model == "claude-3-5-sonnet-latest"
+        model = normalize_provider_model("anthropic", "claude-sonnet-4-6")
+        assert model == "claude-sonnet-4-6"
+
+    def test_retired_claude_3x_ids_map_to_current_models(self) -> None:
+        """Retired Claude 3.x ids (404 on every key) that earlier builds
+        offered in the BYOK picker must resolve to current models."""
+        assert (
+            normalize_provider_model("anthropic", "claude-3-5-haiku-latest")
+            == "claude-haiku-4-5"
+        )
+        assert (
+            normalize_provider_model("anthropic", "claude-3-5-sonnet-latest")
+            == "claude-sonnet-4-5"
+        )
+        assert (
+            normalize_provider_model("anthropic", "claude-3-opus-latest")
+            == "claude-opus-4-8"
+        )

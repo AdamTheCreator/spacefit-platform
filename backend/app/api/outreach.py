@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.models.user import User
+from app.db.models.deal import Deal, DealStage, DealStageHistory
 from app.db.models.outreach import (
     OutreachCampaign,
     OutreachRecipient,
@@ -600,6 +601,10 @@ async def send_campaign(
             detail="No recipients to send to"
         )
 
+    # Remember the pre-send status so a total failure (e.g. no email transport
+    # configured) can revert the campaign to a re-sendable state.
+    prior_status = campaign.status
+
     # Update campaign status
     campaign.status = CampaignStatus.SENDING.value
     campaign.sent_at = datetime.utcnow()
@@ -650,6 +655,22 @@ async def send_campaign(
         gmail_tokens=gmail_tokens,
     )
 
+    # A total failure means nothing actually went out (most commonly: no email
+    # transport configured). Revert to the pre-send status and leave recipients
+    # PENDING so the user can fix the transport and re-send the same campaign,
+    # rather than stranding it as an empty "sent" with all recipients bounced.
+    if summary.successful == 0:
+        campaign.status = prior_status
+        campaign.sent_at = None
+        error_detail = next(
+            (r.error for r in summary.results if r.error), None
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail=error_detail or "Campaign could not be sent — no emails went out.",
+        )
+
     # Update recipient statuses
     for result in summary.results:
         for recipient in recipients_to_send:
@@ -667,6 +688,36 @@ async def send_campaign(
     campaign.bounced_count = summary.failed
     campaign.status = CampaignStatus.SENT.value
     campaign.completed_at = datetime.utcnow()
+
+    # A sent campaign is an active pursuit, so drop a deal card onto the pipeline
+    # to close the on-ramp loop into the Workflow board. Send is a one-shot
+    # transition (re-sends are rejected above), so this can't duplicate.
+    # NOTE: assign the PK explicitly. ``Deal.id`` uses a Python-side column
+    # default that only fires at flush time, so reading ``deal.id`` before the
+    # commit below would hand the client ``None``.
+    deal_id: str | None = None
+    if summary.successful > 0:
+        deal_id = str(uuid4())
+        deal = Deal(
+            id=deal_id,
+            user_id=current_user.id,
+            name=campaign.name,
+            stage=DealStage.INTAKE.value,
+            source="outreach",
+            notes=(
+                f"Auto-created from outreach campaign to "
+                f"{summary.successful} recipient(s) at "
+                f"{campaign.property_name or campaign.property_address}."
+            ),
+        )
+        deal.stage_history.append(
+            DealStageHistory(
+                from_stage=None,
+                to_stage=DealStage.INTAKE.value,
+                changed_by=current_user.id,
+            )
+        )
+        db.add(deal)
 
     await db.commit()
 

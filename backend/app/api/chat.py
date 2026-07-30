@@ -533,6 +533,27 @@ async def load_session_history(session_id: str) -> list[dict[str, str]]:
         return history
 
 
+def _seed_address_from_history(history: list[dict[str, str]]) -> str | None:
+    """Recover the session's tracked property address from replayed history.
+
+    The per-connection ``current_address`` tracker lives in memory, so a
+    WebSocket reconnect (redeploy, network blip, tab restore) used to lose
+    the address the user gave earlier in the conversation — location-taking
+    tools then ran ungrounded. Scan user turns newest-first for a concrete
+    target (street address / ZIP) and return that message text; geocoders
+    tolerate the surrounding prose.
+    """
+    from app.services.orchestrator import message_has_concrete_target
+
+    for msg in reversed(history):
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content", "")
+        if isinstance(content, str) and message_has_concrete_target(content):
+            return content
+    return None
+
+
 async def get_session_messages_for_frontend(session_id: str) -> list[dict]:
     """Load messages formatted for the frontend."""
     from app.core.database import async_session_factory
@@ -637,9 +658,16 @@ async def handle_tool_calls(
     depth: int = 0,
     resolved_llm: ResolvedLLM | None = None,
     internal: bool = False,
+    fallback_address: str | None = None,
 ) -> list[dict] | None:
     """
     Handle tool calls from Claude's native tool use.
+
+    ``fallback_address`` is the session's tracked property address (from an
+    earlier turn or the document context). It grounds location-taking tools
+    when the model omits the address or passes a vague placeholder like
+    "this address" — without it those calls hit Google Places with no
+    geographic signal and return junk from the wrong coast.
 
     This function:
     1. Creates workflow UI for user feedback
@@ -757,7 +785,9 @@ async def handle_tool_calls(
             return True
         _VAGUE = {
             "the location", "this location", "the property", "this property",
-            "the address", "here", "unknown", "n/a", "na", "none",
+            "the address", "this address", "that address", "same address",
+            "the same address", "the same location", "the site", "this site",
+            "address", "location", "here", "unknown", "n/a", "na", "none",
         }
         return stripped in _VAGUE
 
@@ -768,25 +798,25 @@ async def handle_tool_calls(
         tool_input_keys = list(tool_input.keys()) if isinstance(tool_input, dict) else []
         logger.debug("[handle_tools] execute tool=%s input_keys=%s", tool_name, tool_input_keys)
 
-        # Fill the location/address arg from the project's property address
-        # when the model omitted it or passed a vague placeholder. The address
-        # lives in project_context as unstructured prose in the system prompt,
-        # so without this fallback a weak extraction sends Google Places a
-        # query with no geographic signal and we get global junk results.
+        # Fill the location/address arg when the model omitted it or passed a
+        # vague placeholder. Preference order: the project's property address
+        # (structured, authoritative), then the session's tracked address from
+        # earlier conversation turns. Without this fallback a weak extraction
+        # sends Google Places a query with no geographic signal and we get
+        # global junk results.
         param_key = _LOCATION_PARAM_BY_TOOL.get(tool_name)
-        if (
-            param_key
-            and isinstance(tool_input, dict)
-            and project_context
-            and isinstance(project_context.get("property"), dict)
-        ):
-            proj_addr = project_context["property"].get("address")
-            if proj_addr and _is_unusable_location(tool_input.get(param_key)):
+        if param_key and isinstance(tool_input, dict):
+            known_addr: str | None = None
+            if project_context and isinstance(project_context.get("property"), dict):
+                known_addr = project_context["property"].get("address")
+            if not known_addr:
+                known_addr = fallback_address
+            if known_addr and _is_unusable_location(tool_input.get(param_key)):
                 logger.info(
-                    "[handle_tools] enriching tool=%s %s from project address (was=%r)",
+                    "[handle_tools] enriching tool=%s %s from session address (was=%r)",
                     tool_name, param_key, tool_input.get(param_key),
                 )
-                tool_input = {**tool_input, param_key: proj_addr}
+                tool_input = {**tool_input, param_key: known_addr}
 
         try:
             result = await asyncio.wait_for(
@@ -932,6 +962,7 @@ async def handle_tool_calls(
                 analysis_type=analysis_type,
                 depth=depth + 1,
                 resolved_llm=resolved_llm,
+                fallback_address=fallback_address,
             )
         elif synthesis_response["content"]:
             # Text already streamed via text_delta + message_end.
@@ -1062,10 +1093,14 @@ async def websocket_endpoint(
                     session_prompt_id = chat_sess.system_prompt_id
                     session_analysis_type = chat_sess.analysis_type
 
-        # Track the current address being analyzed
+        # Track the current address being analyzed. Re-seed from replayed
+        # history so a reconnect keeps tools grounded on the property under
+        # discussion; the document context stays authoritative when present.
         current_address: str | None = None
         if doc_context:
             current_address = doc_context.get("property_address")
+        if not current_address and conversation_history:
+            current_address = _seed_address_from_history(conversation_history)
         # Track if this is the first message (for title generation)
         is_first_message = len(conversation_history) == 0
         # For new sessions, don't send session_info yet - wait until first message
@@ -1212,6 +1247,12 @@ async def websocket_endpoint(
             address_keywords = ["mall", "center", "plaza", "shopping", "property", "leasing flyer"]
             street_keywords = ["st", "street", "ave", "avenue", "rd", "road", "blvd", "boulevard", "drive", "dr", "way", "lane", "ln", "pkwy", "parkway", "hwy", "highway"]
 
+            # A concrete address in the live turn always wins — the user may
+            # have switched properties mid-conversation.
+            from app.services.orchestrator import message_has_concrete_target
+
+            if message_has_concrete_target(user_content):
+                current_address = user_content
             if not current_address:
                 # Check for property/location keywords
                 if any(word in content_lower for word in address_keywords):
@@ -1256,6 +1297,7 @@ async def websocket_endpoint(
                         user_content,
                         context=planning_context or None,
                         resolved_llm=user_resolved_llm,
+                        history=conversation_history,
                     )
                     logger.info("[chat] specialist plan: %s", specialist_plan)
 
@@ -1327,6 +1369,7 @@ async def websocket_endpoint(
                                 system_prompt_id=session_prompt_id,
                                 analysis_type=session_analysis_type,
                                 resolved_llm=user_resolved_llm,
+                                fallback_address=current_address,
                             )
 
                         specialist_outputs.append(spec_result)
@@ -1444,6 +1487,7 @@ async def websocket_endpoint(
                     system_prompt_id=session_prompt_id,
                     analysis_type=session_analysis_type,
                     resolved_llm=user_resolved_llm,
+                    fallback_address=current_address,
                 )
             else:
                 # No tools requested - just send the response
@@ -1963,6 +2007,7 @@ async def _run_specialist_routing_turn(
     s_prompt_id: str | None,
     s_analysis_type: str | None,
     user_resolved_llm: ResolvedLLM | None,
+    current_address: str | None = None,
 ) -> dict:
     """Drive the specialist routing branch end-to-end for one user turn.
 
@@ -2036,24 +2081,29 @@ async def _run_specialist_routing_turn(
             user_content,
             context=planning_context or None,
             resolved_llm=user_resolved_llm,
+            history=conversation_history,
         )
 
     if needs_clar:
         logger.info("[chat-ws] clarification gate tripped for session=%s", session_id)
-        clar_history = list(conversation_history)
-        clar_history.append(
-            {
-                "role": "user",
-                "content": (
-                    user_content
-                    + "\n\n(Note: the user's message lacks enough concrete "
-                    "detail to begin specialist work. Ask ONE concise "
-                    "clarifying question for what you need to proceed — "
-                    "e.g. the property address or the specific deal "
-                    "question. Do not call tools.)"
-                ),
-            }
+        clar_note = (
+            "\n\n(Note: the user's message may lack enough concrete detail "
+            "to begin specialist work. If the missing details — e.g. the "
+            "property address or the specific deal question — already "
+            "appear earlier in this conversation, use them and answer "
+            "directly. Otherwise ask ONE concise clarifying question for "
+            "what you need to proceed. Do not call tools.)"
         )
+        # conversation_history already ends with the live user turn (the
+        # caller appends it before routing) — fold the note into that turn
+        # instead of appending a duplicate copy of the user's message.
+        clar_history = [dict(m) for m in conversation_history]
+        if clar_history and clar_history[-1].get("role") == "user":
+            clar_history[-1]["content"] = clar_history[-1]["content"] + clar_note
+        else:
+            clar_history.append(
+                {"role": "user", "content": user_content + clar_note}
+            )
         clar_result = await _stream_orchestrator_to_ws(
             websocket,
             session_id=session_id,
@@ -2108,6 +2158,7 @@ async def _run_specialist_routing_turn(
         user_content,
         context=planning_context or None,
         resolved_llm=user_resolved_llm,
+        history=conversation_history,
     )
     logger.info("[chat-ws] specialist plan: %s", specialist_plan)
 
@@ -2189,6 +2240,7 @@ async def _run_specialist_routing_turn(
                 analysis_type=s_analysis_type,
                 resolved_llm=user_resolved_llm,
                 internal=True,
+                fallback_address=current_address,
             )
             # Fold the raw tool outputs into this specialist's findings so the
             # single downstream synthesis (and any later specialist in the
@@ -2440,6 +2492,14 @@ async def websocket_chat_endpoint(
             # Load conversation history and document context if not cached
             if session_id not in conversation_histories:
                 conversation_histories[session_id] = await load_session_history(session_id)
+                # Re-seed the address tracker from the replayed history so a
+                # reconnect doesn't orphan tools from the property under
+                # discussion. Document context (below) overrides this seed.
+                seeded_addr = _seed_address_from_history(
+                    conversation_histories[session_id]
+                )
+                if seeded_addr and session_id not in current_addresses:
+                    current_addresses[session_id] = seeded_addr
                 # Load document/project context and prompt info for analysis sessions
                 async with async_session_factory() as db:
                     result = await db.execute(
@@ -2500,6 +2560,13 @@ async def websocket_chat_endpoint(
             address_keywords = ["mall", "center", "plaza", "shopping", "property", "leasing flyer"]
             street_keywords = ["st", "street", "ave", "avenue", "rd", "road", "blvd", "boulevard", "drive", "dr", "way", "lane", "ln", "pkwy", "parkway", "hwy", "highway"]
 
+            # A concrete address in the live turn always wins — the user may
+            # have switched properties mid-conversation.
+            from app.services.orchestrator import message_has_concrete_target
+
+            if message_has_concrete_target(user_content):
+                current_address = user_content
+                current_addresses[session_id] = current_address
             if not current_address:
                 if any(word in content_lower for word in address_keywords):
                     current_address = user_content
@@ -2545,6 +2612,7 @@ async def websocket_chat_endpoint(
                         s_prompt_id=s_prompt_id,
                         s_analysis_type=s_analysis_type,
                         user_resolved_llm=user_resolved_llm,
+                        current_address=current_address,
                     )
                     await _notify_tenant_candidates(
                         websocket, session_id=session_id, sink=tenant_sink
@@ -2626,6 +2694,7 @@ async def websocket_chat_endpoint(
                     system_prompt_id=s_prompt_id,
                     analysis_type=s_analysis_type,
                     resolved_llm=user_resolved_llm,
+                    fallback_address=current_address,
                 )
             elif response["content"]:
                 # The text was already streamed via text_delta + message_end.

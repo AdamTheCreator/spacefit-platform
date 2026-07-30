@@ -152,6 +152,8 @@ then drops the user into the existing composer. That single action is what makes
 
 > ✅ **Shipped (Phase 2):** the Contacts directory's "Send to Outreach" pre-fills the composer with the selected contacts as recipients (sender pre-filled from your profile). And the **void → Contacts** leg is now wired: a void/matchmaker chat result surfaces a "Save these tenants as Contacts" panel (the backend emits a `tenant_candidates` event with the analysis's structured `suggested_tenants`; `POST /contacts/from-void` creates the `Company` rows). Those saved brands then flow into the same "Send to Outreach" on-ramp — closing void → contacts → campaign.
 
+> ✅ **Shipped — the send on-ramp:** manually composed campaigns are no longer stranded as drafts. `CampaignDetail` now surfaces the Send button for both `draft` and `scheduled` campaigns (disabled with a tooltip when there are no recipients), gated behind a "Send to N recipients — this cannot be undone" confirmation. The send routes through a shared `useSendCampaign` mutation (`hooks/useOutreachCampaigns.ts`) reused by `DraftsReviewModal`, so deal-cache invalidation lives in one place. On send the backend creates a `Deal` (INTAKE stage, `source="outreach"`) and returns its `deal_id`; the success toast links straight to the Workflow board.
+
 ---
 
 ## Search → a client-fit matching engine (expanded vision)

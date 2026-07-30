@@ -157,17 +157,23 @@ async def send_email(
             error=gmail_result.error,
         )
 
-    # Check if email is configured
+    # No transport is configured (no connected Gmail, no SMTP). Report an
+    # honest failure rather than a synthetic success — otherwise a campaign
+    # looks "sent" (and a deal card gets created) while nothing ever leaves the
+    # machine. The caller surfaces this as a clear error to the user.
     if not settings.smtp_host:
-        # Development mode - just log the email
-        logger.info("[email] SMTP not configured; skipping send (dev mode)")
-        logger.debug("[email] subject_len=%d body_len=%d", len(subject), len(body_html))
-
+        logger.warning(
+            "[email] No email transport configured (connect Gmail or set SMTP_HOST); "
+            "not sending to %s",
+            to_email,
+        )
         return EmailResult(
-            success=True,
+            success=False,
             recipient_email=to_email,
-            message_id=f"dev-{datetime.now().timestamp()}",
-            sent_at=datetime.utcnow(),
+            error=(
+                "No email transport configured. Connect Gmail or set SMTP_HOST "
+                "to send campaigns."
+            ),
         )
 
     # Production mode - send via SMTP

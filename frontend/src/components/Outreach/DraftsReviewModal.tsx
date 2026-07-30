@@ -28,9 +28,10 @@ export function DraftsReviewModal({
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState(initialDrafts);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sendCampaign = useSendCampaign();
+  const sending = sendCampaign.isPending;
 
   const updateDraft = (index: number, field: keyof OutreachDraft, value: string) => {
     setDrafts((prev) =>
@@ -44,7 +45,6 @@ export function DraftsReviewModal({
 
   const handleApproveAndSend = async () => {
     if (drafts.length === 0) return;
-    setSending(true);
     setError(null);
 
     try {
@@ -72,10 +72,7 @@ export function DraftsReviewModal({
       setSent(true);
       onSent?.();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send campaign';
-      setError(msg);
-    } finally {
-      setSending(false);
+      setError(sendCampaignErrorMessage(err));
     }
   };
 

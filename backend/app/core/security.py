@@ -94,6 +94,43 @@ def get_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def create_oauth_state(user_id: UUID | str, purpose: str = "gmail_oauth") -> str:
+    """Create a short-lived signed state token for an OAuth redirect.
+
+    OAuth callbacks are hit directly by the provider (a top-level browser
+    navigation), so they can't carry our Bearer token. We instead round-trip
+    the initiating user's id inside a signed, expiring ``state`` param — this
+    both associates the callback with the right user and acts as CSRF
+    protection (an attacker can't forge a valid state without ``secret_key``).
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=10)
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire,
+        "type": "oauth_state",
+        "purpose": purpose,
+    }
+    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
+
+
+def verify_oauth_state(token: str, purpose: str = "gmail_oauth") -> str | None:
+    """Verify an OAuth state token and return the user id, or ``None``.
+
+    Rejects tokens that are expired, tampered, of the wrong ``type``, or issued
+    for a different ``purpose``.
+    """
+    try:
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.jwt_algorithm]
+        )
+    except JWTError:
+        return None
+    if payload.get("type") != "oauth_state" or payload.get("purpose") != purpose:
+        return None
+    sub = payload.get("sub")
+    return str(sub) if sub else None
+
+
 def _get_encryption_key(user_salt: bytes | None = None) -> bytes:
     """Derive an encryption key from the master key and optional user salt."""
     master_key = settings.encryption_master_key.encode()

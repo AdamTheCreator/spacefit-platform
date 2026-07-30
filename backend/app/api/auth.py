@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Annotated
 
@@ -359,6 +360,176 @@ async def google_callback(
     except Exception as e:
         logger.error(f"Google OAuth callback error: {e}", exc_info=True)
         return RedirectResponse(url=f"{settings.frontend_url}/login?error=google_auth_failed")
+
+
+GMAIL_PROVIDER = "gmail"
+
+
+class GmailAuthorizeResponse(BaseModel):
+    authorization_url: str
+
+
+class GmailStatusResponse(BaseModel):
+    connected: bool
+    email: str | None = None
+
+
+@router.get("/gmail/authorize", response_model=GmailAuthorizeResponse)
+async def gmail_authorize(current_user: CurrentUser) -> GmailAuthorizeResponse:
+    """Return the Google consent URL to connect a Gmail account for sending.
+
+    The frontend redirects the browser to this URL. We can't 302 straight from
+    here because a top-level navigation wouldn't carry the Bearer token, so the
+    initiating user is round-tripped through a signed ``state`` param instead.
+    """
+    if not is_gmail_configured():
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Gmail integration is not configured on the server.",
+        )
+
+    state = create_oauth_state(current_user.id)
+    authorization_url, _ = GmailService.get_authorization_url(state=state)
+    return GmailAuthorizeResponse(authorization_url=authorization_url)
+
+
+@router.get("/gmail/callback")
+async def gmail_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Handle the Gmail OAuth callback and store the connection for the user."""
+    connections_url = f"{settings.frontend_url}/connections"
+
+    if error or not code or not state:
+        logger.warning("Gmail OAuth callback error: %s", error or "missing code/state")
+        return RedirectResponse(url=f"{connections_url}?gmail=error")
+
+    user_id = verify_oauth_state(state)
+    if not user_id:
+        logger.warning("Gmail OAuth callback with invalid/expired state")
+        return RedirectResponse(url=f"{connections_url}?gmail=error")
+
+    try:
+        try:
+            tokens = await asyncio.to_thread(GmailService.exchange_code, code)
+        except Exception as exc:
+            from urllib.parse import quote
+
+            logger.exception("Gmail OAuth token exchange failed")
+            # Surface Google's own error text (e.g. invalid_client /
+            # redirect_uri_mismatch / invalid_grant) so the failure is
+            # diagnosable without server logs. oauthlib error strings do not
+            # contain the client secret.
+            detail = quote(str(exc)[:200], safe="")
+            return RedirectResponse(
+                url=f"{connections_url}?gmail=error&reason=token_exchange&detail={detail}"
+            )
+
+        email = await asyncio.to_thread(GmailService(tokens).get_user_email)
+        if not email:
+            # getProfile came back empty/403 — almost always the Gmail API not
+            # being enabled for the project, or the read scope not granted.
+            logger.error(
+                "Gmail OAuth: could not read connected address (Gmail API enabled?)"
+            )
+            return RedirectResponse(
+                url=f"{connections_url}?gmail=error&reason=profile"
+            )
+
+        result = await db.execute(
+            select(OAuthAccount).where(
+                OAuthAccount.user_id == user_id,
+                OAuthAccount.provider == GMAIL_PROVIDER,
+            )
+        )
+        account = result.scalar_one_or_none()
+        if account is None:
+            account = OAuthAccount(
+                user_id=user_id,
+                provider=GMAIL_PROVIDER,
+                provider_account_id=email,
+                access_token=tokens.access_token,
+                refresh_token=tokens.refresh_token,
+                expires_at=tokens.expiry,
+            )
+            db.add(account)
+        else:
+            account.provider_account_id = email
+            account.access_token = tokens.access_token
+            # Google only returns a refresh token on the first consent; keep the
+            # existing one if this exchange didn't include a fresh value.
+            if tokens.refresh_token:
+                account.refresh_token = tokens.refresh_token
+            account.expires_at = tokens.expiry
+
+        await db.commit()
+    except Exception:
+        logger.exception("Gmail OAuth callback failed")
+        return RedirectResponse(url=f"{connections_url}?gmail=error")
+
+    return RedirectResponse(url=f"{connections_url}?gmail=connected")
+
+
+@router.get("/gmail/status", response_model=GmailStatusResponse)
+async def gmail_status(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> GmailStatusResponse:
+    """Report whether the current user has a Gmail account connected for sending."""
+    result = await db.execute(
+        select(OAuthAccount).where(
+            OAuthAccount.user_id == current_user.id,
+            OAuthAccount.provider == GMAIL_PROVIDER,
+        )
+    )
+    account = result.scalar_one_or_none()
+    if account is None:
+        return GmailStatusResponse(connected=False)
+    return GmailStatusResponse(connected=True, email=account.provider_account_id)
+
+
+@router.delete("/gmail", status_code=status.HTTP_204_NO_CONTENT)
+async def gmail_disconnect(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Disconnect the user's Gmail account (campaigns fall back to SMTP/dev)."""
+    await db.execute(
+        delete(OAuthAccount).where(
+            OAuthAccount.user_id == current_user.id,
+            OAuthAccount.provider == GMAIL_PROVIDER,
+        )
+    )
+    await db.commit()
+
+
+@router.get("/gmail/debug")
+async def gmail_debug(current_user: CurrentUser) -> dict:
+    """TEMPORARY diagnostic: report what OAuth credentials the server loaded.
+
+    Returns only a one-way hash + length of the secret (never the secret
+    itself) so a wrong/stale GOOGLE_CLIENT_SECRET can be identified without
+    leaking it. Authenticated-only. Remove once the Gmail connect flow works.
+    """
+    import hashlib
+
+    cid = settings.google_client_id or ""
+    csec = settings.google_client_secret or ""
+    return {
+        "client_id": cid,  # public value (appears in the OAuth authorize URL)
+        "client_id_len": len(cid),
+        "secret_len": len(csec),
+        "secret_sha256_12": (
+            hashlib.sha256(csec.encode()).hexdigest()[:12] if csec else ""
+        ),
+        "secret_last4": csec[-4:] if csec else "",
+        "gmail_redirect_uri": settings.gmail_redirect_uri,
+        "frontend_url": settings.frontend_url,
+        "gmail_configured": bool(cid and csec),
+    }
 
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
