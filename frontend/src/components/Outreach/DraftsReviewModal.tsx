@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Check, Edit3, Send, X, Loader2 } from 'lucide-react';
 import api from '../../lib/axios';
 import { dealKeys } from '../../hooks/useDeals';
+import { useSendCampaign, sendCampaignErrorMessage } from '../../hooks/useOutreachCampaigns';
 
 export interface OutreachDraft {
   tenant_name: string;

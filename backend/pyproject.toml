@@ -51,7 +51,9 @@ dependencies = [
     "anthropic>=0.40.0",
 
     # MCP (Model Context Protocol)
-    "mcp[cli]>=1.0.0",
+    # Pinned: >=1.0.0 was unpinned and a no-cache build pulled a release without
+    # mcp.server.fastmcp, crashing boot. 1.28.1 is verified against this code.
+    "mcp[cli]==1.28.1",
 
     # Payments
     "stripe>=8.0.0",
