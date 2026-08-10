@@ -977,7 +977,7 @@ async def test_routing_turn_threads_history_into_gate_and_planner():
     history = [
         {"role": "user", "content": "tell me about the Westport office market"},
         {"role": "assistant", "content": "It is strong."},
-        {"role": "user", "content": "generate an investment memo"},
+        {"role": "user", "content": "find some tenants for that market"},
     ]
 
     plan_mock = AsyncMock(return_value=["scout"])
@@ -1012,7 +1012,7 @@ async def test_routing_turn_threads_history_into_gate_and_planner():
             ws,  # type: ignore[arg-type]
             user_id="u-1",
             session_id="s-1",
-            user_content="generate an investment memo",
+            user_content="find some tenants for that market",
             conversation_history=history,
             proj_context=None,
             doc_context=None,

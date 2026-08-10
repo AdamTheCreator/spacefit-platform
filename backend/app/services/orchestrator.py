@@ -616,6 +616,28 @@ _STREET_ADDRESS_RE = re.compile(
 )
 
 
+_INVESTMENT_MEMO_RE = re.compile(
+    r"\binvestment\s+memo\b"
+    r"|\b(?:underwriting|acquisition|deal)\s+memo\b"
+    r"|\b(?:create|draft|write|build|generate|prepare|produce)\b[^.\n]{0,40}\bmemo\b",
+    re.IGNORECASE,
+)
+
+
+def is_investment_memo_request(message: str) -> bool:
+    """Cheap, no-LLM check for whether the user is asking for an investment memo.
+
+    Matches the explicit phrase ("investment memo"), the common qualified
+    variants ("underwriting/acquisition/deal memo"), and a generate-verb
+    followed shortly by "memo" ("draft a memo", "create an investment memo").
+    Conservative on purpose: a False result just means the memo-specific
+    prompt/plan isn't forced for this turn.
+    """
+    if not message:
+        return False
+    return bool(_INVESTMENT_MEMO_RE.search(message))
+
+
 def message_has_concrete_target(message: str) -> bool:
     """Cheap, no-LLM check for an obviously actionable message.
 
