@@ -2043,10 +2043,21 @@ async def _run_specialist_routing_turn(
         }
     """
     from app.services.orchestrator import (
+        is_investment_memo_request,
         message_has_concrete_target,
         needs_clarification,
         plan_workflow,
     )
+    from app.services.prompt_registry import INVESTMENT_MEMO_PROMPT_ID
+
+    # Investment-memo intent: a memo request (typed) or a memo-focused
+    # session forces the dedicated memo system prompt + a focused,
+    # analyst-led plan (skipping the slow Scout nearby-business search).
+    memo_intent = (
+        is_investment_memo_request(user_content)
+        or s_analysis_type == "investment_memo"
+    )
+    synthesis_prompt_id = INVESTMENT_MEMO_PROMPT_ID if memo_intent else s_prompt_id
 
     # ----------------------------------------------------------
     # Clarification gate: if the user's message is too vague to
@@ -2154,12 +2165,18 @@ async def _run_specialist_routing_turn(
     # (no user-facing bubble), then always synthesize a single
     # "Space Goose Assistant" response.
     # ----------------------------------------------------------
-    specialist_plan = await plan_workflow(
-        user_content,
-        context=planning_context or None,
-        resolved_llm=user_resolved_llm,
-        history=conversation_history,
-    )
+    if memo_intent:
+        # Deterministic, analyst-led plan for memos: gather demographics /
+        # traffic / comps, then synthesize with the memo prompt. Skips the
+        # LLM planning call and the slow Scout business-discovery step.
+        specialist_plan = ["analyst"]
+    else:
+        specialist_plan = await plan_workflow(
+            user_content,
+            context=planning_context or None,
+            resolved_llm=user_resolved_llm,
+            history=conversation_history,
+        )
     logger.info("[chat-ws] specialist plan: %s", specialist_plan)
 
     workflow_steps_payload = [
@@ -2274,14 +2291,18 @@ async def _run_specialist_routing_turn(
         )
         synth_history = list(conversation_history)
         if synthesis_input:
+            synth_instruction = (
+                "Write the investment memo for the user using the specialist "
+                "findings below. Follow your memo structure and lead with the "
+                "recommendation:\n\n"
+                if memo_intent
+                else "Synthesize the specialist findings into a "
+                "single concise answer for the user:\n\n"
+            )
             synth_history.append(
                 {
                     "role": "user",
-                    "content": (
-                        "Synthesize the specialist findings into a "
-                        "single concise answer for the user:\n\n"
-                        + synthesis_input
-                    ),
+                    "content": synth_instruction + synthesis_input,
                 }
             )
         synth = await _stream_orchestrator_to_ws(
@@ -2293,7 +2314,7 @@ async def _run_specialist_routing_turn(
             has_imported_data=has_imported_data,
             document_context=doc_context,
             project_context=proj_context,
-            system_prompt_id=s_prompt_id,
+            system_prompt_id=synthesis_prompt_id,
             analysis_type=s_analysis_type,
             memory_context=memory_context,
             resolved_llm=user_resolved_llm,
@@ -2538,6 +2559,21 @@ async def websocket_chat_endpoint(
             s_prompt_id = session_prompt_ids.get(session_id)
             s_analysis_type = session_analysis_types.get(session_id)
 
+            # Investment-memo intent drives the memo system prompt on the
+            # monolithic fallback path too (specialist routing has its own
+            # detection inside _run_specialist_routing_turn).
+            from app.services.orchestrator import is_investment_memo_request
+            from app.services.prompt_registry import INVESTMENT_MEMO_PROMPT_ID
+
+            mono_prompt_id = (
+                INVESTMENT_MEMO_PROMPT_ID
+                if (
+                    is_investment_memo_request(user_content)
+                    or s_analysis_type == "investment_memo"
+                )
+                else s_prompt_id
+            )
+
             # Echo user message
             user_message = Message(
                 role=MessageRole.USER,
@@ -2637,7 +2673,7 @@ async def websocket_chat_endpoint(
                     has_imported_data=has_imported_data,
                     document_context=doc_context,
                     project_context=proj_context,
-                    system_prompt_id=s_prompt_id,
+                    system_prompt_id=mono_prompt_id,
                     analysis_type=s_analysis_type,
                     memory_context=memory_context,
                     resolved_llm=user_resolved_llm,
@@ -2691,7 +2727,7 @@ async def websocket_chat_endpoint(
                     has_imported_data=has_imported_data,
                     document_context=doc_context,
                     project_context=proj_context,
-                    system_prompt_id=s_prompt_id,
+                    system_prompt_id=mono_prompt_id,
                     analysis_type=s_analysis_type,
                     resolved_llm=user_resolved_llm,
                     fallback_address=current_address,

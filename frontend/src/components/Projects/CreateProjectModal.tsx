@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { useCreateProject } from '../../hooks/useProjects';
+import { useCreateProject, useCreateProjectSession } from '../../hooks/useProjects';
 
 interface CreateProjectModalProps {
   onClose: () => void;
@@ -23,6 +23,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const navigate = useNavigate();
   const createProject = useCreateProject();
+  const createSession = useCreateProjectSession();
 
   const toggleGoal = (chip: string) =>
     setSelectedGoals((prev) =>
@@ -45,6 +46,25 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
         instructions,
         property_address: propertyAddress.trim() || undefined,
       });
+
+      // When the user chose the investment-memo focus, kick the memo off
+      // immediately: open a project chat and auto-send the memo request so
+      // they land on a generating memo instead of an empty workspace.
+      if (selectedGoals.includes('Investment memo')) {
+        try {
+          const session = await createSession.mutateAsync(project.id);
+          onClose();
+          navigate(`/projects/${project.id}/chat/${session.id}`, {
+            state: {
+              initialMessage: 'Create an investment memo for this property.',
+            },
+          });
+          return;
+        } catch {
+          // Fall back to the project workspace if session creation fails.
+        }
+      }
+
       onClose();
       navigate(`/projects/${project.id}`);
     } catch {
@@ -151,10 +171,10 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || createProject.isPending}
+              disabled={!name.trim() || createProject.isPending || createSession.isPending}
               className="px-4 py-2 rounded-lg text-sm font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {createProject.isPending ? 'Creating...' : 'Create project'}
+              {createProject.isPending || createSession.isPending ? 'Creating...' : 'Create project'}
             </button>
           </div>
         </form>
