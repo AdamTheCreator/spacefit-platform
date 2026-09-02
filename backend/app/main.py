@@ -93,6 +93,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     for msg in warnings:
         logger.warning("auth.config: %s", msg)
 
+    # One line so a deploy log shows which provider non-BYOK chat will hit.
+    from app.services.user_llm import platform_llm_summary
+
+    llm_summary = platform_llm_summary()
+    logger.info(
+        "llm.config: platform provider=%s model=%s endpoint=%s "
+        "anthropic_key=%s streaming=%s specialists=%s",
+        llm_summary["provider"],
+        llm_summary["model"] or "(provider default)",
+        llm_summary["endpoint_host"] or "(none)",
+        "set" if settings.anthropic_api_key else "MISSING",
+        settings.streaming_enabled,
+        settings.enable_specialist_routing,
+    )
+
     yield
     await aclose_llm_client()
     await engine.dispose()

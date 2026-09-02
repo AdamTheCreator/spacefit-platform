@@ -334,15 +334,40 @@ async def update_ai_config(
     config.model = payload.model
     config.base_url = payload.base_url
 
-    # Encrypt and store API key if provided
+    # Encrypt and store API key if provided, then validate it *inline*.
+    #
+    # The Settings form runs "Validate" before "Save". ``POST /validate``
+    # only persists ``is_key_valid`` when a row with a stored key already
+    # exists, and this handler used to reset the flag on every save — so
+    # a first-time key was always stored as *not validated*, the chat
+    # resolver skipped it, and the user silently ran on the platform
+    # provider while the page said "Using your own API key". Probing
+    # here (same helper the v2 path uses) makes Save self-validating.
     if payload.api_key:
         salt = generate_user_salt()
         config.api_key_encrypted = encrypt_credential(payload.api_key, salt)
         config.encryption_salt = salt
-        # Reset validation — user should validate after setting key
-        config.is_key_valid = False
-        config.key_validated_at = None
-        config.key_error_message = None
+        config.key_last_four = payload.api_key[-4:]
+        if payload.provider == "platform_default":
+            ok, err = False, None
+        else:
+            ok, err = await v2._run_live_validation(
+                payload.provider,
+                payload.api_key,
+                payload.model or PROVIDER_DEFAULT_MODELS.get(payload.provider, ""),
+                payload.base_url,
+            )
+        config.is_key_valid = ok
+        config.key_validated_at = datetime.now(timezone.utc) if ok else None
+        config.key_error_message = None if ok else (err or "Validation failed")[:500]
+        logger.info(
+            "[ai-config] user=%s saved %s key (…%s): validated=%s%s",
+            current_user.id,
+            payload.provider,
+            config.key_last_four,
+            ok,
+            "" if ok else f" error={config.key_error_message!r}",
+        )
 
     # If switching to platform_default, clear the key
     if payload.provider == "platform_default":
@@ -729,6 +754,8 @@ class LLMDiagnoseResponse(BaseModel):
     probe_request_id: str | None = None
     probe_latency_ms: int
     platform_llm_provider: str
+    platform_llm_model: str | None = None
+    platform_endpoint_host: str | None = None
     platform_anthropic_key_configured: bool
     streaming_enabled: bool
     specialist_routing_enabled: bool
@@ -756,6 +783,7 @@ async def diagnose_llm(
     from app.services.user_llm import (
         byok_skip_reason,
         get_active_ai_config,
+        platform_llm_summary,
         resolve_user_llm,
     )
 
@@ -833,6 +861,7 @@ async def diagnose_llm(
         probe_status,
     )
 
+    platform = platform_llm_summary()
     return LLMDiagnoseResponse(
         config_present=config is not None,
         config_provider=config.provider if config else None,
@@ -852,7 +881,9 @@ async def diagnose_llm(
         probe_upstream_status=probe_status,
         probe_request_id=probe_request_id,
         probe_latency_ms=latency_ms,
-        platform_llm_provider=settings.llm_provider,
+        platform_llm_provider=platform["provider"],
+        platform_llm_model=platform["model"] or None,
+        platform_endpoint_host=platform["endpoint_host"] or None,
         platform_anthropic_key_configured=bool(settings.anthropic_api_key),
         streaming_enabled=bool(settings.streaming_enabled),
         specialist_routing_enabled=bool(

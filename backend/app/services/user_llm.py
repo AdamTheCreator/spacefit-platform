@@ -151,6 +151,36 @@ def resolved_or_platform_model(resolved_llm: "ResolvedLLM | None") -> str:
     return settings.anthropic_model
 
 
+def platform_llm_summary() -> dict[str, str]:
+    """Secret-free description of the platform (non-BYOK) LLM target.
+
+    Used by the boot log and ``GET /ai-config/diagnose`` so operators can
+    see at a glance that, e.g., ``LLM_PROVIDER=openai_compatible`` is
+    pointing at a self-hosted host that has since gone away — the Render
+    dashboard can override ``render.yaml`` and nothing else surfaces that.
+    """
+    from urllib.parse import urlparse
+
+    provider = (settings.llm_provider or "anthropic").lower().strip()
+    if provider == "baseten":
+        model = settings.llm_model or settings.baseten_model
+        base_url = settings.baseten_base_url
+    elif provider == "google":
+        model = settings.llm_model or settings.google_gemini_model
+        base_url = settings.google_gemini_base_url
+    elif provider == "huggingface":
+        model = settings.llm_model or settings.huggingface_model
+        base_url = settings.huggingface_base_url
+    elif provider == "anthropic":
+        model = settings.llm_model or settings.anthropic_model
+        base_url = "https://api.anthropic.com"
+    else:  # openai / deepseek / openai_compatible
+        model = settings.llm_model
+        base_url = settings.openai_base_url
+    host = urlparse(base_url or "").netloc or (base_url or "")
+    return {"provider": provider, "model": model or "", "endpoint_host": host}
+
+
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
     """Resolve platform-owned LLM based on subscription tier."""
     # Operator opt-in: when ``LLM_PROVIDER=baseten`` is set globally, route

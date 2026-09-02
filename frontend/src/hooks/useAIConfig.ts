@@ -146,6 +146,8 @@ export interface LLMDiagnoseResponse {
   probe_request_id: string | null;
   probe_latency_ms: number;
   platform_llm_provider: string;
+  platform_llm_model: string | null;
+  platform_endpoint_host: string | null;
   platform_anthropic_key_configured: boolean;
   streaming_enabled: boolean;
   specialist_routing_enabled: boolean;

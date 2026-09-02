@@ -16,7 +16,7 @@ Covers the pieces added while diagnosing a production chat outage:
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -234,3 +234,126 @@ def test_specialist_override_is_alias_mapped() -> None:
         request_id="test",
     )
     assert effective_model == "claude-sonnet-4-5"
+
+
+# --- save is self-validating ---------------------------------------------------
+
+
+class TestUpdateAIConfigValidatesInline:
+    """``PUT /ai-config`` used to reset ``is_key_valid`` on every save, so a
+    first-time key (validated *before* the row existed) was always stored
+    as not-validated and the chat resolver silently ignored it."""
+
+    @staticmethod
+    def _db() -> MagicMock:
+        db = MagicMock()
+        db.add = MagicMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        return db
+
+    @pytest.mark.asyncio
+    async def test_new_key_is_probed_and_marked_valid(self) -> None:
+        from app.api.ai_config import AIConfigUpdate, update_ai_config
+
+        db = self._db()
+        with (
+            patch("app.api.ai_config.settings.byok_rebuild_enabled", False),
+            patch(
+                "app.api.ai_config._get_active_ai_config",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.api.ai_config.v2._run_live_validation",
+                AsyncMock(return_value=(True, None)),
+            ) as probe,
+        ):
+            resp = await update_ai_config(
+                AIConfigUpdate(
+                    provider="anthropic",
+                    model="claude-sonnet-4-6",
+                    api_key="sk-ant-x1234",
+                ),
+                SimpleNamespace(id="u1", tier="free"),
+                db,
+                MagicMock(),
+            )
+        probe.assert_awaited_once_with(
+            "anthropic", "sk-ant-x1234", "claude-sonnet-4-6", None
+        )
+        row = db.add.call_args.args[0]
+        assert row.is_key_valid is True
+        assert row.key_validated_at is not None
+        assert row.key_last_four == "1234"
+        assert resp.is_key_valid is True
+        assert resp.effective_provider == "anthropic"
+        assert resp.effective_model == "claude-sonnet-4-6"
+
+    @pytest.mark.asyncio
+    async def test_failed_probe_stores_key_but_marks_invalid(self) -> None:
+        from app.api.ai_config import AIConfigUpdate, update_ai_config
+
+        db = self._db()
+        with (
+            patch("app.api.ai_config.settings.byok_rebuild_enabled", False),
+            patch(
+                "app.api.ai_config._get_active_ai_config",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.api.ai_config.v2._run_live_validation",
+                AsyncMock(return_value=(False, "Your API key was rejected")),
+            ),
+        ):
+            resp = await update_ai_config(
+                AIConfigUpdate(provider="anthropic", api_key="sk-ant-bad"),
+                SimpleNamespace(id="u1", tier="free"),
+                db,
+                MagicMock(),
+            )
+        row = db.add.call_args.args[0]
+        assert row.api_key_encrypted is not None
+        assert row.is_key_valid is False
+        assert row.key_error_message == "Your API key was rejected"
+        assert resp.has_byok_key is True
+        assert resp.is_key_valid is False
+        # Not validated → chat falls back to the tier default, and the
+        # response says so instead of pretending the key is in use.
+        assert (resp.effective_provider, resp.effective_model) != (
+            "anthropic",
+            "claude-sonnet-4-6",
+        )
+
+
+# --- platform summary --------------------------------------------------------
+
+
+def test_platform_llm_summary_openai_compatible_reports_host() -> None:
+    from app.services.user_llm import platform_llm_summary, settings
+
+    with (
+        patch.object(settings, "llm_provider", "openai_compatible"),
+        patch.object(settings, "llm_model", "spacegoose-advisor-v3"),
+        patch.object(
+            settings, "openai_base_url", "https://model-abc.api.baseten.co/v1"
+        ),
+    ):
+        summary = platform_llm_summary()
+    assert summary == {
+        "provider": "openai_compatible",
+        "model": "spacegoose-advisor-v3",
+        "endpoint_host": "model-abc.api.baseten.co",
+    }
+
+
+def test_platform_llm_summary_anthropic_default() -> None:
+    from app.services.user_llm import platform_llm_summary, settings
+
+    with (
+        patch.object(settings, "llm_provider", "anthropic"),
+        patch.object(settings, "llm_model", ""),
+    ):
+        summary = platform_llm_summary()
+    assert summary["provider"] == "anthropic"
+    assert summary["model"] == settings.anthropic_model
+    assert summary["endpoint_host"] == "api.anthropic.com"
