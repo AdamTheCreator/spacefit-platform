@@ -101,6 +101,13 @@ class BYOKError(Exception):
         useful for support/debugging. Safe to log.
     :param retry_after_seconds: hint from the provider's ``Retry-After``
         header on 429s. Cooldown logic in the gateway honors this.
+    :param upstream_status: the HTTP status the *provider* actually
+        returned (e.g. 529 for Anthropic's ``overloaded_error``), when
+        known. Distinct from ``http_status`` which is what *we* return.
+        Safe to surface to users — it carries no secret material.
+    :param upstream_error: short, secret-free classification of the
+        underlying failure (the SDK exception class name). For operators
+        reading logs / diagnostics; never the provider's raw message.
     """
 
     code: str
@@ -109,6 +116,8 @@ class BYOKError(Exception):
     message: str = ""
     provider_request_id: str | None = None
     retry_after_seconds: float | None = None
+    upstream_status: int | None = None
+    upstream_error: str | None = None
 
     def __post_init__(self) -> None:
         if not self.message:
@@ -203,6 +212,60 @@ def parse_retry_after(value: str | None) -> float | None:
     # Clamp to a sensible range. Providers occasionally send very large
     # values; we don't want to stall a credential for hours on one 429.
     return max(0.0, min(seconds, 300.0))
+
+
+def _server_error(
+    *,
+    provider: str,
+    status_code: int | None,
+    exc_class: str | None,
+    request_id: str | None,
+) -> BYOKError:
+    """Build the ``provider_server_error`` BYOKError for a 5xx / unknown
+    failure and leave a secret-free breadcrumb in the logs.
+
+    Historically this branch was silent: a 529 ``overloaded_error``, a
+    real 500, and a non-SDK ``RuntimeError`` all collapsed into the same
+    "The provider returned a server error" string with nothing logged,
+    which made production failures undiagnosable. We now log the
+    exception class + upstream status + request id (never the raw
+    provider text, which is the secret-scrubbing boundary) and put the
+    upstream status in the user-facing message so "overloaded" reads
+    differently from "unexpected client-side failure".
+    """
+    logger.warning(
+        "[byok] %s provider failure mapped to provider_server_error: "
+        "exc=%s upstream_status=%s request_id=%s",
+        provider,
+        exc_class,
+        status_code,
+        request_id,
+    )
+    if status_code == 529:
+        message = (
+            "The provider is overloaded right now (HTTP 529). This is usually "
+            "transient — wait a moment and try again."
+        )
+    elif isinstance(status_code, int) and status_code >= 500:
+        message = (
+            f"The provider returned a server error (HTTP {status_code}). "
+            "This is usually transient."
+        )
+    else:
+        message = (
+            "The provider call failed unexpectedly"
+            + (f" ({exc_class})" if exc_class else "")
+            + ". This may not be transient — check the server logs."
+        )
+    return BYOKError(
+        code=BYOKErrorCode.PROVIDER_SERVER_ERROR,
+        http_status=502,
+        retryable=True,
+        message=message,
+        provider_request_id=request_id,
+        upstream_status=status_code if isinstance(status_code, int) else None,
+        upstream_error=exc_class,
+    )
 
 
 # --- Anthropic SDK mapper ----------------------------------------------------
@@ -309,12 +372,13 @@ def map_anthropic_exception(exc: BaseException) -> BYOKError:
             retryable=False,
             provider_request_id=request_id,
         )
-    # Anything else (5xx or an unrecognized exception class) → transient.
-    return BYOKError(
-        code=BYOKErrorCode.PROVIDER_SERVER_ERROR,
-        http_status=502,
-        retryable=True,
-        provider_request_id=request_id,
+    # Anything else (5xx, Anthropic's 529 overloaded_error, or an
+    # unrecognized exception class) → provider_server_error.
+    return _server_error(
+        provider="anthropic",
+        status_code=status_code if isinstance(status_code, int) else None,
+        exc_class=cls_name,
+        request_id=request_id,
     )
 
 
@@ -387,11 +451,11 @@ def map_openai_http_response(response: Any) -> BYOKError | None:
             provider_request_id=request_id,
         )
     # 5xx
-    return BYOKError(
-        code=BYOKErrorCode.PROVIDER_SERVER_ERROR,
-        http_status=502,
-        retryable=True,
-        provider_request_id=request_id,
+    return _server_error(
+        provider="openai_compatible",
+        status_code=status_code,
+        exc_class=None,
+        request_id=request_id,
     )
 
 
@@ -424,8 +488,9 @@ def map_openai_exception(exc: BaseException) -> BYOKError:
         mapped = map_openai_http_response(response)
         if mapped is not None:
             return mapped
-    return BYOKError(
-        code=BYOKErrorCode.PROVIDER_SERVER_ERROR,
-        http_status=502,
-        retryable=True,
+    return _server_error(
+        provider="openai_compatible",
+        status_code=None,
+        exc_class=cls_name,
+        request_id=None,
     )

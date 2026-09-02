@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.byok import crypto as byok_crypto
 from app.core.config import settings
 from app.core.security import decrypt_credential
 from app.db.models.credential import UserAIConfig
@@ -200,6 +201,81 @@ def _resolve_platform_default(tier: str) -> ResolvedLLM:
     )
 
 
+def decrypt_ai_config_key(ai_config: UserAIConfig) -> str:
+    """Return the plaintext API key for a ``UserAIConfig`` row.
+
+    Two on-disk formats coexist:
+
+    * **Envelope rows** (written by ``ai_config_v2`` when
+      ``BYOK_REBUILD_ENABLED`` is on, migration 029+): ``api_key_encrypted``
+      holds AES-GCM ciphertext and ``ciphertext_iv`` / ``ciphertext_tag`` /
+      ``encrypted_dek`` / ``kek_id`` are populated.
+    * **Legacy rows** (v1 ``PUT /ai-config``): ``api_key_encrypted`` is a
+      Fernet token keyed off ``encryption_salt``.
+
+    Before this helper existed the chat resolver only knew the legacy
+    Fernet path, so an envelope row raised ``InvalidToken`` and the user
+    was silently downgraded to the platform key — while Settings kept
+    reporting their BYOK key as valid. Mirrors ``BYOKGateway.decrypt``.
+    """
+    if not ai_config.api_key_encrypted:
+        raise ValueError("no encrypted key on row")
+    if ai_config.encrypted_dek and ai_config.kek_id:
+        return byok_crypto.decrypt_api_key(
+            byok_crypto.EnvelopeBundle(
+                ciphertext=ai_config.api_key_encrypted,
+                iv=ai_config.ciphertext_iv or b"",
+                auth_tag=ai_config.ciphertext_tag or b"",
+                encrypted_dek=ai_config.encrypted_dek,
+                kek_id=ai_config.kek_id,
+            )
+        )
+    return decrypt_credential(
+        ai_config.api_key_encrypted,
+        ai_config.encryption_salt,
+    )
+
+
+async def get_active_ai_config(
+    db: AsyncSession, user_id: str
+) -> UserAIConfig | None:
+    """Fetch the user's live BYOK row (most recently updated ``active`` row).
+
+    After migration 028 the table can hold multiple rows per user (revoked
+    history + active + rotating). Legacy environments occasionally carry
+    more than one ``active`` row too, so we order + take the first instead
+    of ``scalar_one_or_none`` — the latter raised ``MultipleResultsFound``
+    at WebSocket connect, which the chat handler swallowed into a silent
+    platform-key fallback.
+    """
+    result = await db.execute(
+        select(UserAIConfig)
+        .where(UserAIConfig.user_id == user_id)
+        .where(UserAIConfig.status == "active")
+        .order_by(UserAIConfig.updated_at.desc())
+    )
+    return result.scalars().first()
+
+
+def byok_skip_reason(ai_config: UserAIConfig | None) -> str | None:
+    """Explain why a BYOK row is *not* eligible for chat, or ``None`` if it is.
+
+    Shared by ``resolve_user_llm`` and the ``/ai-config/diagnose`` endpoint
+    so the diagnostic reports the exact gate the resolver applies.
+    """
+    if ai_config is None:
+        return "no active ai_config row"
+    if ai_config.provider == "platform_default":
+        return "provider is platform_default"
+    if not ai_config.api_key_encrypted:
+        return "no API key stored on the row"
+    if not ai_config.is_key_valid:
+        return "key not validated (is_key_valid=false)" + (
+            f": {ai_config.key_error_message}" if ai_config.key_error_message else ""
+        )
+    return None
+
+
 async def resolve_user_llm(
     db: AsyncSession,
     user_id: str,
@@ -212,27 +288,12 @@ async def resolve_user_llm(
       2. Paid tier without BYOK → Claude Haiku (platform key)
       3. Free tier without BYOK → Gemini Flash (platform key)
     """
-    # Check for BYOK config. Filter to the single live row — after migration
-    # 028 this table can hold multiple rows per user (revoked history +
-    # active + rotating), so a naked user_id match would raise on rotation.
-    result = await db.execute(
-        select(UserAIConfig)
-        .where(UserAIConfig.user_id == user_id)
-        .where(UserAIConfig.status == "active")
-    )
-    ai_config = result.scalar_one_or_none()
+    ai_config = await get_active_ai_config(db, user_id)
 
-    if (
-        ai_config
-        and ai_config.provider != "platform_default"
-        and ai_config.is_key_valid
-        and ai_config.api_key_encrypted
-    ):
+    skip_reason = byok_skip_reason(ai_config)
+    if ai_config is not None and skip_reason is None:
         try:
-            api_key = decrypt_credential(
-                ai_config.api_key_encrypted,
-                ai_config.encryption_salt,
-            )
+            api_key = decrypt_ai_config_key(ai_config)
             model = normalize_provider_model(ai_config.provider, ai_config.model)
             if not model:
                 model = PROVIDER_DEFAULT_MODELS.get(ai_config.provider, "")
@@ -249,6 +310,13 @@ async def resolve_user_llm(
                     specialist_models = json.loads(ai_config.specialist_models_json)
                 except (json.JSONDecodeError, TypeError):
                     pass
+            logger.info(
+                "[llm-resolve] user=%s → BYOK provider=%s model=%s key=…%s",
+                user_id,
+                ai_config.provider,
+                model,
+                ai_config.key_last_four or "????",
+            )
             return ResolvedLLM(
                 client=client,
                 model=model,
@@ -256,12 +324,29 @@ async def resolve_user_llm(
                 is_byok=True,
                 specialist_models=specialist_models,
             )
-        except Exception:
+        except Exception as e:
+            # Log the class only — never the exception text, which for a
+            # crypto error can echo ciphertext and for a client-build
+            # error could mention the key.
             logger.warning(
-                "Failed to decrypt BYOK key for user %s, falling back to "
-                "platform default",
+                "[llm-resolve] user=%s BYOK row unusable (%s), falling back "
+                "to platform default — Settings will still show the key as "
+                "valid; run GET /ai-config/diagnose",
                 user_id,
+                e.__class__.__name__,
             )
+    elif ai_config is not None:
+        logger.info(
+            "[llm-resolve] user=%s BYOK row skipped: %s", user_id, skip_reason
+        )
 
     # No BYOK — use platform default based on tier
-    return _resolve_platform_default(user_tier)
+    resolved = _resolve_platform_default(user_tier)
+    logger.info(
+        "[llm-resolve] user=%s → platform provider=%s model=%s tier=%s",
+        user_id,
+        resolved.provider,
+        resolved.model,
+        user_tier,
+    )
+    return resolved
