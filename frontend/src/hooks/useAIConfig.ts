@@ -126,6 +126,46 @@ export function useRemoveKey() {
   });
 }
 
+export interface LLMDiagnoseResponse {
+  config_present: boolean;
+  config_provider: string | null;
+  config_model: string | null;
+  config_is_key_valid: boolean;
+  config_key_error_message: string | null;
+  config_key_last_four: string | null;
+  config_storage: string | null;
+  byok_skip_reason: string | null;
+  resolve_error: string | null;
+  resolved_provider: string | null;
+  resolved_model: string | null;
+  resolved_is_byok: boolean;
+  probe_ok: boolean;
+  probe_error_code: string | null;
+  probe_error_message: string | null;
+  probe_upstream_status: number | null;
+  probe_request_id: string | null;
+  probe_latency_ms: number;
+  platform_llm_provider: string;
+  platform_anthropic_key_configured: boolean;
+  streaming_enabled: boolean;
+  specialist_routing_enabled: boolean;
+}
+
+async function diagnoseLLM(): Promise<LLMDiagnoseResponse> {
+  const { data } = await api.get<LLMDiagnoseResponse>('/ai-config/diagnose');
+  return data;
+}
+
+/**
+ * Fires a 1-token probe through the exact client + model the chat WebSocket
+ * will use (stored key, configured model) and returns the normalized outcome.
+ * A mutation rather than a query so it never runs unprompted — it costs a
+ * real (tiny) provider request.
+ */
+export function useDiagnoseLLM() {
+  return useMutation({ mutationFn: diagnoseLLM });
+}
+
 export function useProviders() {
   return useQuery({
     queryKey: ['aiProviders'],

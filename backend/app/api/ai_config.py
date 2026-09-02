@@ -690,3 +690,172 @@ async def get_audit_log(
     v2-only."""
     _require_rebuild_enabled()
     return await v2.get_audit_log_v2(current_user, db, limit=limit)
+
+
+# --- Live connection diagnostic ---------------------------------------------
+
+
+class LLMDiagnoseResponse(BaseModel):
+    """Everything needed to answer "why is chat failing for me?" in one call.
+
+    ``config_*`` mirrors the stored BYOK row, ``resolved_*`` is what the chat
+    WebSocket will actually use (same resolver, same alias mapping), and
+    ``probe_*`` is the result of a 1-token live request through that exact
+    client + model. All fields are secret-free.
+    """
+
+    config_present: bool
+    config_provider: str | None
+    config_model: str | None
+    config_is_key_valid: bool
+    config_key_error_message: str | None
+    config_key_last_four: str | None
+    config_storage: str | None = Field(
+        default=None,
+        description="'envelope' (v2 / BYOK_REBUILD rows) or 'legacy' (Fernet)",
+    )
+    byok_skip_reason: str | None = Field(
+        default=None,
+        description="Why the resolver ignored the BYOK row; null means BYOK is in use",
+    )
+    resolve_error: str | None = None
+    resolved_provider: str | None
+    resolved_model: str | None
+    resolved_is_byok: bool
+    probe_ok: bool
+    probe_error_code: str | None = None
+    probe_error_message: str | None = None
+    probe_upstream_status: int | None = None
+    probe_request_id: str | None = None
+    probe_latency_ms: int
+    platform_llm_provider: str
+    platform_anthropic_key_configured: bool
+    streaming_enabled: bool
+    specialist_routing_enabled: bool
+
+
+@router.get("/diagnose", response_model=LLMDiagnoseResponse)
+async def diagnose_llm(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> LLMDiagnoseResponse:
+    """Resolve the caller's LLM exactly as the chat WebSocket does, then fire
+    a 1-token probe through it and report the normalized outcome.
+
+    Unlike ``POST /validate`` (which probes the provider's *cheapest* model
+    with a key supplied in the request), this uses the **stored** key and the
+    **configured** model, so it catches every failure class chat can hit:
+    undecryptable rows, silent platform fallback, retired model ids,
+    provider 5xx / 529, and a missing platform key.
+    """
+    import time
+
+    from app.byok.errors import BYOKError
+    from app.llm.exceptions import LLMConfigurationError
+    from app.llm.types import LLMChatMessage, LLMChatRequest
+    from app.services.user_llm import (
+        byok_skip_reason,
+        get_active_ai_config,
+        resolve_user_llm,
+    )
+
+    config = await _get_active_ai_config(db, current_user.id)
+    storage: str | None = None
+    if config is not None and config.api_key_encrypted:
+        storage = "envelope" if (config.encrypted_dek and config.kek_id) else "legacy"
+
+    # Resolve through the real resolver (not a re-implementation) so the
+    # answer can't drift from what chat does. ``get_active_ai_config`` is the
+    # resolver's own row lookup; ``byok_skip_reason`` its eligibility gate.
+    skip_reason: str | None
+    try:
+        skip_reason = byok_skip_reason(await get_active_ai_config(db, current_user.id))
+    except SQLAlchemyError as e:  # pragma: no cover - legacy schema only
+        skip_reason = f"ai_config lookup failed ({e.__class__.__name__})"
+
+    resolved = None
+    resolve_error: str | None = None
+    try:
+        resolved = await resolve_user_llm(db, current_user.id, current_user.tier)
+    except LLMConfigurationError as e:
+        # Config errors are operator-facing and secret-free by construction
+        # ("Missing ANTHROPIC_API_KEY …"), so pass the text through.
+        resolve_error = str(e)[:300]
+    except Exception as e:  # noqa: BLE001
+        resolve_error = e.__class__.__name__
+
+    if resolved is not None and skip_reason is None and not resolved.is_byok:
+        # The row passed the eligibility gate but the resolver still fell
+        # back — i.e. decrypt / client construction failed.
+        skip_reason = (
+            "row eligible but unusable (decrypt or client build failed — "
+            "see server logs)"
+        )
+
+    probe_ok = False
+    probe_code: str | None = None
+    probe_message: str | None = None
+    probe_status: int | None = None
+    probe_request_id: str | None = None
+    started = time.perf_counter()
+    if resolved is not None:
+        try:
+            await resolved.client.chat(
+                LLMChatRequest(
+                    model=resolved.model,
+                    max_tokens=1,
+                    system="Reply with only the word 'ok'.",
+                    messages=[LLMChatMessage(role="user", content="test")],
+                )
+            )
+            probe_ok = True
+        except BYOKError as e:
+            probe_code = e.code
+            probe_message = e.message
+            probe_status = e.upstream_status
+            probe_request_id = e.provider_request_id
+        except LLMConfigurationError as e:
+            probe_code = "configuration_error"
+            probe_message = str(e)[:300]
+        except Exception as e:  # noqa: BLE001
+            probe_code = "unhandled"
+            probe_message = e.__class__.__name__
+    latency_ms = int((time.perf_counter() - started) * 1000)
+
+    logger.info(
+        "[llm-diagnose] user=%s resolved=%s/%s byok=%s probe_ok=%s code=%s status=%s",
+        current_user.id,
+        resolved.provider if resolved else None,
+        resolved.model if resolved else None,
+        bool(resolved and resolved.is_byok),
+        probe_ok,
+        probe_code,
+        probe_status,
+    )
+
+    return LLMDiagnoseResponse(
+        config_present=config is not None,
+        config_provider=config.provider if config else None,
+        config_model=config.model if config else None,
+        config_is_key_valid=bool(config and config.is_key_valid),
+        config_key_error_message=config.key_error_message if config else None,
+        config_key_last_four=config.key_last_four if config else None,
+        config_storage=storage,
+        byok_skip_reason=skip_reason,
+        resolve_error=resolve_error,
+        resolved_provider=resolved.provider if resolved else None,
+        resolved_model=resolved.model if resolved else None,
+        resolved_is_byok=bool(resolved and resolved.is_byok),
+        probe_ok=probe_ok,
+        probe_error_code=probe_code,
+        probe_error_message=probe_message,
+        probe_upstream_status=probe_status,
+        probe_request_id=probe_request_id,
+        probe_latency_ms=latency_ms,
+        platform_llm_provider=settings.llm_provider,
+        platform_anthropic_key_configured=bool(settings.anthropic_api_key),
+        streaming_enabled=bool(settings.streaming_enabled),
+        specialist_routing_enabled=bool(
+            getattr(settings, "enable_specialist_routing", False)
+        ),
+    )

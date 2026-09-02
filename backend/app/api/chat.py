@@ -26,6 +26,7 @@ from app.services.chat_titles import backfill_session_title
 from app.services.orchestrator import execute_tool
 from app.services.analytics import get_analytics, MetricType, MetricEvent
 from app.services.user_llm import resolve_user_llm, ResolvedLLM
+from app.byok.errors import BYOKError
 from app.services.guardrails import (
     validate_message_size,
     rate_limiter,
@@ -1418,10 +1419,15 @@ async def websocket_endpoint(
                         conversation_history.append({"role": "assistant", "content": final_content})
 
                 except Exception as e:
-                    logger.exception("[chat] specialist routing failed: %s", e)
+                    _log_llm_failure(
+                        "specialist-routing(buffered)",
+                        e,
+                        user_resolved_llm,
+                        actual_session_id,
+                    )
                     error_msg = Message(
                         role=MessageRole.SYSTEM,
-                        content=f"I'm having trouble connecting to my AI backend. Error: {str(e)}",
+                        content=describe_llm_failure(e, user_resolved_llm),
                     )
                     await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue
@@ -1444,9 +1450,12 @@ async def websocket_endpoint(
                     resolved_llm=user_resolved_llm,
                 )
             except Exception as e:
+                _log_llm_failure(
+                    "orchestrator(buffered)", e, user_resolved_llm, actual_session_id
+                )
                 error_msg = Message(
                     role=MessageRole.SYSTEM,
-                    content=f"I'm having trouble connecting to my AI backend. Error: {str(e)}",
+                    content=describe_llm_failure(e, user_resolved_llm),
                 )
                 await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue
@@ -1537,6 +1546,91 @@ async def websocket_endpoint(
         if connection_key in active_connections:
             del active_connections[connection_key]
         logger.debug("WebSocket cleanup session=%s", session_id)
+
+
+_PROVIDER_DISPLAY_NAMES: dict[str, str] = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "google": "Google Gemini",
+    "deepseek": "DeepSeek",
+    "huggingface": "Hugging Face",
+    "baseten": "Baseten",
+    "openai_compatible": "your custom OpenAI-compatible endpoint",
+}
+
+
+def describe_llm_failure(
+    exc: BaseException, resolved_llm: ResolvedLLM | None
+) -> str:
+    """Render a user-facing "couldn't reach the AI backend" message.
+
+    Names *which* provider + model + key source failed and, when the
+    failure is a normalized :class:`BYOKError`, the error code, upstream
+    HTTP status and provider request id. Everything included here is
+    secret-free: BYOKError messages are already scrubbed, and for raw
+    exceptions we only emit the class name (never ``str(exc)``, which for
+    SDK/config errors can echo request bodies or configuration values).
+    """
+    if resolved_llm is not None:
+        provider = _PROVIDER_DISPLAY_NAMES.get(
+            resolved_llm.provider, resolved_llm.provider or "the AI provider"
+        )
+        source = "your own API key" if resolved_llm.is_byok else "the platform key"
+        target = f"{provider} (model {resolved_llm.model or 'unknown'}, {source})"
+    else:
+        platform = _PROVIDER_DISPLAY_NAMES.get(
+            settings.llm_provider, settings.llm_provider
+        )
+        target = f"the platform default provider ({platform})"
+
+    if isinstance(exc, BYOKError):
+        parts = [f"I couldn't get a response from {target}. {exc.message}"]
+        meta = [f"code={exc.code}"]
+        if exc.upstream_status is not None:
+            meta.append(f"upstream_status={exc.upstream_status}")
+        if exc.provider_request_id:
+            meta.append(f"request_id={exc.provider_request_id}")
+        parts.append("(" + ", ".join(meta) + ")")
+        return " ".join(parts)
+
+    return (
+        f"I couldn't get a response from {target}. The request failed before "
+        f"the provider replied ({exc.__class__.__name__}) — this is usually a "
+        "configuration problem rather than a transient one. Open "
+        "Settings → AI Model to re-check your key, or ask an admin to run "
+        "GET /api/v1/ai-config/diagnose."
+    )
+
+
+def _log_llm_failure(
+    where: str,
+    exc: BaseException,
+    resolved_llm: ResolvedLLM | None,
+    session_id: str | None,
+) -> None:
+    """Structured breadcrumb for every "trouble connecting" bubble we emit.
+
+    Two of the three emit sites previously logged nothing at all, so a
+    production failure left no server-side trace beyond the WebSocket
+    frame. ``exc_info`` includes the ``__cause__`` chain, so the original
+    SDK exception (with its status / request id) lands in the log too.
+    """
+    logger.error(
+        "[chat-ws] LLM call failed at %s session=%s provider=%s model=%s byok=%s "
+        "exc=%s code=%s upstream_status=%s request_id=%s",
+        where,
+        session_id,
+        resolved_llm.provider if resolved_llm else settings.llm_provider,
+        resolved_llm.model
+        if resolved_llm
+        else settings.llm_model or settings.anthropic_model,
+        bool(resolved_llm and resolved_llm.is_byok),
+        exc.__class__.__name__,
+        getattr(exc, "code", None),
+        getattr(exc, "upstream_status", None),
+        getattr(exc, "provider_request_id", None),
+        exc_info=exc,
+    )
 
 
 async def _stream_orchestrator_to_ws(
@@ -2700,9 +2794,15 @@ async def websocket_chat_endpoint(
                 continue
             except Exception as e:
                 in_flight_task = None
+                _log_llm_failure(
+                    "orchestrator(stream+buffered fallback)",
+                    e,
+                    user_resolved_llm,
+                    session_id,
+                )
                 error_msg = Message(
                     role=MessageRole.SYSTEM,
-                    content=f"I'm having trouble connecting to my AI backend. Error: {str(e)}",
+                    content=describe_llm_failure(e, user_resolved_llm),
                 )
                 await send_ws_message(websocket, "message", error_msg.model_dump(mode="json"))
                 continue

@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.llm import LLMChatMessage, LLMChatRequest, get_llm_client
 from app.llm.redaction import redact_secrets
 from app.llm.types import LLMStreamChunk, LLMToolCall
-from app.services.user_llm import ResolvedLLM
+from app.services.user_llm import ResolvedLLM, normalize_provider_model
 from app.services.tools import (
     get_tools_for_context,
     should_force_tool_use,
@@ -909,9 +909,18 @@ def _build_specialist_request(
         llm = resolved_llm.client
         if (
             resolved_llm.specialist_models
-            and name in resolved_llm.specialist_models
+            and resolved_llm.specialist_models.get(name)
         ):
-            effective_model = resolved_llm.specialist_models[name]
+            # Per-specialist overrides are stored verbatim from the Settings
+            # form, which historically offered retired dated ids
+            # (``claude-sonnet-4-6-20260320``). Run them through the same
+            # alias map the top-level model gets so they don't 404.
+            effective_model = (
+                normalize_provider_model(
+                    resolved_llm.provider, resolved_llm.specialist_models[name]
+                )
+                or resolved_llm.model
+            )
         else:
             effective_model = resolved_llm.model
     else:

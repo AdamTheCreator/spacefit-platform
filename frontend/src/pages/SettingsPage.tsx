@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { AppLayout } from '../components/Layout';
 import { Bell, Shield, Palette, Sparkles, Check, Plus, X, Brain, Trash2, Building2, Users, MapPin, Cpu, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Trash, Clock, DollarSign, Gauge } from 'lucide-react';
 import {
@@ -12,6 +12,7 @@ import { MemoryFactsPanel } from '../components/Memory/MemoryFactsPanel';
 import { VoiceProfilesSection } from '../components/Outreach/VoiceProfilesSection';
 import {
   useAIConfig,
+  useDiagnoseLLM,
   useUpdateAIConfig,
   useValidateKey,
   useRemoveKey,
@@ -669,6 +670,98 @@ const PROVIDER_LABELS: Record<string, string> = {
   platform_default: 'Platform',
 };
 
+/**
+ * One-click "why is chat failing?" probe. Resolves the caller's LLM the same
+ * way the chat WebSocket does and fires a 1-token request through it, then
+ * shows the resolved provider/model/key source and the normalized error
+ * (code, upstream HTTP status, provider request id) when it fails.
+ */
+function ConnectionDiagnostic() {
+  const diagnose = useDiagnoseLLM();
+  const result = diagnose.data;
+
+  const rows: Array<[string, string]> = result
+    ? [
+        [
+          'Chat will use',
+          `${PROVIDER_LABELS[result.resolved_provider ?? ''] || result.resolved_provider || 'unresolved'} — ${
+            result.resolved_model || 'n/a'
+          } (${result.resolved_is_byok ? 'your key' : 'platform key'})`,
+        ],
+        [
+          'Saved BYOK row',
+          result.config_present
+            ? `${result.config_provider} / ${result.config_model || 'default model'} · key …${
+                result.config_key_last_four || '????'
+              } · ${result.config_is_key_valid ? 'validated' : 'NOT validated'} · ${
+                result.config_storage || 'no key'
+              } storage`
+            : 'none',
+        ],
+        ...(result.byok_skip_reason
+          ? ([['Why your key is not in use', result.byok_skip_reason]] as Array<[string, string]>)
+          : []),
+        ...(result.resolve_error
+          ? ([['Resolver error', result.resolve_error]] as Array<[string, string]>)
+          : []),
+        [
+          'Live probe',
+          result.probe_ok
+            ? `OK in ${result.probe_latency_ms} ms`
+            : `FAILED — ${result.probe_error_message || 'unknown'}${
+                result.probe_error_code ? ` [${result.probe_error_code}` : ''
+              }${result.probe_upstream_status ? ` · HTTP ${result.probe_upstream_status}` : ''}${
+                result.probe_request_id ? ` · ${result.probe_request_id}` : ''
+              }${result.probe_error_code ? ']' : ''} after ${result.probe_latency_ms} ms`,
+        ],
+        [
+          'Platform',
+          `provider=${result.platform_llm_provider} · anthropic key ${
+            result.platform_anthropic_key_configured ? 'configured' : 'MISSING'
+          } · streaming ${result.streaming_enabled ? 'on' : 'off'} · specialists ${
+            result.specialist_routing_enabled ? 'on' : 'off'
+          }`,
+        ],
+      ]
+    : [];
+
+  return (
+    <div className="mb-4">
+      <button
+        type="button"
+        onClick={() => diagnose.mutate()}
+        disabled={diagnose.isPending}
+        className="btn-industrial text-xs disabled:opacity-60"
+      >
+        {diagnose.isPending ? 'Running diagnostic…' : 'Run connection diagnostic'}
+      </button>
+      {diagnose.isError && (
+        <p className="mt-2 text-xs text-[var(--color-error)]">
+          Diagnostic request failed — the API itself may be unreachable.
+        </p>
+      )}
+      {result && (
+        <div
+          className={`mt-3 rounded-lg border px-3 py-2 text-xs ${
+            result.probe_ok
+              ? 'border-[var(--border-subtle)] bg-[var(--bg-success)]'
+              : 'border-[var(--border-subtle)] bg-[var(--bg-error)]'
+          }`}
+        >
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+            {rows.map(([label, value]) => (
+              <Fragment key={label}>
+                <dt className="text-industrial-muted whitespace-nowrap">{label}</dt>
+                <dd className="text-industrial break-words">{value}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AIModelSection() {
   const { data: config, isLoading, isError, refetch } = useAIConfig();
   const { data: providers } = useProviders();
@@ -814,6 +907,8 @@ function AIModelSection() {
           ? 'Using your own API key. Chat requests go directly to your provider.'
           : 'Using Space Goose\'s built-in AI. Bring your own key to use any provider.'}
       </p>
+
+      <ConnectionDiagnostic />
 
       {/* Expand/collapse toggle */}
       <button
@@ -1038,7 +1133,7 @@ function ScopeSection() {
             type="text"
             value={allowedRaw}
             onChange={(e) => setAllowedRaw(e.target.value)}
-            placeholder="claude-haiku-4-5-20251001, claude-sonnet-4-6-20260320"
+            placeholder="claude-haiku-4-5, claude-sonnet-4-6"
             className="input-industrial"
           />
           <p className="text-xs text-industrial-muted mt-1">
@@ -1182,10 +1277,15 @@ function RecentActivitySection() {
 }
 
 const SPECIALIST_NAMES = ['scout', 'analyst', 'matchmaker', 'outreach'] as const;
+// Keep in sync with SUPPORTED_PROVIDERS["anthropic"].models in
+// backend/app/api/ai_config.py. Dated ids (e.g. claude-sonnet-4-6-20260320)
+// were retired upstream and 404 on every key; the backend alias-maps the
+// old ones it knows about, but new picks should use the undated ids.
 const ANTHROPIC_MODELS = [
-  'claude-sonnet-4-6-20260320',
-  'claude-sonnet-4-20250514',
-  'claude-haiku-4-5-20251001',
+  'claude-haiku-4-5',
+  'claude-sonnet-4-5',
+  'claude-sonnet-4-6',
+  'claude-opus-4-8',
 ];
 
 function UsageSection() {
