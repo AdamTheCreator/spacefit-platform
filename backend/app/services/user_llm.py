@@ -11,7 +11,9 @@ Vision (document parsing) always uses the platform Anthropic key.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -181,8 +183,85 @@ def platform_llm_summary() -> dict[str, str]:
     return {"provider": provider, "model": model or "", "endpoint_host": host}
 
 
+# --- Platform-provider circuit breaker ---------------------------------------
+#
+# When LLM_PROVIDER points at a self-hosted / OpenAI-compatible endpoint
+# (Baseten, Mac-Mini Ollama, …) and that endpoint is down, every non-BYOK
+# chat turn fails identically. Rather than surface a 502 to users while
+# the platform Anthropic key sits unused, the chat layer marks the
+# provider unhealthy and routes to Anthropic for a cooldown window.
+# In-memory + per-process like the other breakers in this codebase.
+
+PLATFORM_FALLBACK_COOLDOWN_SECONDS = 300.0
+_platform_unhealthy_until: float = 0.0
+
+
+def mark_platform_provider_unhealthy(
+    seconds: float = PLATFORM_FALLBACK_COOLDOWN_SECONDS,
+) -> None:
+    global _platform_unhealthy_until
+    _platform_unhealthy_until = time.monotonic() + max(0.0, seconds)
+
+
+def platform_provider_unhealthy() -> bool:
+    return time.monotonic() < _platform_unhealthy_until
+
+
+def reset_platform_provider_health() -> None:
+    global _platform_unhealthy_until
+    _platform_unhealthy_until = 0.0
+
+
+def anthropic_platform_llm() -> ResolvedLLM | None:
+    """Platform-key Anthropic client, independent of ``LLM_PROVIDER``.
+
+    ``None`` when ``ANTHROPIC_API_KEY`` isn't configured. Built directly
+    (not via ``get_llm_client``) so it works even when the configured
+    platform provider is something else.
+    """
+    if not settings.anthropic_api_key:
+        return None
+    return ResolvedLLM(
+        client=get_or_create_client(
+            provider="anthropic", api_key=settings.anthropic_api_key
+        ),
+        model=settings.anthropic_model or "claude-haiku-4-5",
+        provider="anthropic",
+        is_byok=False,
+    )
+
+
+def platform_fallback_llm(failed: ResolvedLLM | None) -> ResolvedLLM | None:
+    """Return the Anthropic platform LLM to retry on after ``failed`` errored,
+    or ``None`` when no fallback applies.
+
+    Only platform (non-BYOK) resolutions on a non-Anthropic provider fall
+    back: a user's own key failing must surface as *their* error, never
+    silently shift spend onto the platform, and an Anthropic failure has
+    nowhere better to go.
+    """
+    if failed is None:
+        provider = (settings.llm_provider or "anthropic").lower().strip()
+        return None if provider == "anthropic" else anthropic_platform_llm()
+    if failed.is_byok or failed.provider == "anthropic":
+        return None
+    return anthropic_platform_llm()
+
+
 def _resolve_platform_default(tier: str) -> ResolvedLLM:
     """Resolve platform-owned LLM based on subscription tier."""
+    provider = (settings.llm_provider or "anthropic").lower().strip()
+    if provider != "anthropic" and platform_provider_unhealthy():
+        fallback = anthropic_platform_llm()
+        if fallback is not None:
+            logger.warning(
+                "[llm-resolve] platform provider %s is in fallback cooldown; "
+                "routing to Anthropic %s",
+                provider,
+                fallback.model,
+            )
+            return fallback
+
     # Operator opt-in: when ``LLM_PROVIDER=baseten`` is set globally, route
     # every non-BYOK user (paid and free) through the self-hosted Baseten
     # L4. This bypasses the tier split because we own the inference and
@@ -306,6 +385,74 @@ def byok_skip_reason(ai_config: UserAIConfig | None) -> str | None:
     return None
 
 
+async def _autovalidate_stale_row(db: AsyncSession, ai_config: UserAIConfig) -> None:
+    """Heal rows the old save flow left as *never validated*.
+
+    Before ``PUT /ai-config`` validated inline, every save reset
+    ``is_key_valid`` to False with ``key_error_message`` cleared — so rows
+    with a key, ``is_key_valid=False`` and *no* error message never
+    actually failed a probe; they were just never re-checked. Probe them
+    once here (1 token, provider's cheapest model) and persist the result
+    so the user's key starts working without a re-save. Rows that carry
+    an error message genuinely failed and are left alone.
+    """
+    if (
+        ai_config.provider == "platform_default"
+        or not ai_config.api_key_encrypted
+        or ai_config.is_key_valid
+        or ai_config.key_error_message
+    ):
+        return
+
+    from app.byok.errors import BYOKError
+    from app.llm.types import LLMChatMessage, LLMChatRequest
+
+    ok = False
+    error: str | None = None
+    try:
+        api_key = decrypt_ai_config_key(ai_config)
+        client = get_or_create_client(
+            provider=ai_config.provider,
+            api_key=api_key,
+            base_url=ai_config.base_url or "",
+        )
+        model = select_validation_model(ai_config.provider, ai_config.model)
+        if not model:
+            return
+        await client.chat(
+            LLMChatRequest(
+                model=model,
+                max_tokens=1,
+                system="Reply with only the word 'ok'.",
+                messages=[LLMChatMessage(role="user", content="test")],
+            )
+        )
+        ok = True
+    except BYOKError as e:
+        error = e.message
+    except Exception as e:  # noqa: BLE001
+        error = f"validation failed ({e.__class__.__name__})"
+
+    ai_config.is_key_valid = ok
+    ai_config.key_validated_at = datetime.now(timezone.utc) if ok else None
+    ai_config.key_error_message = None if ok else (error or "Validation failed")[:500]
+    try:
+        await db.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
+            "[llm-resolve] could not persist auto-validation for user %s (%s)",
+            ai_config.user_id,
+            e.__class__.__name__,
+        )
+    logger.info(
+        "[llm-resolve] auto-validated stale %s key for user %s: ok=%s%s",
+        ai_config.provider,
+        ai_config.user_id,
+        ok,
+        "" if ok else f" error={ai_config.key_error_message!r}",
+    )
+
+
 async def resolve_user_llm(
     db: AsyncSession,
     user_id: str,
@@ -319,6 +466,8 @@ async def resolve_user_llm(
       3. Free tier without BYOK → Gemini Flash (platform key)
     """
     ai_config = await get_active_ai_config(db, user_id)
+    if ai_config is not None:
+        await _autovalidate_stale_row(db, ai_config)
 
     skip_reason = byok_skip_reason(ai_config)
     if ai_config is not None and skip_reason is None:

@@ -25,7 +25,12 @@ from app.models.chat import (
 from app.services.chat_titles import backfill_session_title
 from app.services.orchestrator import execute_tool
 from app.services.analytics import get_analytics, MetricType, MetricEvent
-from app.services.user_llm import resolve_user_llm, ResolvedLLM
+from app.services.user_llm import (
+    ResolvedLLM,
+    mark_platform_provider_unhealthy,
+    platform_fallback_llm,
+    resolve_user_llm,
+)
 from app.byok.errors import BYOKError
 from app.services.guardrails import (
     validate_message_size,
@@ -1744,13 +1749,9 @@ async def _stream_orchestrator_to_ws(
                 input_tokens = chunk.input_tokens
                 output_tokens = chunk.output_tokens
     except Exception as e:
-        logger.exception(
-            "[chat-ws] streaming failed, falling back to buffered for session=%s",
-            session_id,
-        )
         # Close the streaming message cleanly so the frontend can drop
-        # the in-flight bubble; then fall back to the buffered path so
-        # the user still gets a reply.
+        # the in-flight bubble; then fall back so the user still gets a
+        # reply.
         await send_ws_message(
             websocket,
             "message_end",
@@ -1761,6 +1762,42 @@ async def _stream_orchestrator_to_ws(
                 "tool_calls": [],
                 "error": str(e),
             },
+        )
+        # A *platform* (non-BYOK) provider other than Anthropic failed —
+        # e.g. LLM_PROVIDER=openai_compatible pointed at a self-hosted
+        # endpoint that is down. Retrying the same dead endpoint buffered
+        # is pointless; route this turn (and, via the breaker, the next
+        # few minutes of new resolutions) to the platform Anthropic key.
+        fallback = platform_fallback_llm(resolved_llm)
+        if fallback is not None:
+            mark_platform_provider_unhealthy()
+            logger.warning(
+                "[chat-ws] platform provider=%s model=%s failed (%s); "
+                "falling back to Anthropic %s for session=%s",
+                resolved_llm.provider if resolved_llm else settings.llm_provider,
+                resolved_llm.model if resolved_llm else settings.llm_model,
+                e.__class__.__name__,
+                fallback.model,
+                session_id,
+            )
+            return await _stream_orchestrator_to_ws(
+                websocket,
+                session_id=session_id,
+                user_id=user_id,
+                conversation_history=conversation_history,
+                user_context=user_context,
+                has_imported_data=has_imported_data,
+                document_context=document_context,
+                project_context=project_context,
+                system_prompt_id=system_prompt_id,
+                analysis_type=analysis_type,
+                memory_context=memory_context,
+                resolved_llm=fallback,
+                pending_tool_results=pending_tool_results,
+            )
+        logger.exception(
+            "[chat-ws] streaming failed, falling back to buffered for session=%s",
+            session_id,
         )
         return await get_orchestrator_response(
             conversation_history,
@@ -2558,6 +2595,21 @@ async def websocket_chat_endpoint(
             if not ok:
                 await send_ws_message(websocket, "message", Message(role=MessageRole.SYSTEM, content=err).model_dump(mode="json"))
                 continue
+
+            # Re-resolve the LLM every turn (cheap: one indexed row read;
+            # clients are cached by key hash). Resolving once at connect
+            # meant a key saved in Settings — or a provider fallback
+            # cooldown — didn't take effect until the user reloaded.
+            async with async_session_factory() as db:
+                try:
+                    user_resolved_llm = await resolve_user_llm(db, user_id, user.tier)
+                except Exception as e:
+                    logger.warning(
+                        "[chat-ws] per-turn LLM resolve failed for %s (%s); "
+                        "keeping previous resolution",
+                        user_id,
+                        e.__class__.__name__,
+                    )
 
             # Create new session if needed
             if not session_id:

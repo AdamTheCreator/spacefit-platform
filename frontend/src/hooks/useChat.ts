@@ -442,9 +442,12 @@ export function useChat(sessionId?: string, systemPromptId?: string, projectId?:
           Array.isArray(data.tool_calls) && data.tool_calls.length > 0;
 
         if (!finalContent) {
-          if (tool_calls_present) {
-            // Intermediate tool round with no preamble text — hide the
-            // empty bubble; the next message_start will create a fresh one.
+          if (tool_calls_present || data.stop_reason === 'stream_error') {
+            // Intermediate tool round with no preamble text, or a stream
+            // that died before producing any text — hide the empty bubble.
+            // The backend always follows a stream_error with either a
+            // retried message_start (provider fallback), a buffered
+            // `message`, or a system error, so there is something to show.
             removeMessage(data.msg_id);
           } else {
             // Terminal message with no content (e.g. backend error that

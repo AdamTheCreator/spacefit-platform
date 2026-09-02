@@ -357,3 +357,255 @@ def test_platform_llm_summary_anthropic_default() -> None:
     assert summary["provider"] == "anthropic"
     assert summary["model"] == settings.anthropic_model
     assert summary["endpoint_host"] == "api.anthropic.com"
+
+
+# --- platform fallback + breaker ---------------------------------------------
+
+
+class TestPlatformFallback:
+    def setup_method(self) -> None:
+        from app.services.user_llm import reset_platform_provider_health
+
+        reset_platform_provider_health()
+
+    def test_byok_failure_never_falls_back(self) -> None:
+        from app.services.user_llm import platform_fallback_llm, settings
+
+        with patch.object(settings, "anthropic_api_key", "sk-ant-platform"):
+            failed = _resolved(provider="openai", is_byok=True)
+            assert platform_fallback_llm(failed) is None
+
+    def test_anthropic_platform_failure_has_no_fallback(self) -> None:
+        from app.services.user_llm import platform_fallback_llm, settings
+
+        with patch.object(settings, "anthropic_api_key", "sk-ant-platform"):
+            assert platform_fallback_llm(_resolved(is_byok=False)) is None
+
+    def test_self_hosted_platform_failure_falls_back_to_anthropic(self) -> None:
+        from app.services.user_llm import platform_fallback_llm, settings
+
+        with (
+            patch.object(settings, "anthropic_api_key", "sk-ant-platform"),
+            patch.object(settings, "anthropic_model", "claude-haiku-4-5"),
+            patch(
+                "app.services.user_llm.get_or_create_client", return_value="client"
+            ) as build,
+        ):
+            fb = platform_fallback_llm(
+                _resolved(
+                    provider="openai_compatible",
+                    model="spacegoose-advisor-v3",
+                    is_byok=False,
+                )
+            )
+        assert fb is not None
+        assert (fb.provider, fb.model, fb.is_byok) == (
+            "anthropic",
+            "claude-haiku-4-5",
+            False,
+        )
+        build.assert_called_once_with(provider="anthropic", api_key="sk-ant-platform")
+
+    def test_no_anthropic_key_means_no_fallback(self) -> None:
+        from app.services.user_llm import platform_fallback_llm, settings
+
+        with patch.object(settings, "anthropic_api_key", ""):
+            failed = _resolved(provider="baseten", is_byok=False)
+            assert platform_fallback_llm(failed) is None
+
+    def test_breaker_reroutes_platform_default_during_cooldown(self) -> None:
+        from app.services.user_llm import (
+            _resolve_platform_default,
+            mark_platform_provider_unhealthy,
+            platform_provider_unhealthy,
+            settings,
+        )
+
+        with (
+            patch.object(settings, "llm_provider", "openai_compatible"),
+            patch.object(settings, "llm_model", "spacegoose-advisor-v3"),
+            patch.object(settings, "anthropic_api_key", "sk-ant-platform"),
+            patch(
+                "app.services.user_llm.get_or_create_client", return_value="client"
+            ),
+            patch("app.services.user_llm.get_llm_client", return_value="platform"),
+        ):
+            assert _resolve_platform_default("pro").provider == "openai_compatible"
+            mark_platform_provider_unhealthy(60)
+            assert platform_provider_unhealthy()
+            assert _resolve_platform_default("pro").provider == "anthropic"
+            mark_platform_provider_unhealthy(0)
+            assert _resolve_platform_default("pro").provider == "openai_compatible"
+
+
+# --- auto-validation of stale rows -----------------------------------------------
+
+
+class TestAutovalidateStaleRow:
+    @staticmethod
+    def _row(**overrides):
+        base = dict(
+            user_id="u1",
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            base_url=None,
+            api_key_encrypted=b"ct",
+            ciphertext_iv=None,
+            ciphertext_tag=None,
+            encrypted_dek=None,
+            kek_id=None,
+            encryption_salt=b"salt",
+            is_key_valid=False,
+            key_validated_at=None,
+            key_error_message=None,
+            key_last_four="x",
+            specialist_models_json=None,
+        )
+        base.update(overrides)
+        return SimpleNamespace(**base)
+
+    @pytest.mark.asyncio
+    async def test_never_validated_row_is_probed_and_healed(self) -> None:
+        from app.services.user_llm import _autovalidate_stale_row
+
+        row = self._row()
+        db = MagicMock(commit=AsyncMock())
+        client = MagicMock(chat=AsyncMock(return_value=None))
+        with (
+            patch(
+                "app.services.user_llm.decrypt_credential", return_value="sk-ant-x"
+            ),
+            patch("app.services.user_llm.get_or_create_client", return_value=client),
+        ):
+            await _autovalidate_stale_row(db, row)
+        assert row.is_key_valid is True
+        assert row.key_validated_at is not None
+        assert row.key_error_message is None
+        db.commit.assert_awaited_once()
+        # Probed the provider's cheap validation model, not the user's pick.
+        assert client.chat.await_args.args[0].model == "claude-haiku-4-5"
+
+    @pytest.mark.asyncio
+    async def test_failed_probe_records_error(self) -> None:
+        from app.services.user_llm import _autovalidate_stale_row
+
+        row = self._row()
+        db = MagicMock(commit=AsyncMock())
+        err = BYOKError(
+            code=BYOKErrorCode.CREDENTIAL_INVALID, http_status=401, retryable=False
+        )
+        client = MagicMock(chat=AsyncMock(side_effect=err))
+        with (
+            patch(
+                "app.services.user_llm.decrypt_credential", return_value="sk-ant-x"
+            ),
+            patch("app.services.user_llm.get_or_create_client", return_value=client),
+        ):
+            await _autovalidate_stale_row(db, row)
+        assert row.is_key_valid is False
+        assert "rejected" in (row.key_error_message or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_rows_that_really_failed_are_left_alone(self) -> None:
+        from app.services.user_llm import _autovalidate_stale_row
+
+        row = self._row(key_error_message="401 authentication_error")
+        db = MagicMock(commit=AsyncMock())
+        with patch("app.services.user_llm.get_or_create_client") as build:
+            await _autovalidate_stale_row(db, row)
+        build.assert_not_called()
+        db.commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_resolve_uses_healed_row(self) -> None:
+        from app.services.user_llm import resolve_user_llm
+
+        row = self._row()
+        db = MagicMock(commit=AsyncMock())
+        client = MagicMock(chat=AsyncMock(return_value=None))
+        with (
+            patch(
+                "app.services.user_llm.get_active_ai_config",
+                AsyncMock(return_value=row),
+            ),
+            patch(
+                "app.services.user_llm.decrypt_credential", return_value="sk-ant-x"
+            ),
+            patch(
+                "app.services.user_llm.get_or_create_client", return_value=client
+            ),
+        ):
+            resolved = await resolve_user_llm(db, "u1", "free")
+        assert resolved.is_byok is True
+        assert resolved.provider == "anthropic"
+        assert resolved.model == "claude-sonnet-4-6"
+
+
+# --- streaming fallback end-to-end (fake websocket) --------------------------------
+
+
+class _FakeWS:
+    def __init__(self) -> None:
+        self.frames: list[tuple[str, dict]] = []
+
+    async def send_json(self, payload: dict) -> None:
+        self.frames.append((payload["type"], payload.get("data", {})))
+
+
+@pytest.mark.asyncio
+async def test_stream_falls_back_to_anthropic_when_platform_endpoint_dies() -> None:
+    from app.api.chat import _stream_orchestrator_to_ws
+    from app.llm.types import LLMStreamChunk
+    from app.services.user_llm import (
+        platform_provider_unhealthy,
+        reset_platform_provider_health,
+        settings,
+    )
+
+    reset_platform_provider_health()
+    calls: list[str] = []
+
+    async def fake_stream(_history, *, resolved_llm, **_kw):
+        calls.append(resolved_llm.provider)
+        if resolved_llm.provider != "anthropic":
+            raise BYOKError(
+                code=BYOKErrorCode.PROVIDER_SERVER_ERROR,
+                http_status=502,
+                retryable=True,
+                upstream_status=502,
+            )
+        yield LLMStreamChunk(kind="text_delta", text="hello")
+        yield LLMStreamChunk(kind="message_stop", stop_reason="end_turn")
+
+    ws = _FakeWS()
+    dead = _resolved(
+        provider="openai_compatible", model="spacegoose-advisor-v3", is_byok=False
+    )
+    with (
+        patch("app.services.orchestrator.get_orchestrator_response_stream", fake_stream),
+        patch.object(settings, "streaming_enabled", True),
+        patch.object(settings, "anthropic_api_key", "sk-ant-platform"),
+        patch("app.services.user_llm.get_or_create_client", return_value=object()),
+    ):
+        result = await _stream_orchestrator_to_ws(
+            ws,  # type: ignore[arg-type]
+            session_id="s1",
+            user_id="u1",
+            conversation_history=[{"role": "user", "content": "hi"}],
+            user_context=None,
+            has_imported_data={},
+            document_context=None,
+            project_context=None,
+            system_prompt_id=None,
+            analysis_type=None,
+            memory_context=None,
+            resolved_llm=dead,
+        )
+    assert calls == ["openai_compatible", "anthropic"]
+    assert result["content"] == "hello"
+    assert platform_provider_unhealthy()
+    kinds = [k for k, _ in ws.frames]
+    assert kinds == ["message_start", "message_end", "message_start", "text_delta", "message_end"]
+    assert ws.frames[1][1]["stop_reason"] == "stream_error"
+    assert ws.frames[-1][1]["content"] == "hello"
+    reset_platform_provider_health()
