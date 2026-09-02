@@ -582,7 +582,9 @@ async def test_stream_falls_back_to_anthropic_when_platform_endpoint_dies() -> N
         provider="openai_compatible", model="spacegoose-advisor-v3", is_byok=False
     )
     with (
-        patch("app.services.orchestrator.get_orchestrator_response_stream", fake_stream),
+        patch(
+            "app.services.orchestrator.get_orchestrator_response_stream", fake_stream
+        ),
         patch.object(settings, "streaming_enabled", True),
         patch.object(settings, "anthropic_api_key", "sk-ant-platform"),
         patch("app.services.user_llm.get_or_create_client", return_value=object()),
@@ -605,7 +607,13 @@ async def test_stream_falls_back_to_anthropic_when_platform_endpoint_dies() -> N
     assert result["content"] == "hello"
     assert platform_provider_unhealthy()
     kinds = [k for k, _ in ws.frames]
-    assert kinds == ["message_start", "message_end", "message_start", "text_delta", "message_end"]
+    assert kinds == [
+        "message_start",
+        "message_end",
+        "message_start",
+        "text_delta",
+        "message_end",
+    ]
     assert ws.frames[1][1]["stop_reason"] == "stream_error"
     assert ws.frames[-1][1]["content"] == "hello"
     reset_platform_provider_health()
