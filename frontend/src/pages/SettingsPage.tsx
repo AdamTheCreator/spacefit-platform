@@ -716,7 +716,9 @@ function ConnectionDiagnostic() {
         ],
         [
           'Platform',
-          `provider=${result.platform_llm_provider} · anthropic key ${
+          `provider=${result.platform_llm_provider}${
+            result.platform_llm_model ? ` · model=${result.platform_llm_model}` : ''
+          }${result.platform_endpoint_host ? ` · endpoint=${result.platform_endpoint_host}` : ''} · anthropic key ${
             result.platform_anthropic_key_configured ? 'configured' : 'MISSING'
           } · streaming ${result.streaming_enabled ? 'on' : 'off'} · specialists ${
             result.specialist_routing_enabled ? 'on' : 'off'
@@ -903,10 +905,17 @@ function AIModelSection() {
       </div>
 
       <p className="text-sm text-industrial-secondary mb-4 leading-relaxed">
-        {config?.has_byok_key
+        {config?.has_byok_key && config.is_key_valid
           ? 'Using your own API key. Chat requests go directly to your provider.'
-          : 'Using Space Goose\'s built-in AI. Bring your own key to use any provider.'}
+          : config?.has_byok_key
+            ? 'Your API key is saved but has not passed validation, so chat is still using the platform default. Re-enter and save the key to validate it.'
+            : 'Using Space Goose\'s built-in AI. Bring your own key to use any provider.'}
       </p>
+      {config?.has_byok_key && !config.is_key_valid && config.key_error_message && (
+        <p className="mb-4 -mt-2 text-xs text-[var(--color-error)] break-words">
+          Last validation error: {config.key_error_message}
+        </p>
+      )}
 
       <ConnectionDiagnostic />
 
