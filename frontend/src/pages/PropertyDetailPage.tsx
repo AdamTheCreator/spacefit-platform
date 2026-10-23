@@ -3,8 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { AppLayout } from '../components/Layout/AppLayout';
 import { AnalysisPlayground } from '../components/Playground/AnalysisPlayground';
-import { useDocuments } from '../hooks/useDocuments';
 import { TrafficCountCard } from '../components/Traffic/TrafficCountCard';
+import { useDocuments } from '../hooks/useDocuments';
 import type { ExtractedFlyerData } from '../types/document';
 
 // Property detail is an analysis workbench: it surfaces the documents linked to
@@ -26,7 +26,9 @@ export function PropertyDetailPage() {
     .find((info) => info?.name || info?.address);
   const headerCityState = [headerInfo?.city, headerInfo?.state].filter(Boolean).join(', ');
   const subjectName = headerInfo?.name ?? null;
-  const subjectAddress = [headerInfo?.address, headerCityState].filter(Boolean).join(', ') || null;
+  const subjectAddress =
+    [headerInfo?.address, headerCityState].filter(Boolean).map((part) => part.trim()).join(', ') ||
+    null;
   const title = subjectName || 'Property analysis';
 
   return (
@@ -55,7 +57,7 @@ export function PropertyDetailPage() {
             )}
           </div>
 
-          {subjectAddress && (
+          {subjectAddress && subjectAddress.length >= 3 && (
             <div className="mb-6 max-w-sm">
               <TrafficCountCard address={subjectAddress} />
             </div>
