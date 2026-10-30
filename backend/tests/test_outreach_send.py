@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -64,6 +64,7 @@ def _campaign(
         reply_to=None,
         status=status,
         sent_at=None,
+        deal_id=None,
         completed_at=None,
         total_recipients=len(recips),
         sent_count=0,
@@ -78,8 +79,17 @@ def _db_returning(campaign: SimpleNamespace | None) -> MagicMock:
     db = MagicMock()
     db.execute = AsyncMock(return_value=result)
     db.commit = AsyncMock()
+    db.rollback = AsyncMock()
     added: list[object] = []
     db.add = MagicMock(side_effect=added.append)
+
+    async def _flush() -> None:
+        for obj in added:
+            if isinstance(obj, Deal) and obj.id is None:
+                obj.id = str(uuid4())
+
+    db.flush = AsyncMock(side_effect=_flush)
+    result.rowcount = 1
     db._added = added  # inspected by the tests
     return db
 
@@ -135,6 +145,8 @@ async def test_send_creates_deal_and_returns_deal_id(
     assert len(deals) == 1
     deal = deals[0]
     assert deal.id == resp.deal_id
+    assert campaign.deal_id == resp.deal_id
+    db.rollback.assert_not_awaited()
     assert deal.stage == DealStage.INTAKE.value
     assert deal.source == "outreach"
     assert deal.user_id == "u1"
@@ -261,3 +273,32 @@ async def test_send_email_reports_failure_when_no_transport(
     assert result.success is False
     assert result.error is not None
     assert "transport" in result.error.lower()
+
+
+async def test_send_survives_pipeline_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign = _campaign()
+    db = _db_returning(campaign)
+    _patch_transport(
+        monkeypatch,
+        successful=1,
+        failed=0,
+        results=[
+            SimpleNamespace(
+                success=True,
+                recipient_email="acme@example.com",
+                error=None,
+                sent_at=datetime(2026, 7, 3, 12, 0, 0),
+            )
+        ],
+    )
+    db.flush.side_effect = RuntimeError("pipeline unavailable")
+
+    resp = await send_campaign("c1", SimpleNamespace(id="u1"), db)
+
+    assert resp.success is True
+    assert resp.total_sent == 1
+    assert resp.deal_id is None
+    assert campaign.status == CampaignStatus.SENT.value
+    # SENDING and SENT are committed before the optional pipeline write.
+    assert db.commit.await_count == 2
+    db.rollback.assert_awaited_once()
