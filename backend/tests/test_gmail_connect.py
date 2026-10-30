@@ -101,3 +101,36 @@ async def test_disconnect_deletes_and_commits() -> None:
     await gmail_disconnect(SimpleNamespace(id="u1"), db)  # type: ignore[arg-type]
     db.execute.assert_awaited_once()
     db.commit.assert_awaited_once()
+
+
+async def test_callback_stores_connection(monkeypatch: pytest.MonkeyPatch) -> None:
+    tokens = SimpleNamespace(
+        access_token="access",
+        refresh_token="refresh",
+        expiry=None,
+    )
+    monkeypatch.setattr(
+        auth_module.GmailService,
+        "exchange_code",
+        staticmethod(lambda code: tokens),
+    )
+    monkeypatch.setattr(
+        auth_module.GmailService,
+        "get_user_email",
+        lambda self: "broker@gmail.com",
+    )
+    db = _db_returning(None)
+
+    response = await auth_module.gmail_callback(
+        code="consent-code",
+        state=create_oauth_state("u1"),
+        db=db,
+    )
+
+    assert response.headers["location"].endswith("/connections?gmail=connected")
+    account = db.add.call_args.args[0]
+    assert account.user_id == "u1"
+    assert account.provider == "gmail"
+    assert account.provider_account_id == "broker@gmail.com"
+    assert account.refresh_token == "refresh"
+    db.commit.assert_awaited_once()

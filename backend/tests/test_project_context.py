@@ -130,7 +130,7 @@ def _scalars(items):
 @pytest.mark.asyncio
 async def test_build_project_context_returns_none_when_project_missing():
     db = _stub_db_with_results(_scalar(None))
-    out = await build_project_context(db, "missing-id")
+    out = await build_project_context(db, "missing-id", "user-1")
     assert out is None
 
 
@@ -170,7 +170,7 @@ async def test_build_project_context_bucketizes_documents_by_status():
         _scalars([]),                                  # chunk counts: empty
         _scalars([]),                                  # imports
     )
-    ctx = await build_project_context(db, "proj-1")
+    ctx = await build_project_context(db, "proj-1", "user-1")
 
     assert ctx is not None
     assert ctx["project_name"] == "Greenway"
@@ -221,7 +221,7 @@ async def test_build_project_context_dedupes_tenants_across_documents():
         _scalars([(doc1.id, 12), (doc2.id, 4)]),
         _scalars([]),
     )
-    ctx = await build_project_context(db, "proj-1")
+    ctx = await build_project_context(db, "proj-1", "user-1")
     tenant_names = {t["name"].lower() for t in ctx["tenants"]}
     assert tenant_names == {"trader joe's", "chipotle", "shake shack"}
     # Chunk counts propagate.
@@ -254,7 +254,7 @@ async def test_build_project_context_falls_back_to_first_doc_property():
         _scalars([]),
         _scalars([]),
     )
-    ctx = await build_project_context(db, "proj-1")
+    ctx = await build_project_context(db, "proj-1", "user-1")
     assert ctx["property"]["name"] == "Greenway Plaza"
     assert "Tucson" in ctx["property"]["address"]
 
@@ -277,7 +277,7 @@ async def test_build_project_context_uses_inline_property_address():
         _scalars([]),  # chunk counts
         _scalars([]),  # imports
     )
-    ctx = await build_project_context(db, "proj-1")
+    ctx = await build_project_context(db, "proj-1", "user-1")
 
     assert ctx is not None, "address-only project must not drop its context"
     assert ctx["property"]["address"] == "1842 Boston Post Rd, Fairfield, CT"
@@ -314,7 +314,7 @@ async def test_build_project_context_prefers_linked_property_over_inline_address
         _scalars([]),
         _scalars([]),
     )
-    ctx = await build_project_context(db, "proj-1")
+    ctx = await build_project_context(db, "proj-1", "user-1")
 
     assert ctx["property"]["address"] == "123 Main, Tucson, AZ 85705"
     assert "999 Ignored Ave" not in ctx["property"]["address"]

@@ -19,7 +19,6 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.models.user import User
-from app.db.models.deal import Deal, DealStage, DealStageHistory
 from app.db.models.outreach import (
     OutreachCampaign,
     OutreachRecipient,
@@ -688,36 +687,6 @@ async def send_campaign(
     campaign.bounced_count = summary.failed
     campaign.status = CampaignStatus.SENT.value
     campaign.completed_at = datetime.utcnow()
-
-    # A sent campaign is an active pursuit, so drop a deal card onto the pipeline
-    # to close the on-ramp loop into the Workflow board. Send is a one-shot
-    # transition (re-sends are rejected above), so this can't duplicate.
-    # NOTE: assign the PK explicitly. ``Deal.id`` uses a Python-side column
-    # default that only fires at flush time, so reading ``deal.id`` before the
-    # commit below would hand the client ``None``.
-    deal_id: str | None = None
-    if summary.successful > 0:
-        deal_id = str(uuid4())
-        deal = Deal(
-            id=deal_id,
-            user_id=current_user.id,
-            name=campaign.name,
-            stage=DealStage.INTAKE.value,
-            source="outreach",
-            notes=(
-                f"Auto-created from outreach campaign to "
-                f"{summary.successful} recipient(s) at "
-                f"{campaign.property_name or campaign.property_address}."
-            ),
-        )
-        deal.stage_history.append(
-            DealStageHistory(
-                from_stage=None,
-                to_stage=DealStage.INTAKE.value,
-                changed_by=current_user.id,
-            )
-        )
-        db.add(deal)
 
     await db.commit()
 

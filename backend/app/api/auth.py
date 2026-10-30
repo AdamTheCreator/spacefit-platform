@@ -5,16 +5,19 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_db
 from app.core.config import settings
+from app.core.security import create_oauth_state, verify_oauth_state
 from app.db.models.auth_event import (
     EVENT_ACCOUNT_LOCKED,
     EVENT_LOGIN,
     EVENT_LOGIN_FAILED,
     EVENT_RESET_REQUESTED,
 )
+from app.db.models.user import OAuthAccount
 from app.models.user import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -28,6 +31,7 @@ from app.models.user import (
 from app.services.auth import AuthService
 from app.services.auth_audit import client_ip, record_auth_event
 from app.services.auth_rate_limit import login_lockout, reset_limiter
+from app.services.gmail import GmailService, is_gmail_configured
 from app.services.oauth_exchange import oauth_code_store
 
 logger = logging.getLogger(__name__)

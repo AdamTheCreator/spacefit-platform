@@ -175,7 +175,7 @@ async def main() -> None:
 
         # --- 5. project_context surfaces chunk_count ------------------------
         async with async_session_factory() as db:
-            ctx = await build_project_context(db, project_id)
+            ctx = await build_project_context(db, project_id, user_id)
         _assert(ctx is not None, "build_project_context returned a context")
         assert ctx is not None  # narrow for type checkers
         _assert(

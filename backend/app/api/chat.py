@@ -24,6 +24,7 @@ from app.models.chat import (
 )
 from app.services.chat_titles import backfill_session_title
 from app.services.orchestrator import execute_tool
+from app.services.project_context import project_owned_by_user
 from app.services.analytics import get_analytics, MetricType, MetricEvent
 from app.services.user_llm import (
     ResolvedLLM,
@@ -172,8 +173,14 @@ async def list_chat_sessions(
             created_at=s.created_at,
             updated_at=s.updated_at,
             message_count=len(s.messages),
-            project_id=s.project_id,
-            project_name=s.project.name if s.project else None,
+            project_id=(
+                s.project_id if s.project and s.project.user_id == current_user.id else None
+            ),
+            project_name=(
+                s.project.name
+                if s.project and s.project.user_id == current_user.id
+                else None
+            ),
         )
         for s in sessions
     ]
@@ -1093,7 +1100,9 @@ async def websocket_endpoint(
                     # Project context takes precedence over document context
                     if chat_sess.project_id:
                         from app.services.project_context import build_project_context
-                        proj_context = await build_project_context(db, chat_sess.project_id)
+                        proj_context = await build_project_context(
+                            db, chat_sess.project_id, user_id
+                        )
                     elif chat_sess.document_context:
                         doc_context = chat_sess.document_context
                     session_prompt_id = chat_sess.system_prompt_id
@@ -1180,6 +1189,17 @@ async def websocket_endpoint(
                 requested_project_id = message_data.get("project_id")
 
                 async with async_session_factory() as db:
+                    if requested_project_id is not None and not (
+                        await project_owned_by_user(db, requested_project_id, user_id)
+                    ):
+                        await send_ws_message(
+                            websocket,
+                            "message",
+                            Message(
+                                role=MessageRole.SYSTEM, content="Project not found"
+                            ).model_dump(mode="json"),
+                        )
+                        continue
                     # Generate title from the first message
                     title = None
                     try:
@@ -1202,7 +1222,9 @@ async def websocket_endpoint(
                     # Load project context if session is in a project
                     if requested_project_id:
                         from app.services.project_context import build_project_context
-                        proj_context = await build_project_context(db, requested_project_id)
+                        proj_context = await build_project_context(
+                            db, requested_project_id, user_id
+                        )
 
                 # Send session info to frontend now that session exists
                 await websocket.send_json({
@@ -2586,6 +2608,23 @@ async def websocket_chat_endpoint(
             if not user_content.strip():
                 continue
 
+            if session_id:
+                async with async_session_factory() as db:
+                    result = await db.execute(
+                        select(ChatSession.id).where(
+                            ChatSession.id == session_id, ChatSession.user_id == user_id
+                        )
+                    )
+                    if result.scalar_one_or_none() is None:
+                        await send_ws_message(
+                            websocket,
+                            "message",
+                            Message(
+                                role=MessageRole.SYSTEM, content="Session not found"
+                            ).model_dump(mode="json"),
+                        )
+                        continue
+
             # --- Guardrail checks (pre-LLM) ---
             # Size + per-user rate limit, shared with /ws/{session_id} via the
             # module-level singleton so a user cannot bypass the session-scoped
@@ -2618,6 +2657,17 @@ async def websocket_chat_endpoint(
                 requested_project_id = message_data.get("project_id")
 
                 async with async_session_factory() as db:
+                    if requested_project_id is not None and not (
+                        await project_owned_by_user(db, requested_project_id, user_id)
+                    ):
+                        await send_ws_message(
+                            websocket,
+                            "message",
+                            Message(
+                                role=MessageRole.SYSTEM, content="Project not found"
+                            ).model_dump(mode="json"),
+                        )
+                        continue
                     # Generate title from first message
                     title = None
                     try:
@@ -2653,7 +2703,7 @@ async def websocket_chat_endpoint(
                     from app.services.project_context import build_project_context
                     async with async_session_factory() as db:
                         project_contexts[session_id] = await build_project_context(
-                            db, requested_project_id
+                            db, requested_project_id, user_id
                         )
 
             # Load conversation history and document context if not cached
@@ -2679,7 +2729,7 @@ async def websocket_chat_endpoint(
                         if chat_sess.project_id:
                             from app.services.project_context import build_project_context
                             project_contexts[session_id] = await build_project_context(
-                                db, chat_sess.project_id
+                                db, chat_sess.project_id, user_id
                             )
                             document_contexts[session_id] = None
                         elif chat_sess.document_context:

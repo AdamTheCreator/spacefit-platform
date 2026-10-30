@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.chat import ChatSession
 from app.db.models.document import ParsedDocument, DocumentType
 from app.services.prompt_registry import VOID_ANALYSIS_PROMPT_ID, DEFAULT_PROMPT_ID
+from app.services.project_context import project_owned_by_user
 
 
 @dataclass
@@ -161,14 +162,17 @@ async def create_analysis_session_from_document(
     }
     system_prompt_id = prompt_id_map.get(analysis_type, DEFAULT_PROMPT_ID)
 
+    project_id = document.project_id
+    if project_id and not await project_owned_by_user(db, project_id, user_id):
+        project_id = None
+
     # Create session with document link and explicit prompt selection.
     # Inherit the document's project so analyses started from a project's
     # Playground show up in that project's sessions / Recent runs (the document
-    # is the source of truth for project scope — it carries project_id from
-    # upload time).
+    # carries the project ID from upload time).
     session = ChatSession(
         user_id=user_id,
-        project_id=document.project_id,
+        project_id=project_id,
         title=generate_session_title(context),
         source_document_id=document.id,
         document_context=document_context,
