@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.api.deps import CurrentUser, DBSession
 from app.core.config import settings
 from app.core.database import async_session_factory
+from app.services.project_context import project_owned_by_user
 
 logger = logging.getLogger("document_processing")
 from app.db.models.document import (
@@ -195,6 +196,13 @@ async def upload_document(
     - PDF (.pdf)
     - Images (.png, .jpg, .jpeg, .gif, .webp)
     """
+    if project_id is not None and not await project_owned_by_user(
+        db, project_id, current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
     # Validate file type
     allowed_extensions = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}
     file_ext = Path(file.filename or "").suffix.lower()

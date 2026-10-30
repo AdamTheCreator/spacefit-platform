@@ -23,6 +23,18 @@ MAX_PROJECT_CONTEXT_TOKENS = 8000  # rough char estimate (1 token ~ 4 chars)
 MAX_CONTEXT_CHARS = MAX_PROJECT_CONTEXT_TOKENS * 4
 
 
+async def project_owned_by_user(
+    db: AsyncSession, project_id: str, user_id: str
+) -> bool:
+    """Check an association against the authenticated project owner."""
+    if not isinstance(project_id, str) or not project_id:
+        return False
+    result = await db.execute(
+        select(Project.id).where(Project.id == project_id, Project.user_id == user_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 def summarize_extracted_data(doc: ParsedDocument) -> dict[str, Any]:
     """
     Condense a document's extracted_data to key fields and a compact
@@ -165,6 +177,7 @@ def summarize_extracted_data(doc: ParsedDocument) -> dict[str, Any]:
 async def build_project_context(
     db: AsyncSession,
     project_id: str,
+    user_id: str,
 ) -> dict[str, Any] | None:
     """
     Load project with property + all completed documents, summarize each,
@@ -175,7 +188,7 @@ async def build_project_context(
     result = await db.execute(
         select(Project)
         .options(selectinload(Project.property))
-        .where(Project.id == project_id)
+        .where(Project.id == project_id, Project.user_id == user_id)
     )
     project = result.scalar_one_or_none()
     if not project:
@@ -187,6 +200,7 @@ async def build_project_context(
         select(ParsedDocument)
         .where(
             ParsedDocument.project_id == project_id,
+            ParsedDocument.user_id == user_id,
             ParsedDocument.is_archived == False,
         )
         .order_by(ParsedDocument.created_at.desc())
@@ -269,6 +283,7 @@ async def build_project_context(
     import_result = await db.execute(
         select(ImportJob).where(
             ImportJob.project_id == project_id,
+            ImportJob.user_id == user_id,
             ImportJob.status == "ready",
         ).order_by(ImportJob.created_at.desc())
     )

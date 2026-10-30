@@ -106,7 +106,10 @@ async def list_projects(
     if project_ids:
         doc_q = (
             select(ParsedDocument.project_id, func.count())
-            .where(ParsedDocument.project_id.in_(project_ids))
+            .where(
+                ParsedDocument.project_id.in_(project_ids),
+                ParsedDocument.user_id == current_user.id,
+            )
             .group_by(ParsedDocument.project_id)
         )
         for pid, cnt in await db.execute(doc_q):
@@ -114,7 +117,10 @@ async def list_projects(
 
         ses_q = (
             select(ChatSession.project_id, func.count())
-            .where(ChatSession.project_id.in_(project_ids))
+            .where(
+                ChatSession.project_id.in_(project_ids),
+                ChatSession.user_id == current_user.id,
+            )
             .group_by(ChatSession.project_id)
         )
         for pid, cnt in await db.execute(ses_q):
@@ -161,8 +167,12 @@ async def get_project(
         select(Project)
         .options(
             selectinload(Project.property),
-            selectinload(Project.documents),
-            selectinload(Project.sessions).selectinload(ChatSession.messages),
+            selectinload(
+                Project.documents.and_(ParsedDocument.user_id == current_user.id)
+            ),
+            selectinload(
+                Project.sessions.and_(ChatSession.user_id == current_user.id)
+            ).selectinload(ChatSession.messages),
         )
         .where(Project.id == project_id, Project.user_id == current_user.id)
     )
@@ -229,10 +239,16 @@ async def update_project(
 
     # Fetch counts
     doc_count = (await db.execute(
-        select(func.count()).where(ParsedDocument.project_id == project.id)
+        select(func.count()).where(
+            ParsedDocument.project_id == project.id,
+            ParsedDocument.user_id == current_user.id,
+        )
     )).scalar() or 0
     session_count = (await db.execute(
-        select(func.count()).where(ChatSession.project_id == project.id)
+        select(func.count()).where(
+            ChatSession.project_id == project.id,
+            ChatSession.user_id == current_user.id,
+        )
     )).scalar() or 0
 
     return _project_response(project, doc_count, session_count)
@@ -253,10 +269,16 @@ async def archive_project(
     await db.refresh(project)
 
     doc_count = (await db.execute(
-        select(func.count()).where(ParsedDocument.project_id == project.id)
+        select(func.count()).where(
+            ParsedDocument.project_id == project.id,
+            ParsedDocument.user_id == current_user.id,
+        )
     )).scalar() or 0
     session_count = (await db.execute(
-        select(func.count()).where(ChatSession.project_id == project.id)
+        select(func.count()).where(
+            ChatSession.project_id == project.id,
+            ChatSession.user_id == current_user.id,
+        )
     )).scalar() or 0
 
     return _project_response(project, doc_count, session_count)
@@ -329,6 +351,7 @@ async def list_project_documents(
         select(ParsedDocument)
         .where(
             ParsedDocument.project_id == project_id,
+            ParsedDocument.user_id == current_user.id,
             ParsedDocument.is_archived == False,
         )
         .order_by(ParsedDocument.created_at.desc())
@@ -348,7 +371,9 @@ async def list_project_sessions(
     result = await db.execute(
         select(ChatSession)
         .options(selectinload(ChatSession.messages))
-        .where(ChatSession.project_id == project_id)
+        .where(
+            ChatSession.project_id == project_id, ChatSession.user_id == current_user.id
+        )
         .order_by(ChatSession.updated_at.desc())
     )
     sessions = result.scalars().all()
